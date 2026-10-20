@@ -113,22 +113,30 @@
 
         <section id="tab-identity" x-show="activeTab === 'identity'" class="bg-white p-6 rounded shadow" style="display: none;">
             <h2 class="text-xl font-bold mb-4">Identity</h2>
-            <p class="text-sm">Signer: <strong>local key</strong></p>
+            <p class="text-sm">Signer: <strong id="signer-source" x-text="signerLabel"></strong></p>
             <p class="text-sm break-all">Public key: <span id="npub" x-text="npub"></span></p>
             <p class="text-sm break-all mb-4">Hex: <span id="pubkey-hex" x-text="pubkey.slice(0, 12)"></span>…</p>
             <div class="border rounded p-3 mb-4">
                 <h3 class="font-bold mb-2">Export private key</h3>
+                <p x-show="extensionActive" class="text-sm text-gray-600 mb-2">Disabled while the extension is active. The extension manages your key.</p>
                 <p class="text-sm text-red-700 mb-2">Anyone with this key can sign records as you. Never share it.</p>
-                <label class="text-sm flex items-center gap-2 mb-2"><input id="export-ack" type="checkbox" x-model="exportAck"> I understand</label>
-                <button id="reveal-secret" @click="revealSecret" :disabled="!exportAck" class="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50">Reveal key</button>
+                <label class="text-sm flex items-center gap-2 mb-2"><input id="export-ack" type="checkbox" :disabled="extensionActive" x-model="exportAck"> I understand</label>
+                <button id="reveal-secret" @click="revealSecret" :disabled="extensionActive || !exportAck" class="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50">Reveal key</button>
                 <div x-show="secretRevealed" class="mt-2 text-sm break-all"><p>Hex: <code id="secret-hex" x-text="secretHex"></code></p><p>nsec: <code id="secret-nsec" x-text="secretNsec"></code></p><button @click="copy(secretHex, 'secret')" class="mt-2 px-3 py-1 text-sm bg-white border border-gray-300 rounded">Copy hex</button> <button @click="hideSecret" class="mt-2 px-3 py-1 text-sm bg-white border border-gray-300 rounded">Hide</button> <span x-show="copied === 'secret'" class="text-green-700">Copied</span></div>
             </div>
             <div class="border rounded p-3 mb-4">
                 <h3 class="font-bold mb-2">Import identity</h3>
-                <input id="import-key" type="text" x-model="importKeyText" placeholder="hex or nsec1..." class="px-3 py-2 border rounded w-full mb-2">
-                <label class="text-sm flex items-center gap-2 mb-2"><input id="import-ack" type="checkbox" x-model="importAck"> I have exported my current key</label>
-                <button id="import-identity" @click="importIdentity" :disabled="!importAck" class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded disabled:opacity-50">Import identity</button>
+                <p x-show="extensionActive" class="text-sm text-gray-600 mb-2">Disabled while the extension is active.</p>
+                <input id="import-key" type="text" :disabled="extensionActive" x-model="importKeyText" placeholder="hex or nsec1..." class="px-3 py-2 border rounded w-full mb-2">
+                <label class="text-sm flex items-center gap-2 mb-2"><input id="import-ack" type="checkbox" :disabled="extensionActive" x-model="importAck"> I have exported my current key</label>
+                <button id="import-identity" @click="importIdentity" :disabled="extensionActive || !importAck" class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded disabled:opacity-50">Import identity</button>
                 <p id="identity-message" class="text-sm mt-2" x-text="identityMessage"></p>
+            </div>
+            <div x-show="extensionAvailable" class="border rounded p-3 mb-4">
+                <h3 class="font-bold mb-2">Switch signer</h3>
+                <p class="text-sm text-red-700 mb-2">Switching changes your identity. Records signed by your current key stay, but become read-only and are labelled "by previous key". If you use a local key, export it first.</p>
+                <label class="text-sm flex items-center gap-2 mb-2"><input id="switch-ack" type="checkbox" x-model="switchAck"> I understand</label>
+                <button id="switch-signer" @click="switchSigner(extensionActive ? 'local' : 'extension')" :disabled="!switchAck" class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded disabled:opacity-50" x-text="extensionActive ? 'Switch to local key' : 'Switch to extension'"></button>
             </div>
             <div class="border rounded p-3 mb-4">
                 <h3 class="font-bold mb-2">Backup</h3>

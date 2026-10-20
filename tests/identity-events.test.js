@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseSecretKey, encodeNsec, createLocalSigner, generateSecretKeyHex } from '../tacit-identity.js';
+import { parseSecretKey, encodeNsec, createLocalSigner, createExtensionSigner, pickSource, retireKey, generateSecretKeyHex } from '../tacit-identity.js';
 import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, isValidRecord, recordKey } from '../tacit-events.js';
 import { decideIncoming, PENDING_CAP, roomConfig, announcementFor, validAnnouncements, groupDiscover } from '../tacit-sync.js';
 import { slugify } from '../tacit-subject.js';
@@ -145,4 +145,48 @@ test('groupDiscover groups by slug, most common label, peer count, max shared, s
         { slug: 'roofing', label: 'Roofing', peers: 1, sharedCount: 2 },
     ]);
     assert.deepEqual(groupDiscover({}), []);
+});
+
+const fakeExtension = secretHex => {
+    const local = createLocalSigner(secretHex);
+    const calls = [];
+    return { calls, getPublicKey: async () => local.getPublicKey(), signEvent: async template => { calls.push(template); return local.signEvent(template); } };
+};
+
+test('extension signer signs through window.nostr and reports source extension', async () => {
+    const secret = generateSecretKeyHex();
+    const nostr = fakeExtension(secret);
+    const signer = createExtensionSigner(nostr);
+    assert.equal(signer.source, 'extension');
+    assert.equal(await signer.getPublicKey(), await createLocalSigner(secret).getPublicKey());
+    const event = await signer.signEvent(buildRecordTemplate(content, 100, 'u'));
+    assert.equal(event.pubkey, await signer.getPublicKey());
+    assert.equal(isValidRecord(event), true);
+    assert.equal(nostr.calls.length, 1);
+});
+
+test('extension signer rejects an event that does not verify or changes the template', async () => {
+    const secret = generateSecretKeyHex();
+    const template = buildRecordTemplate(content, 100, 'u');
+    const forged = { ...fakeExtension(secret), signEvent: async t => ({ ...(await createLocalSigner(secret).signEvent(t)), content: '{}' }) };
+    await assert.rejects(createExtensionSigner(forged).signEvent(template));
+    const swapped = { ...fakeExtension(secret), signEvent: async () => createLocalSigner(secret).signEvent(buildRecordTemplate(content, 100, 'other')) };
+    await assert.rejects(createExtensionSigner(swapped).signEvent(template));
+});
+
+test('pickSource uses the extension when present unless the preference is local', () => {
+    const nostr = {};
+    assert.equal(pickSource(nostr, undefined), 'extension');
+    assert.equal(pickSource(nostr, 'extension'), 'extension');
+    assert.equal(pickSource(nostr, 'local'), 'local');
+    assert.equal(pickSource(undefined, undefined), 'local');
+    assert.equal(pickSource(undefined, 'extension'), 'local');
+});
+
+test('retireKey adds the old key to previous keys and drops the new current key from them', () => {
+    assert.deepEqual(retireKey(['a'], 'b', 'c'), ['a', 'b']);
+    assert.deepEqual(retireKey(['a', 'b'], 'b', 'c'), ['a', 'b']);
+    assert.deepEqual(retireKey(['a', 'c'], 'b', 'c'), ['a', 'b']);
+    assert.deepEqual(retireKey(['a'], 'c', 'c'), ['a']);
+    assert.deepEqual(retireKey(['a'], undefined, 'c'), ['a']);
 });

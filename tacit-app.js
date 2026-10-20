@@ -2,7 +2,7 @@ import { TacitInputTypeLabels, buildTacitPrompt } from './tacit-prompt.js';
 import { addSubject, slugify } from './tacit-subject.js';
 import { parseText, buildDrafts } from './tacit-import.js';
 import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, recordKey } from './tacit-events.js';
-import { createLocalSigner, generateSecretKeyHex, parseSecretKey, encodeNsec, encodeNpub } from './tacit-identity.js';
+import { createLocalSigner, createExtensionSigner, pickSource, retireKey, generateSecretKeyHex, parseSecretKey, encodeNsec, encodeNpub } from './tacit-identity.js';
 import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover } from './tacit-sync.js';
 import { filterFeed } from './tacit-feed.js';
 import { buildBackup, parseBackup, restoreBackup } from './tacit-backup.js';
@@ -18,13 +18,15 @@ export function registerTacitApp(Alpine) {
         mainTabs: [{ id: 'feed', label: 'Feed' }, { id: 'extract', label: 'Extract' }, { id: 'import', label: 'Import & Review' }, { id: 'subjects', label: 'Subjects' }, { id: 'identity', label: 'Identity' }],
         activeTab: 'feed', inputTypeLabels: TacitInputTypeLabels, selectedInputType: 'txt', selectedSlug: '',
         settings: { relays: [], subjects: [] }, newSubject: '', subjectError: '',
-        pubkey: '', previousKeys: [], signer: null, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
+        pubkey: '', previousKeys: [], signer: null, extensionAvailable: false, switchAck: false, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
         importKeyText: '', importAck: false, identityMessage: '', copied: '', backupSummary: '',
         pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], directoryPeers: {}, ready: false,
         feedFilters: { subject: '', author: '', visibility: '', search: '' },
         get selectedSubject() { return this.settings.subjects.find(subject => subject.slug === this.selectedSlug); },
         get dynamicPrompt() { return buildTacitPrompt({ inputType: this.selectedInputType, subjectCategory: this.selectedSubject?.label || '' }); },
         get discover() { return groupDiscover(this.directoryPeers); },
+        get extensionActive() { return this.signer?.source === 'extension'; },
+        get signerLabel() { return this.extensionActive ? 'extension' : 'local key'; },
         get npub() { return this.pubkey ? encodeNpub(this.pubkey) : ''; },
         get feedItems() { return filterFeed(this.library, this.feedFilters, { selfKeys: this.selfKeys, trustedKeys: new Set(this.trust.filter(entry => entry.status === 'trusted').map(entry => entry.pubkey)) }); },
         get feedSubjects() { return [...new Map(this.library.map(item => [item.subjectSlug, item.content.subject])).entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1]))); },
@@ -32,15 +34,41 @@ export function registerTacitApp(Alpine) {
         async initApp() {
             this.settings = { relays: [], subjects: [], ...readJson('tacit.settings', {}) };
             this.previousKeys = readJson('tacit.previousKeys', []);
-            let secret = localStorage.getItem('tacit.secretKey');
-            if (!secret) { secret = generateSecretKeyHex(); localStorage.setItem('tacit.secretKey', secret); }
-            this.signer = createLocalSigner(secret);
-            this.pubkey = await this.signer.getPublicKey();
+            this.extensionAvailable = !!window.nostr;
+            try { await this.activateSigner(pickSource(window.nostr, this.settings.signerPreference)); } catch (error) {
+                this.identityMessage = `Extension unavailable, using local key: ${error.message}`;
+                await this.activateSigner('local');
+            }
             this.selectedSlug = this.settings.subjects[0]?.slug || '';
             await this.reload();
             try { directory = connectDirectory(this); } catch (error) { this.logSync(`Could not join directory: ${error.message}`); }
             this.settings.subjects.filter(subject => subject.subscribed).forEach(subject => this.joinSubject(subject.slug));
             this.ready = true;
+        },
+        localSecret() {
+            let secret = localStorage.getItem('tacit.secretKey');
+            if (!secret) { secret = generateSecretKeyHex(); localStorage.setItem('tacit.secretKey', secret); }
+            return secret;
+        },
+        async activateSigner(source) {
+            const stored = localStorage.getItem('tacit.secretKey');
+            const oldPubkey = this.pubkey || localStorage.getItem('tacit.activePubkey') || (stored ? await createLocalSigner(stored).getPublicKey() : '');
+            const signer = source === 'extension' ? createExtensionSigner(window.nostr) : createLocalSigner(this.localSecret());
+            const pubkey = await signer.getPublicKey();
+            if (!/^[0-9a-f]{64}$/.test(pubkey)) throw new Error('The extension returned no public key.');
+            this.previousKeys = retireKey(this.previousKeys, oldPubkey, pubkey); localStorage.setItem('tacit.previousKeys', JSON.stringify(this.previousKeys));
+            localStorage.setItem('tacit.activePubkey', pubkey);
+            this.signer = signer; this.pubkey = pubkey;
+        },
+        async switchSigner(source) {
+            try {
+                if (!this.switchAck) throw new Error('Confirm that you understand before switching.');
+                if (source === 'extension' && !window.nostr) throw new Error('No browser extension found.');
+                await this.activateSigner(source);
+                this.settings.signerPreference = source; this.saveSettings();
+                this.switchAck = false; this.hideSecret();
+                this.identityMessage = `Switched to ${this.signerLabel}.`;
+            } catch (error) { this.identityMessage = error.message; }
         },
         async reload() {
             const pending = await store.getAll('pending');
@@ -240,18 +268,17 @@ export function registerTacitApp(Alpine) {
             } catch (error) { this.backupSummary = `Could not import: ${error.message}`; }
             event.target.value = '';
         },
-        revealSecret() { this.secretHex = localStorage.getItem('tacit.secretKey'); this.secretNsec = encodeNsec(this.secretHex); this.secretRevealed = true; },
+        revealSecret() { if (this.extensionActive) return; this.secretHex = localStorage.getItem('tacit.secretKey'); this.secretNsec = encodeNsec(this.secretHex); this.secretRevealed = true; },
         hideSecret() { this.secretRevealed = false; this.secretHex = this.secretNsec = ''; this.exportAck = false; },
         async importIdentity() {
             try {
+                if (this.extensionActive) throw new Error('Key import is disabled while the extension is active.');
                 if (!this.importAck) throw new Error('Confirm that you exported your current key first.');
                 const secret = parseSecretKey(this.importKeyText);
                 const signer = createLocalSigner(secret);
                 const newPubkey = await signer.getPublicKey();
-                if (newPubkey !== this.pubkey) {
-                    this.previousKeys = [...new Set([...this.previousKeys, this.pubkey])]; localStorage.setItem('tacit.previousKeys', JSON.stringify(this.previousKeys));
-                }
-                localStorage.setItem('tacit.secretKey', secret);
+                this.previousKeys = retireKey(this.previousKeys, this.pubkey, newPubkey); localStorage.setItem('tacit.previousKeys', JSON.stringify(this.previousKeys));
+                localStorage.setItem('tacit.secretKey', secret); localStorage.setItem('tacit.activePubkey', newPubkey);
                 this.signer = signer; this.pubkey = newPubkey; this.importKeyText = ''; this.importAck = false; this.hideSecret();
                 this.identityMessage = 'Identity imported.';
             } catch (error) { this.identityMessage = error.message; }
