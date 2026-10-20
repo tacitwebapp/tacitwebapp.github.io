@@ -38,5 +38,17 @@ test('decideIncoming: self accepted, duplicate/older/tampered/foreign dropped', 
     const newer = await signer.signEvent(buildRecordTemplate(content, 200, 'u'));
     assert.equal(decideIncoming(newer, { held: { [recordKey(event)]: event }, trustedPubkeys: self }).action, 'accept');
     assert.equal(decideIncoming({ ...event, content: '{}' }, { held: {}, trustedPubkeys: self }).reason, 'tampered');
-    assert.equal(decideIncoming(event, { held: {}, trustedPubkeys: new Set() }).action, 'drop');
+    assert.equal(decideIncoming(event, { held: {}, trustedPubkeys: new Set() }).action, 'review');
 });
+
+test('decideIncoming: blocked dropped, hidden dropped, pending duplicate dropped, trusted accepted', async () => {
+    const signer = createLocalSigner(generateSecretKeyHex());
+    const event = await signer.signEvent(buildRecordTemplate(content, 100, 'u'));
+    const base = { held: {}, trustedPubkeys: new Set() };
+    assert.equal(decideIncoming(event, { ...base, blockedPubkeys: new Set([event.pubkey]) }).reason, 'blocked');
+    assert.equal(decideIncoming(event, { ...base, hiddenKeys: new Set([recordKey(event)]) }).reason, 'hidden');
+    assert.equal(decideIncoming(event, { ...base, pendingIncoming: { [recordKey(event)]: event } }).reason, 'duplicate-or-older');
+    assert.equal(decideIncoming(event, { ...base, trustedPubkeys: new Set([event.pubkey]) }).action, 'accept');
+    assert.equal(decideIncoming(event, { ...base, trustedPubkeys: new Set([event.pubkey]), blockedPubkeys: new Set([event.pubkey]) }).action, 'drop');
+});
+

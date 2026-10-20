@@ -32,5 +32,5 @@ const run = async (name, mode, action) => {
 
 export const getAll = name => run(name, 'readonly', store => store.getAll());
 export const get = (name, key) => run(name, 'readonly', store => store.get(key));
-export const put = (name, value) => run(name, 'readwrite', store => store.put(value));
+export const put = (name, value) => run(name, 'readwrite', store => store.put(JSON.parse(JSON.stringify(value))));
 export const remove = (name, key) => run(name, 'readwrite', store => store.delete(key));

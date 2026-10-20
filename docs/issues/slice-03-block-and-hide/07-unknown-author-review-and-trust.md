@@ -1,6 +1,7 @@
 # 07 — Incoming records from unknown authors: review, trust, block
 
 Type: AFK
+**Status:** DONE
 
 ## What to build
 
@@ -10,11 +11,11 @@ Reference: SPEC §7.3 (steps 2, 8, 9 without the cap), §7.4 (Accept/Discard inc
 
 ## Acceptance criteria
 
-- [ ] A record from an unknown author arrives in review, not in the Feed.
-- [ ] After Accept, the record is shared and is sent on to a third peer that joins later.
-- [ ] After Trust, the author's next record goes straight into the Feed.
-- [ ] After Block, the author's records disappear and new ones are dropped.
-- [ ] Unit tests: merge decisions for trusted, blocked and unknown authors.
+- [x] A record from an unknown author arrives in review, not in the Feed.
+- [x] After Accept, the record is shared and is sent on to a third peer that joins later.
+- [x] After Trust, the author's next record goes straight into the Feed.
+- [x] After Block, the author's records disappear and new ones are dropped.
+- [x] Unit tests: merge decisions for trusted, blocked and unknown authors.
 
 ## Blocked by
 

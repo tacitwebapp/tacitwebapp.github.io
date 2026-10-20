@@ -4,13 +4,15 @@ import { isValidRecord, recordKey, RECORD_KIND } from './tacit-events.js';
 export const APP_ID = 'com.tacit-sync.v1';
 export const roomId = slug => `subject:${slug}`;
 
-export function decideIncoming(event, { held, trustedPubkeys }) {
+export function decideIncoming(event, { held, pendingIncoming = {}, trustedPubkeys, blockedPubkeys = new Set(), hiddenKeys = new Set() }) {
     if (!isValidRecord(event)) return { action: 'drop', reason: 'tampered' };
+    if (blockedPubkeys.has(event.pubkey)) return { action: 'drop', reason: 'blocked' };
     if (event.kind !== RECORD_KIND) return { action: 'drop', reason: 'kind' };
-    const current = held[recordKey(event)];
+    const key = recordKey(event);
+    if (hiddenKeys.has(key)) return { action: 'drop', reason: 'hidden' };
+    const current = held[key] ?? pendingIncoming[key];
     if (current && current.created_at >= event.created_at) return { action: 'drop', reason: 'duplicate-or-older' };
-    if (trustedPubkeys.has(event.pubkey)) return { action: 'accept' };
-    return { action: 'drop', reason: 'unknown-author' };
+    return { action: trustedPubkeys.has(event.pubkey) ? 'accept' : 'review' };
 }
 
 export function connectRoom(app, slug) {

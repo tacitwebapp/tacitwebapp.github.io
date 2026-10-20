@@ -17,7 +17,7 @@ export function registerTacitApp(Alpine) {
         settings: { relays: [], subjects: [] }, newSubject: '', subjectError: '',
         pubkey: '', previousKeys: [], signer: null, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
         importKeyText: '', importAck: false, identityMessage: '', copied: '',
-        pasteText: '', importSummary: null, drafts: [], library: [], syncLogs: [], ready: false,
+        pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], library: [], syncLogs: [], ready: false,
         get selectedSubject() { return this.settings.subjects.find(subject => subject.slug === this.selectedSlug); },
         get dynamicPrompt() { return buildTacitPrompt({ inputType: this.selectedInputType, subjectCategory: this.selectedSubject?.label || '' }); },
         get npub() { return this.pubkey ? encodeNpub(this.pubkey) : ''; },
@@ -35,7 +35,13 @@ export function registerTacitApp(Alpine) {
             this.ready = true;
         },
         async reload() {
-            this.drafts = (await store.getAll('pending')).filter(item => item.kind === 'draft').sort((a, b) => a.createdAt - b.createdAt);
+            const pending = await store.getAll('pending');
+            this.drafts = pending.filter(item => item.kind === 'draft').sort((a, b) => a.createdAt - b.createdAt);
+            const groups = {};
+            pending.filter(item => item.kind === 'incoming').forEach(item => (groups[item.pubkey] ??= []).push({ ...item, content: JSON.parse(item.event.content) }));
+            this.incoming = Object.entries(groups).map(([pubkey, records]) => ({ pubkey, records }));
+            this.trust = await store.getAll('trust');
+            this.hiddenKeys = (await store.getAll('hidden')).map(item => item.key);
             this.library = (await store.getAll('library')).sort((a, b) => b.event.created_at - a.event.created_at).map(item => ({ ...item, content: JSON.parse(item.event.content) }));
         },
         saveSettings() { localStorage.setItem('tacit.settings', JSON.stringify(this.settings)); },
@@ -118,16 +124,44 @@ export function registerTacitApp(Alpine) {
             const events = this.library.filter(item => item.visibility === 'shared' && item.subjectSlug === slug).map(item => item.event);
             if (events.length) rooms[slug]?.action.send(events, { target: peerId });
         },
+        statusOf(pubkey) { return this.trust.find(entry => entry.pubkey === pubkey)?.status; },
         async receiveFromPeer(events, slug, peerId) {
             if (!Array.isArray(events)) return;
             for (const event of events) {
                 const held = Object.fromEntries(this.library.map(item => [item.key, item.event]));
-                const decision = decideIncoming(event, { held, trustedPubkeys: this.selfKeys });
+                const pendingIncoming = Object.fromEntries(this.incoming.flatMap(group => group.records).map(item => [item.id, item.event]));
+                const decision = decideIncoming(event, {
+                    held, pendingIncoming, hiddenKeys: new Set(this.hiddenKeys),
+                    trustedPubkeys: new Set([...this.selfKeys, ...this.trust.filter(entry => entry.status === 'trusted').map(entry => entry.pubkey)]),
+                    blockedPubkeys: new Set(this.trust.filter(entry => entry.status === 'blocked').map(entry => entry.pubkey)),
+                });
                 if (decision.reason === 'tampered') { console.warn(`Rejected tampered record from peer ${peerId.slice(0, 6)}`); this.logSync(`Rejected tampered record from peer ${peerId.slice(0, 6)}`); }
-                if (decision.action !== 'accept') continue;
-                await store.put('library', { key: recordKey(event), event, visibility: 'shared', subjectSlug: slug, receivedFrom: peerId, receivedAt: Date.now() });
+                if (decision.action === 'accept') await store.put('library', { key: recordKey(event), event, visibility: 'shared', subjectSlug: slug, receivedFrom: peerId, receivedAt: Date.now() });
+                else if (decision.action === 'review') await store.put('pending', { id: recordKey(event), kind: 'incoming', event, subjectSlug: slug, pubkey: event.pubkey, receivedFrom: peerId, receivedAt: Date.now() });
+                else continue;
                 await this.reload();
             }
+        },
+        async acceptIncoming(item) {
+            const record = { key: item.id, event: item.event, visibility: 'shared', subjectSlug: item.subjectSlug, receivedFrom: item.receivedFrom, receivedAt: item.receivedAt };
+            await store.put('library', record); await store.remove('pending', item.id); await this.reload();
+            this.publish(record);
+        },
+        async discardIncoming(item) { await store.remove('pending', item.id); await this.reload(); },
+        async trustAuthor(pubkey) {
+            await store.put('trust', { pubkey, status: 'trusted' });
+            const group = this.incoming.find(entry => entry.pubkey === pubkey);
+            await this.reload();
+            for (const item of group?.records || []) await this.acceptIncoming(item);
+        },
+        async blockAuthor(pubkey) {
+            await store.put('trust', { pubkey, status: 'blocked' });
+            for (const item of this.library.filter(entry => entry.event.pubkey === pubkey)) await store.remove('library', item.key);
+            for (const item of (await store.getAll('pending')).filter(entry => entry.pubkey === pubkey)) await store.remove('pending', item.id);
+            await this.reload();
+        },
+        async hideRecord(item) {
+            await store.put('hidden', { key: item.key, hiddenAt: Date.now() }); await store.remove('library', item.key); await this.reload();
         },
 
         revealSecret() { this.secretHex = localStorage.getItem('tacit.secretKey'); this.secretNsec = encodeNsec(this.secretHex); this.secretRevealed = true; },
