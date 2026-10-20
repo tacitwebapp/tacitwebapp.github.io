@@ -6,11 +6,14 @@ import { createLocalSigner, createExtensionSigner, pickSource, retireKey, genera
 import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache } from './tacit-sync.js';
 import { filterFeed } from './tacit-feed.js';
 import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit, shareBlocker, relationsOf, findOwnInsight, groupInsights, cascadeTargets, incomingInsightCard, feedBadges, isWellFormedInsight } from './tacit-insight.js';
+import { rankBySimilarity, candidatesFor, LINK_TOP_N } from './tacit-similarity.js';
 import { buildBackup, parseBackup, restoreBackup } from './tacit-backup.js';
 import { avatarFor, nextTheme, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition } from './tacit-ui.js';
 import * as store from './tacit-store.js';
 
 const rooms = {};
+let rankCache = null;
+const shortIdOfItem = item => shortIdOf(item.key);
 let detailOpener = null;
 let shortcutOpener = null;
 let keyState = { pendingG: null };
@@ -41,12 +44,49 @@ export function registerTacitApp(Alpine) {
         get feedSubjects() { return [...new Map(this.records.map(item => [item.subjectSlug, item.content.subject])).entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1]))); },
         get selfKeys() { return new Set([this.pubkey, ...this.previousKeys]); },
         insightFilters: { relation: '', author: '' }, expandedInsights: {}, tabLink: { insight: null, a: '', b: '', relation: 'conflicts', rationale: '' },
+        tabCombo: { a: { open: false, search: '', active: 0 }, b: { open: false, search: '', active: 0 } },
         get subjectRecords() { return this.records.filter(item => item.subjectSlug === this.selectedSlug); },
         get subjectInsightCount() { return groupInsights(this.library, { subject: this.selectedSlug }).length; },
         get insightGroups() {
             const trustedKeys = new Set(this.trust.filter(entry => entry.status === 'trusted').map(entry => entry.pubkey));
             return groupInsights(this.library, { subject: this.selectedSlug, ...this.insightFilters }, { selfKeys: this.selfKeys, trustedKeys });
         },
+        tabRecord(side) { return this.subjectRecords.find(item => item.key === this.tabLink[side]); },
+        comboLabel(side) { const record = this.tabRecord(side); return record ? `${shortIdOf(record.key)} ${record.content.information_chunks ?? ''}` : ''; },
+        similarRows(target) {
+            if (!(rankCache?.library === this.library && rankCache.key === target.key)) {
+                const pool = this.records.filter(item => item.subjectSlug === target.subjectSlug);
+                rankCache = { library: this.library, key: target.key, rows: rankBySimilarity(target, pool, pool) };
+            }
+            return rankCache.rows;
+        },
+        comboOptions(side) {
+            const other = this.tabLink[side === 'a' ? 'b' : 'a'], target = side === 'b' && this.tabRecord('a');
+            const rows = target ? this.similarRows(target).filter(({ item }) => item.key !== other)
+                : this.subjectRecords.filter(item => item.key !== other).map(item => ({ item, score: null }));
+            const needle = this.tabCombo[side].search.trim();
+            return needle ? candidatesFor(rows, needle, rows.length, shortIdOfItem) : rows;
+        },
+        comboOpen(side) { Object.assign(this.tabCombo[side], { open: true, search: '', active: 0 }); },
+        comboClose(side) { this.tabCombo[side].open = false; },
+        comboInput(side, value) { Object.assign(this.tabCombo[side], { open: true, search: value, active: 0 }); },
+        comboKey(side, event) {
+            const combo = this.tabCombo[side];
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                if (!combo.open) { this.comboOpen(side); return; }
+                const last = this.comboOptions(side).length - 1;
+                combo.active = Math.max(0, Math.min(last, combo.active + (event.key === 'ArrowDown' ? 1 : -1)));
+                this.$nextTick(() => document.getElementById(`tab-link-${side}-opt-${combo.active}`)?.scrollIntoView({ block: 'nearest' }));
+            } else if (event.key === 'Enter' && combo.open) {
+                event.preventDefault();
+                const row = this.comboOptions(side)[combo.active];
+                if (row) this.comboPick(side, row.item);
+            } else if (event.key === 'Escape' && combo.open) { event.preventDefault(); event.stopPropagation(); this.comboClose(side); }
+            else if (event.key === 'Tab') this.comboClose(side);
+        },
+        comboPick(side, item) { this.tabLink[side] = item.key; this.comboClose(side); this.tabLinkPicked(); },
+        comboClear(side) { this.tabLink[side] = ''; this.comboClose(side); },
         resetTabLink() { this.tabLink = { insight: null, a: '', b: '', relation: 'conflicts', rationale: '' }; },
         swapTabLink() { [this.tabLink.a, this.tabLink.b] = [this.tabLink.b, this.tabLink.a]; },
         tabLinkPicked() {
@@ -306,11 +346,8 @@ export function registerTacitApp(Alpine) {
             await this.openDetail(item, el);
             document.querySelector('#record-detail .relations')?.scrollIntoView({ block: 'start' });
         },
-        get linkCandidates() {
-            const needle = this.linkForm.search.trim().toLowerCase();
-            return this.records.filter(item => item.subjectSlug === this.detailItem.subjectSlug && item.key !== this.detailItem.key
-                && (!needle || shortIdOf(item.key).includes(needle) || String(item.content.information_chunks ?? '').toLowerCase().includes(needle))).slice(0, 20);
-        },
+        linkTopN: LINK_TOP_N,
+        get linkCandidates() { return candidatesFor(this.similarRows(this.detailItem), this.linkForm.search, LINK_TOP_N, shortIdOfItem); },
         get linkOther() { return this.library.find(item => item.key === this.linkForm.otherKey); },
         openLink() { this.linkForm = { insight: null, relation: 'conflicts', search: '', otherKey: '', direction: 'forward', rationale: '' }; },
         editLink(insight) {

@@ -71,7 +71,8 @@
                             <label x-show="relations[linkForm.relation].directed" class="text-sm font-medium">Direction<select x-model="linkForm.direction" aria-label="Direction" class="link-direction field"><option value="forward" :selected="linkForm.direction === 'forward'" x-text="`This record ${relations[linkForm.relation].label} the other`"></option><option value="reverse" :selected="linkForm.direction === 'reverse'" x-text="`The other ${relations[linkForm.relation].label} this record`"></option></select></label>
                             <template x-if="!linkForm.otherKey"><div class="flex flex-col gap-2">
                                 <input type="search" x-model="linkForm.search" placeholder="Find the other record by text or ID" aria-label="Find the other record" class="link-search field">
-                                <template x-for="candidate in linkCandidates" :key="candidate.key"><button type="button" class="link-candidate row" @click="pickLinkOther(candidate)"><span class="font-mono text-xs text-muted" x-text="shortIdOf(candidate.key)"></span><span class="line-clamp-2 min-w-0 flex-1 break-words text-sm" x-text="candidate.content.information_chunks"></span></button></template>
+                                <template x-for="candidate in linkCandidates" :key="candidate.item.key"><button type="button" class="link-candidate row" @click="pickLinkOther(candidate.item)"><span class="font-mono text-xs text-muted" x-text="shortIdOf(candidate.item.key)"></span><span class="line-clamp-2 min-w-0 flex-1 break-words text-sm" x-text="candidate.item.content.information_chunks"></span><span class="link-score text-xs text-muted" x-text="`${Math.round(candidate.score * 100)}%`"></span></button></template>
+                                <p x-show="!linkForm.search.trim() && similarRows(detailItem).length > linkTopN" class="link-hint text-xs text-muted" x-text="`Top ${linkTopN} similar — search to find others`"></p>
                                 <p x-show="linkCandidates.length === 0" class="text-sm text-muted">No other record of this subject matches.</p>
                             </div></template>
                             <template x-if="linkForm.otherKey && linkOther"><div class="flex items-center gap-2 text-sm"><span class="font-mono text-xs text-muted" x-text="shortIdOf(linkOther.key)"></span><span class="line-clamp-2 min-w-0 flex-1 break-words" x-text="linkOther.content.information_chunks"></span><button type="button" x-show="!linkForm.insight" class="btn-secondary" @click="linkForm.otherKey = ''">Change</button></div></template>
@@ -192,10 +193,31 @@
             <div id="insights-empty-records" x-show="subjectRecords.length < 2" class="group mt-4"><div class="empty-state"><p class="empty-title">Not enough records</p><p class="empty-text">Insights relate two records of the same subject. Extract and import more records for this subject first.</p><button data-icon="sparkles" type="button" class="btn-primary" @click="activeTab = 'extract'">Go to Extract</button></div></div>
             <template x-if="subjectRecords.length >= 2"><div>
                 <h3 class="group-title">Link two records</h3>
-                <form id="tab-link-form" class="group flex flex-col gap-3 p-4" @submit.prevent>
-                    <label class="text-sm font-medium">Record A<select x-model="tabLink.a" @change="tabLinkPicked()" :disabled="!!tabLink.insight" aria-label="Record A" class="tab-link-a field"><option value="">Select a record</option><template x-for="item in subjectRecords" :key="item.key"><option :value="item.key" :disabled="item.key === tabLink.b" :selected="item.key === tabLink.a" x-text="`${shortIdOf(item.key)} ${String(item.content.information_chunks ?? '').slice(0, 60)}`"></option></template></select></label>
+                <div class="lg:grid lg:grid-cols-2 lg:items-start lg:gap-4">
+                <form id="tab-link-form" class="group flex min-w-0 flex-col gap-3 overflow-visible p-4" @submit.prevent>
+                    <div class="relative text-sm font-medium" @click.outside="comboClose('a')">
+                        <label for="tab-link-a-input" class="mb-1 block">Record A</label>
+                        <div class="relative">
+                            <input id="tab-link-a-input" type="text" role="combobox" autocomplete="off" aria-label="Record A" aria-autocomplete="list" aria-controls="tab-link-a-list" :aria-expanded="tabCombo.a.open" :aria-activedescendant="tabCombo.a.open && comboOptions('a').length ? `tab-link-a-opt-${tabCombo.a.active}` : null" :disabled="!!tabLink.insight" :value="tabCombo.a.open ? tabCombo.a.search : comboLabel('a')" :placeholder="tabCombo.a.open && tabLink.a ? comboLabel('a') : 'Search or select a record'" @focus="comboOpen('a')" @click="!tabCombo.a.open && comboOpen('a')" @input="comboInput('a', $event.target.value)" @keydown="comboKey('a', $event)" class="tab-link-a field truncate pr-10">
+                            <button type="button" x-show="tabLink.a && !tabLink.insight" class="tab-link-a-clear absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-ctl text-lg leading-none text-muted hover:text-ink" aria-label="Clear Record A" @click="comboClear('a')">&times;</button>
+                        </div>
+                        <ul id="tab-link-a-list" role="listbox" aria-label="Record A options" x-show="tabCombo.a.open" class="tab-link-a-list absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-ctl border border-line bg-surface font-normal shadow-lg">
+                            <template x-for="(row, index) in comboOptions('a')" :key="row.item.key"><li :id="`tab-link-a-opt-${index}`" role="option" :aria-selected="row.item.key === tabLink.a" class="tab-link-option flex cursor-pointer items-start gap-2 px-3 py-2" :class="index === tabCombo.a.active ? 'bg-accent-soft' : ''" @mousedown.prevent="comboPick('a', row.item)" @mousemove="tabCombo.a.active = index"><span class="font-mono text-xs text-muted" x-text="shortIdOf(row.item.key)"></span><span class="line-clamp-2 min-w-0 flex-1 break-words" x-text="row.item.content.information_chunks"></span><span x-show="row.score !== null" class="tab-link-score text-xs text-muted" x-text="`${Math.round(row.score * 100)}%`"></span></li></template>
+                            <li x-show="comboOptions('a').length === 0" class="px-3 py-2 text-muted">No record matches.</li>
+                        </ul>
+                    </div>
                     <label class="text-sm font-medium">Relation<select x-model="tabLink.relation" aria-label="Relation" class="tab-link-relation field"><template x-for="(info, name) in relations" :key="name"><option :value="name" x-text="info.label" :selected="name === tabLink.relation"></option></template></select></label>
-                    <label class="text-sm font-medium">Record B<select x-model="tabLink.b" @change="tabLinkPicked()" :disabled="!!tabLink.insight" aria-label="Record B" class="tab-link-b field"><option value="">Select a record</option><template x-for="item in subjectRecords" :key="item.key"><option :value="item.key" :disabled="item.key === tabLink.a" :selected="item.key === tabLink.b" x-text="`${shortIdOf(item.key)} ${String(item.content.information_chunks ?? '').slice(0, 60)}`"></option></template></select></label>
+                    <div class="relative text-sm font-medium" @click.outside="comboClose('b')">
+                        <label for="tab-link-b-input" class="mb-1 block">Record B</label>
+                        <div class="relative">
+                            <input id="tab-link-b-input" type="text" role="combobox" autocomplete="off" aria-label="Record B" aria-autocomplete="list" aria-controls="tab-link-b-list" :aria-expanded="tabCombo.b.open" :aria-activedescendant="tabCombo.b.open && comboOptions('b').length ? `tab-link-b-opt-${tabCombo.b.active}` : null" :disabled="!!tabLink.insight" :value="tabCombo.b.open ? tabCombo.b.search : comboLabel('b')" :placeholder="tabCombo.b.open && tabLink.b ? comboLabel('b') : 'Search or select a record'" @focus="comboOpen('b')" @click="!tabCombo.b.open && comboOpen('b')" @input="comboInput('b', $event.target.value)" @keydown="comboKey('b', $event)" class="tab-link-b field truncate pr-10">
+                            <button type="button" x-show="tabLink.b && !tabLink.insight" class="tab-link-b-clear absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-ctl text-lg leading-none text-muted hover:text-ink" aria-label="Clear Record B" @click="comboClear('b')">&times;</button>
+                        </div>
+                        <ul id="tab-link-b-list" role="listbox" aria-label="Record B options" x-show="tabCombo.b.open" class="tab-link-b-list absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-ctl border border-line bg-surface font-normal shadow-lg">
+                            <template x-for="(row, index) in comboOptions('b')" :key="row.item.key"><li :id="`tab-link-b-opt-${index}`" role="option" :aria-selected="row.item.key === tabLink.b" class="tab-link-option flex cursor-pointer items-start gap-2 px-3 py-2" :class="index === tabCombo.b.active ? 'bg-accent-soft' : ''" @mousedown.prevent="comboPick('b', row.item)" @mousemove="tabCombo.b.active = index"><span class="font-mono text-xs text-muted" x-text="shortIdOf(row.item.key)"></span><span class="line-clamp-2 min-w-0 flex-1 break-words" x-text="row.item.content.information_chunks"></span><span x-show="row.score !== null" class="tab-link-score text-xs text-muted" x-text="`${Math.round(row.score * 100)}%`"></span></li></template>
+                            <li x-show="comboOptions('b').length === 0" class="px-3 py-2 text-muted">No record matches.</li>
+                        </ul>
+                    </div>
                     <div x-show="relations[tabLink.relation].directed"><button type="button" class="btn-secondary" :disabled="!tabLink.a || !tabLink.b" @click="swapTabLink()">Swap A and B</button></div>
                     <label class="text-sm font-medium">Rationale (optional)<textarea x-model="tabLink.rationale" rows="2" aria-label="Rationale" class="tab-link-rationale field"></textarea></label>
                     <div class="flex flex-wrap gap-2">
@@ -204,6 +226,18 @@
                         <button data-icon="x" type="button" class="btn-secondary" x-show="tabLink.insight || tabLink.a || tabLink.b || tabLink.rationale" @click="resetTabLink()">Cancel</button>
                     </div>
                 </form>
+                <div id="tab-link-previews" class="mt-4 flex min-w-0 flex-col gap-4 lg:mt-0">
+                    <template x-for="side in ['a', 'b']" :key="side"><article class="group tab-link-preview flex flex-col gap-2 p-4" :class="`tab-link-preview-${side}`">
+                        <h4 class="text-xs font-semibold uppercase tracking-wide text-muted" x-text="`Record ${side.toUpperCase()}`"></h4>
+                        <p x-show="!tabRecord(side)" class="text-sm text-muted" x-text="`Select Record ${side.toUpperCase()}`"></p>
+                        <template x-if="tabRecord(side)"><div class="flex flex-col gap-2">
+                            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted"><span class="font-mono" x-text="shortIdOf(tabRecord(side).key)"></span><span x-text="formatDate(tabRecord(side).event.created_at)"></span><span x-show="tabRecord(side).content.specialty" x-text="tabRecord(side).content.specialty"></span></div>
+                            <p class="whitespace-pre-wrap break-words text-sm" x-text="tabRecord(side).content.information_chunks"></p>
+                            <div x-show="tabRecord(side).content.actionable_workflows" class="border-l-2 border-accent pl-3 text-sm text-muted"><strong class="text-ink">Action:</strong> <span class="whitespace-pre-wrap break-words" x-text="tabRecord(side).content.actionable_workflows"></span></div>
+                        </div></template>
+                    </article></template>
+                </div>
+                </div>
                 <h3 class="group-title">Insight list</h3>
                 <div id="insights-empty-list" x-show="subjectInsightCount === 0" class="group"><div class="empty-state"><p class="empty-title">No insights yet</p><p class="empty-text">Use the link form above to relate two records. Insights whose records are not both in your library stay hidden.</p></div></div>
                 <div x-show="subjectInsightCount > 0">
