@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { shortIdOf, resolveShortId, buildInsightTemplate, buildInsightEdit, insightD, shareBlocker, visibleInsights, relationsOf, findOwnInsight } from '../tacit-insight.js';
+import { shortIdOf, resolveShortId, buildInsightTemplate, buildInsightEdit, insightD, shareBlocker, visibleInsights, relationsOf, findOwnInsight, groupInsights } from '../tacit-insight.js';
 import { filterFeed } from '../tacit-feed.js';
 import { announcementFor, decideIncoming } from '../tacit-sync.js';
 import { buildDrafts, existingRecords } from '../tacit-import.js';
@@ -125,4 +125,36 @@ test('editing an insight keeps d and subject, re-sorts symmetric pairs and moves
     assert.deepEqual(edited.tags, original.tags);
     assert.equal(edited.created_at, 501);
     assert.deepEqual(JSON.parse(edited.content), { schemaVersion: 1, type: 'insight', relation: 'conflicts', from: a, to: b, rationale: 'y', source: 'manual' });
+});
+
+const link = (pubkey, relation, from, to, extra = {}) => ({ key: `${pubkey}:${insightD(from.key, to.key)}`, subjectSlug: 'pest', visibility: 'shared', event: { pubkey, created_at: 200 }, content: { type: 'insight', relation, from: from.key, to: to.key, rationale: '' }, ...extra });
+const ctx = { selfKeys: new Set([A]), trustedKeys: new Set() };
+
+test('groupInsights groups by unordered pair and relation with a count', () => {
+    const r1 = rec(A, U1), r2 = rec(B, U2), r3 = rec(A, U3);
+    const library = [r1, r2, r3, link(A, 'conflicts', r1, r2), link(B, 'conflicts', r2, r1), link(A, 'duplicates', r1, r2), link(A, 'conflicts', r1, r3)];
+    const groups = groupInsights(library, {}, ctx);
+    assert.deepEqual(groups.map(group => [group.relation, group.count]).sort(), [['conflicts', 1], ['conflicts', 2], ['duplicates', 1]]);
+    const pair = groups.find(group => group.count === 2);
+    assert.deepEqual(pair.records.map(record => record.key).sort(), [r1.key, r2.key].sort());
+    assert.deepEqual(pair.items.map(item => item.event.pubkey).sort(), [A, B]);
+});
+
+test('groupInsights leaves out invisible insights', () => {
+    const r1 = rec(A, U1), r2 = rec(B, U2);
+    assert.deepEqual(groupInsights([r1, link(A, 'conflicts', r1, r2)], {}, ctx), []);
+});
+
+test('groupInsights filters by subject, relation and author group, dropping emptied groups', () => {
+    const r1 = rec(A, U1), r2 = rec(B, U2), r3 = rec(A, U3, { subjectSlug: 'other' }), r4 = rec(A, '9c9c9c9c-4444-4444-8444-444444444444', { subjectSlug: 'other' });
+    const mine = link(A, 'conflicts', r1, r2), theirs = link(B, 'conflicts', r2, r1), refine = link(A, 'refines', r1, r2), elsewhere = link(A, 'duplicates', r3, r4, { subjectSlug: 'other' });
+    const library = [r1, r2, r3, r4, mine, theirs, refine, elsewhere];
+    assert.deepEqual(groupInsights(library, { subject: 'other' }, ctx).map(group => group.relation), ['duplicates']);
+    assert.deepEqual(groupInsights(library, { relation: 'refines' }, ctx).map(group => group.relation), ['refines']);
+    const others = groupInsights(library, { author: 'others' }, ctx);
+    assert.deepEqual(others.map(group => [group.relation, group.count]), [['conflicts', 1]]);
+    assert.deepEqual(others[0].items, [theirs]);
+    const trusted = { selfKeys: ctx.selfKeys, trustedKeys: new Set([B]) };
+    assert.deepEqual(groupInsights(library, { author: 'trusted' }, trusted)[0].items, [theirs]);
+    assert.equal(groupInsights(library, { author: 'mine' }, ctx).length, 3);
 });

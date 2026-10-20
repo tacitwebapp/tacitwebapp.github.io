@@ -62,3 +62,19 @@ export function relationsOf(library, key) {
 }
 
 export const findOwnInsight = (library, pubkey, keyA, keyB) => library.find(item => item.key === `${pubkey}:${insightD(keyA, keyB)}`);
+
+export function groupInsights(library, { subject = '', relation = '', author = '' } = {}, { selfKeys = new Set(), trustedKeys = new Set() } = {}) {
+    const byKey = new Map(library.map(item => [item.key, item]));
+    const authorGroup = pubkey => selfKeys.has(pubkey) ? 'mine' : trustedKeys.has(pubkey) ? 'trusted' : 'others';
+    const groups = new Map();
+    for (const insight of visibleInsights(library)) {
+        if ((subject && insight.subjectSlug !== subject) || (relation && insight.content.relation !== relation) || (author && authorGroup(insight.event.pubkey) !== author)) continue;
+        const pair = [insight.content.from, insight.content.to].sort();
+        const id = `${pair.join('|')}|${insight.content.relation}`;
+        if (!groups.has(id)) groups.set(id, { id, pair: pair.join('|'), relation: insight.content.relation, records: pair.map(key => byKey.get(key)), items: [] });
+        groups.get(id).items.push(insight);
+    }
+    const order = Object.keys(RELATIONS);
+    return [...groups.values()].map(group => ({ ...group, count: group.items.length }))
+        .sort((x, y) => x.pair.localeCompare(y.pair) || order.indexOf(x.relation) - order.indexOf(y.relation));
+}
