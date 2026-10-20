@@ -4,14 +4,14 @@ import { recordKey, RECORD_KIND, DELETION_KIND } from './tacit-events.js';
 
 const FORMAT = 'tacit-backup';
 const VERSION = 1;
-const INVALID = ['tampered', 'bad-deletion', 'foreign-deletion', 'kind'];
+const INVALID = ['tampered', 'bad-deletion', 'foreign-deletion', 'kind', 'bad-content'];
 
 export const buildBackup = ({ library, tombstones, trust, subjects }, now = new Date()) => ({
     format: FORMAT, version: VERSION, exportedAt: now.toISOString(),
     records: library.map(({ event, visibility }) => ({ event, visibility })),
     tombstones: tombstones.map(({ key, created_at, event }) => ({ key, created_at, event })),
     trust: trust.map(({ pubkey, status, nickname }) => ({ pubkey, status, ...(nickname && { nickname }) })),
-    subjects: subjects.map(({ label, slug, subscribed }) => ({ label, slug, subscribed: !!subscribed })),
+    subjects: subjects.map(({ label, slug, subscribed, password, needsPassword }) => ({ label, slug, subscribed: !!subscribed, private: !!(password || needsPassword) })),
 });
 
 export function parseBackup(text) {
@@ -22,7 +22,7 @@ export function parseBackup(text) {
     return backup;
 }
 
-export function restoreBackup(backup, { library, tombstones, trust, hiddenKeys, subjects }, now = Date.now()) {
+export function restoreBackup(backup, { library, tombstones, trust, hiddenKeys, subjects, pending = [] }, now = Date.now()) {
     const summary = { imported: 0, skipped: 0, rejected: 0 };
     const count = outcome => { summary[outcome]++; };
     const held = Object.fromEntries(library.map(item => [item.key, item.event]));
@@ -30,6 +30,7 @@ export function restoreBackup(backup, { library, tombstones, trust, hiddenKeys, 
     const trustByKey = Object.fromEntries(trust.map(entry => [entry.pubkey, entry]));
     const puts = { library: new Map(), tombstones: [], trust: [] };
     const removeLibrary = new Set();
+    const pendingIncoming = Object.fromEntries(pending.map(item => [item.id, item.event]));
 
     for (const entry of backup.trust) {
         if (!/^[0-9a-f]{64}$/.test(entry?.pubkey) || !['trusted', 'blocked'].includes(entry.status)) { count('rejected'); continue; }
@@ -37,11 +38,14 @@ export function restoreBackup(backup, { library, tombstones, trust, hiddenKeys, 
         const { pubkey, status, nickname } = entry;
         trustByKey[pubkey] = { pubkey, status, ...(typeof nickname === 'string' && nickname && { nickname }) };
         puts.trust.push(trustByKey[pubkey]); count('imported');
+        if (status !== 'blocked') continue;
+        for (const [key, event] of Object.entries(held)) if (event.pubkey === pubkey) { delete held[key]; puts.library.delete(key); removeLibrary.add(key); }
+        for (const [key, event] of Object.entries(pendingIncoming)) if (event.pubkey === pubkey) { delete pendingIncoming[key]; removeLibrary.add(key); }
     }
 
     // Backup records come from the user's own library, so an unblocked author is never sent to review.
     const context = () => ({
-        held, hiddenKeys: new Set(hiddenKeys), tombstones: known,
+        held, pendingIncoming, hiddenKeys: new Set(hiddenKeys), tombstones: known,
         trustedPubkeys: { has: () => true },
         blockedPubkeys: new Set(Object.values(trustByKey).filter(entry => entry.status === 'blocked').map(entry => entry.pubkey)),
     });
@@ -53,7 +57,7 @@ export function restoreBackup(backup, { library, tombstones, trust, hiddenKeys, 
         if (decision.action !== 'delete') { count(classify(decision)); continue; }
         known[decision.key] = item.event.created_at;
         puts.tombstones.push({ key: decision.key, created_at: item.event.created_at, event: item.event });
-        if (decision.removeHeld) { delete held[decision.key]; puts.library.delete(decision.key); removeLibrary.add(decision.key); }
+        if (decision.removeHeld) { delete held[decision.key]; delete pendingIncoming[decision.key]; puts.library.delete(decision.key); removeLibrary.add(decision.key); }
         count('imported');
     }
 
@@ -72,7 +76,7 @@ export function restoreBackup(backup, { library, tombstones, trust, hiddenKeys, 
     for (const entry of backup.subjects) {
         if (typeof entry?.label !== 'string' || !entry.slug || entry.slug !== slugify(entry.label)) { count('rejected'); continue; }
         if (merged.some(subject => subject.slug === entry.slug)) { count('skipped'); continue; }
-        merged.push({ label: entry.label, slug: entry.slug, subscribed: entry.subscribed === true }); count('imported');
+        merged.push(entry.private === true ? { label: entry.label, slug: entry.slug, subscribed: false, needsPassword: true } : { label: entry.label, slug: entry.slug, subscribed: entry.subscribed === true }); count('imported');
     }
 
     return { puts: { ...puts, library: [...puts.library.values()] }, removeLibrary: [...removeLibrary], subjects: merged, summary };

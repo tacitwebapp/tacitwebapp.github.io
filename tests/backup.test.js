@@ -20,7 +20,7 @@ test('buildBackup keeps events and visibility, never keys or passwords', async (
         format: 'tacit-backup', version: 1, exportedAt: '2026-01-02T03:04:05.000Z',
         records: [{ event, visibility: 'local' }], tombstones: [],
         trust: [{ pubkey: other, status: 'trusted', nickname: 'Bob' }],
-        subjects: [{ label: 'Pest Control', slug: 'pest-control', subscribed: true }],
+        subjects: [{ label: 'Pest Control', slug: 'pest-control', subscribed: true, private: true }],
     });
     const file = JSON.stringify(backup);
     assert.equal(file.includes(secret), false);
@@ -120,4 +120,51 @@ test('importing the same backup twice changes nothing the second time', async ()
     assert.deepEqual(second.removeLibrary, []);
     assert.deepEqual(second.subjects, first.subjects);
     assert.deepEqual(second.summary, { imported: 0, skipped: 4, rejected: 0 });
+});
+
+test('a private subject is exported as private and restored unsubscribed, needing a password', () => {
+    const backup = buildBackup({ ...empty, subjects: [
+        { label: 'Secret', slug: 'secret', subscribed: true, password: 'pw-123' },
+        { label: 'Open', slug: 'open', subscribed: true },
+        { label: 'Waiting', slug: 'waiting', subscribed: false, needsPassword: true },
+    ] });
+    assert.deepEqual(backup.subjects.map(s => [s.slug, s.private]), [['secret', true], ['open', false], ['waiting', true]]);
+    assert.equal(JSON.stringify(backup).includes('pw-123'), false);
+    const plan = restoreBackup(backup, empty);
+    assert.deepEqual(plan.subjects, [
+        { label: 'Secret', slug: 'secret', subscribed: false, needsPassword: true },
+        { label: 'Open', slug: 'open', subscribed: true },
+        { label: 'Waiting', slug: 'waiting', subscribed: false, needsPassword: true },
+    ]);
+});
+
+test('an old backup without the private flag still restores', () => {
+    const backup = { ...buildBackup(empty), subjects: [{ label: 'Open', slug: 'open', subscribed: true }] };
+    assert.deepEqual(restoreBackup(backup, empty).subjects, [{ label: 'Open', slug: 'open', subscribed: true }]);
+});
+
+test('a signed record with non-JSON content is rejected', async () => {
+    const bad = await signer.signEvent({ ...buildRecordTemplate(content, 100, 'u1'), content: 'not json' });
+    const backup = { ...buildBackup(empty), records: [{ event: bad, visibility: 'shared' }] };
+    const plan = restoreBackup(backup, empty);
+    assert.deepEqual(plan.summary, { imported: 0, skipped: 0, rejected: 1 });
+    assert.deepEqual(plan.puts.library, []);
+});
+
+test('a newly blocked author purges their library and pending records', async () => {
+    const theirs = createLocalSigner(generateSecretKeyHex());
+    const held = await theirs.signEvent(buildRecordTemplate(content, 100, 'h')), waiting = await theirs.signEvent(buildRecordTemplate(content, 100, 'w'));
+    const mine = await sign('mine', 100, 'm');
+    const backup = { ...buildBackup(empty), trust: [{ pubkey: held.pubkey, status: 'blocked' }] };
+    const plan = restoreBackup(backup, { ...empty, library: [item(held), item(mine)], pending: [{ id: recordKey(waiting), kind: 'incoming', pubkey: waiting.pubkey, event: waiting }] });
+    assert.deepEqual([...plan.removeLibrary].sort(), [recordKey(held), recordKey(waiting)].sort());
+});
+
+test('a restored tombstone drops the matching pending incoming record', async () => {
+    const theirs = createLocalSigner(generateSecretKeyHex());
+    const waiting = await theirs.signEvent(buildRecordTemplate(content, 100, 'w'));
+    const tombstone = await theirs.signEvent(buildDeletionTemplate(waiting, 150));
+    const backup = buildBackup({ ...empty, tombstones: [{ key: recordKey(waiting), created_at: 150, event: tombstone }] });
+    const plan = restoreBackup(backup, { ...empty, pending: [{ id: recordKey(waiting), kind: 'incoming', pubkey: waiting.pubkey, event: waiting }] });
+    assert.deepEqual(plan.removeLibrary, [recordKey(waiting)]);
 });

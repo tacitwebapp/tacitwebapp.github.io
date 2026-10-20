@@ -190,3 +190,34 @@ test('retireKey adds the old key to previous keys and drops the new current key 
     assert.deepEqual(retireKey(['a'], 'c', 'c'), ['a']);
     assert.deepEqual(retireKey(['a'], undefined, 'c'), ['a']);
 });
+
+test('groupDiscover survives a __proto__ label', () => {
+    const entries = validAnnouncements([{ label: '__proto__', slug: 'proto', sharedCount: 2 }, { label: 'constructor', slug: 'constructor', sharedCount: 1 }]);
+    assert.equal(entries.length, 2);
+    const rows = groupDiscover({ a: entries, b: entries });
+    assert.deepEqual(rows.map(row => [row.slug, row.label, row.peers, row.sharedCount]), [['proto', '__proto__', 2, 2], ['constructor', 'constructor', 2, 1]]);
+});
+
+test('buildDeletionTemplate is later than the record it deletes even within the same second', async () => {
+    const signer = createLocalSigner(generateSecretKeyHex());
+    const record = await signer.signEvent(buildRecordTemplate(content, 500, 'u'));
+    assert.equal(buildDeletionTemplate(record, 500).created_at, 501);
+    assert.equal(buildDeletionTemplate(record, 900).created_at, 900);
+    const deletion = await signer.signEvent(buildDeletionTemplate(record, 500));
+    assert.equal(decideIncoming(deletion, { held: { [recordKey(record)]: record }, trustedPubkeys: new Set() }).action, 'delete');
+    assert.equal(decideIncoming(deletion, { held: { [recordKey(record)]: record }, trustedPubkeys: new Set() }).removeHeld, true);
+});
+
+test('decideIncoming drops records whose content is not a JSON object', async () => {
+    const signer = createLocalSigner(generateSecretKeyHex());
+    for (const bad of ['not json', 'null', '[]', '"x"', '5', '']) {
+        const event = await signer.signEvent({ ...buildRecordTemplate(content, 100, 'u'), content: bad });
+        const decision = decideIncoming(event, { held: {}, trustedPubkeys: new Set([event.pubkey]) });
+        assert.deepEqual(decision, { action: 'drop', reason: 'bad-content' }, bad);
+    }
+});
+
+test('announcementFor never announces a private subject awaiting its password', () => {
+    const subjects = [{ label: 'Waiting', slug: 'waiting', subscribed: true, needsPassword: true }, { label: 'Open', slug: 'open', subscribed: true }];
+    assert.deepEqual(announcementFor(subjects, []).map(entry => entry.slug), ['open']);
+});

@@ -19,7 +19,7 @@ export const buildEditTemplate = (event, content, now = Math.floor(Date.now() / 
 
 export const buildDeletionTemplate = (event, now = Math.floor(Date.now() / 1000)) => ({
     kind: DELETION_KIND,
-    created_at: now,
+    created_at: Math.max(now, event.created_at + 1),
     tags: [['a', `${RECORD_KIND}:${recordKey(event)}`], ['subject', event.tags.find(tag => tag[0] === 'subject')?.[1]]],
     content: '',
 });

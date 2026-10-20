@@ -11,6 +11,7 @@ import * as store from './tacit-store.js';
 const rooms = {};
 let directory;
 const readJson = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch (_) { return fallback; } };
+const parseContent = event => { try { return JSON.parse(event.content); } catch (_) { return null; } };
 const shortKey = pubkey => `${encodeNpub(pubkey).slice(0, 12)}…${pubkey.slice(0, 6)}`;
 
 export function registerTacitApp(Alpine) {
@@ -74,12 +75,12 @@ export function registerTacitApp(Alpine) {
             const pending = await store.getAll('pending');
             this.drafts = pending.filter(item => item.kind === 'draft').sort((a, b) => a.createdAt - b.createdAt);
             const groups = {};
-            pending.filter(item => item.kind === 'incoming').forEach(item => (groups[item.pubkey] ??= []).push({ ...item, content: JSON.parse(item.event.content) }));
+            pending.filter(item => item.kind === 'incoming').forEach(item => { const content = parseContent(item.event); if (content) (groups[item.pubkey] ??= []).push({ ...item, content }); });
             this.incoming = Object.entries(groups).map(([pubkey, records]) => ({ pubkey, records }));
             this.trust = await store.getAll('trust');
             this.hiddenKeys = (await store.getAll('hidden')).map(item => item.key);
             this.tombstones = await store.getAll('tombstones');
-            this.library = (await store.getAll('library')).sort((a, b) => b.event.created_at - a.event.created_at).map(item => ({ ...item, content: JSON.parse(item.event.content) }));
+            this.library = (await store.getAll('library')).sort((a, b) => b.event.created_at - a.event.created_at).map(item => ({ ...item, content: parseContent(item.event) })).filter(item => item.content);
         },
         saveSettings() { localStorage.setItem('tacit.settings', JSON.stringify(this.settings)); },
         logSync(message) { this.syncLogs.unshift(`[${new Date().toLocaleTimeString()}] ${message}`); if (this.syncLogs.length > 50) this.syncLogs.pop(); },
@@ -107,12 +108,14 @@ export function registerTacitApp(Alpine) {
         },
         joinSubject(slug) {
             if (rooms[slug]) return;
-            const password = this.settings.subjects.find(subject => subject.slug === slug)?.password;
+            const subject = this.settings.subjects.find(item => item.slug === slug);
+            if (subject?.needsPassword && !subject.password) { this.logSync(`${slug} is private: enter its password first.`); return; }
+            const password = subject?.password;
             try { rooms[slug] = connectRoom(this, slug, password); this.logSync(`Joined ${slug}${password ? ' (private)' : ''}.`); } catch (error) { this.logSync(`Could not join ${slug}: ${error.message}`); }
             this.announce();
         },
         setPassword(subject, password) {
-            subject.password = password.trim() || undefined; this.saveSettings();
+            subject.password = password.trim() || undefined; if (subject.password) delete subject.needsPassword; this.saveSettings();
             this.leaveSubject(subject.slug);
             if (subject.subscribed) this.joinSubject(subject.slug);
         },
@@ -176,13 +179,16 @@ export function registerTacitApp(Alpine) {
             if (edited.visibility === 'shared') this.publish(edited);
         },
         async deleteRecord(item) {
-            const event = await this.signer.signEvent(buildDeletionTemplate(item.event));
-            await store.put('tombstones', { key: item.key, created_at: event.created_at, event });
-            await store.remove('library', item.key); await this.reload();
-            if (item.visibility === 'shared') this.publish({ subjectSlug: item.subjectSlug, event });
+            if (item.visibility === 'shared') {
+                const event = await this.signer.signEvent(buildDeletionTemplate(item.event));
+                await store.put('tombstones', { key: item.key, created_at: event.created_at, event });
+                await store.remove('library', item.key); await this.reload();
+                this.publish({ subjectSlug: item.subjectSlug, event });
+            } else { await store.remove('library', item.key); await this.reload(); }
         },
         publish(record) {
             const subject = this.settings.subjects.find(item => item.slug === record.subjectSlug);
+            if (subject?.needsPassword && !subject.password) { this.logSync(`Not shared: ${record.subjectSlug} is private, enter its password first.`); return; }
             if (subject && !subject.subscribed) { subject.subscribed = true; this.saveSettings(); }
             this.joinSubject(record.subjectSlug);
             rooms[record.subjectSlug]?.action.send([record.event]);
@@ -256,7 +262,7 @@ export function registerTacitApp(Alpine) {
         async importBackup(event) {
             const file = event.target.files[0]; if (!file) return;
             try {
-                const plan = restoreBackup(parseBackup(await file.text()), { library: this.library, tombstones: this.tombstones, trust: this.trust, hiddenKeys: this.hiddenKeys, subjects: this.settings.subjects });
+                const plan = restoreBackup(parseBackup(await file.text()), { library: this.library, tombstones: this.tombstones, trust: this.trust, hiddenKeys: this.hiddenKeys, subjects: this.settings.subjects, pending: this.incoming.flatMap(group => group.records) });
                 for (const key of plan.removeLibrary) { await store.remove('library', key); await store.remove('pending', key); }
                 for (const name of ['library', 'tombstones', 'trust']) for (const value of plan.puts[name]) await store.put(name, value);
                 const joined = plan.subjects.filter(subject => subject.subscribed && !this.hasSubject(subject.slug));
