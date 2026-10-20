@@ -1,71 +1,150 @@
-document.addEventListener('alpine:init', () => {
+import { TacitInputTypeLabels, buildTacitPrompt } from './tacit-prompt.js';
+import { addSubject } from './tacit-subject.js';
+import { parseText, buildDrafts } from './tacit-import.js';
+import { buildRecordTemplate, recordKey } from './tacit-events.js';
+import { createLocalSigner, generateSecretKeyHex, parseSecretKey, encodeNsec, encodeNpub } from './tacit-identity.js';
+import { decideIncoming, connectRoom } from './tacit-sync.js';
+import * as store from './tacit-store.js';
+
+const rooms = {};
+const readJson = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch (_) { return fallback; } };
+const shortKey = pubkey => `${encodeNpub(pubkey).slice(0, 12)}…${pubkey.slice(0, 6)}`;
+
+export function registerTacitApp(Alpine) {
     Alpine.data('tacitApp', () => ({
-        mainTabs: [{ id: 'feed', label: 'Tacit Feed' }, { id: 'upload', label: 'Tacit Upload' }, { id: 'settings', label: 'Settings' }],
-        uploadTabs: [{ id: 'prompt', label: 'Prompt' }, { id: 'upload', label: 'Upload' }, { id: 'share', label: 'Share' }],
-        activeTab: 'feed', activeUploadTab: 'prompt', inputTypeLabels: window.TacitInputTypeLabels, selectedInputType: 'txt', selectedSubjectCategory: '', newSubjectCategory: '', subjectCategories: [],
-        appId: 'com.tacit-knowledge.p2p-sync-v2', settings: { relays: '', channels: [] }, newChannel: '', tacitData: [], pendingData: [], syncLogs: [], connections: {}, isConnecting: false,
-        get isConnected() { return Object.keys(this.connections).length > 0; },
-        get connectionStatus() { return this.isConnected ? `Connected to ${Object.keys(this.connections).length} subscribed channel(s).` : 'Connect a subscribed channel in Settings before sharing to the network.'; },
-        get dynamicPrompt() { return window.buildTacitPrompt({ inputType: this.selectedInputType, subjectCategory: this.selectedSubjectCategory }); },
-        initApp() {
-            this.tacitData = this.readStorage(window.TacitFeed.storageKey).map(entry => entry.data ? entry : window.TacitFeed.makeEntry(entry, 'Previously saved'));
-            this.pendingData = this.readStorage(window.TacitFeed.pendingStorageKey);
-            const savedSettings = localStorage.getItem('tacit_settings');
-            if (savedSettings) { try { this.settings = { ...this.settings, ...JSON.parse(savedSettings) }; } catch (_) { /* defaults */ } }
-            this.subjectCategories = this.readStorage('tacit_subject_categories');
+        mainTabs: [{ id: 'feed', label: 'Feed' }, { id: 'extract', label: 'Extract' }, { id: 'import', label: 'Import & Review' }, { id: 'subjects', label: 'Subjects' }, { id: 'identity', label: 'Identity' }],
+        activeTab: 'feed', inputTypeLabels: TacitInputTypeLabels, selectedInputType: 'txt', selectedSlug: '',
+        settings: { relays: [], subjects: [] }, newSubject: '', subjectError: '',
+        pubkey: '', previousKeys: [], signer: null, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
+        importKeyText: '', importAck: false, identityMessage: '', copied: '',
+        pasteText: '', importSummary: null, drafts: [], library: [], syncLogs: [], ready: false,
+        get selectedSubject() { return this.settings.subjects.find(subject => subject.slug === this.selectedSlug); },
+        get dynamicPrompt() { return buildTacitPrompt({ inputType: this.selectedInputType, subjectCategory: this.selectedSubject?.label || '' }); },
+        get npub() { return this.pubkey ? encodeNpub(this.pubkey) : ''; },
+        get selfKeys() { return new Set([this.pubkey, ...this.previousKeys]); },
+        async initApp() {
+            this.settings = { relays: [], subjects: [], ...readJson('tacit.settings', {}) };
+            this.previousKeys = readJson('tacit.previousKeys', []);
+            let secret = localStorage.getItem('tacit.secretKey');
+            if (!secret) { secret = generateSecretKeyHex(); localStorage.setItem('tacit.secretKey', secret); }
+            this.signer = createLocalSigner(secret);
+            this.pubkey = await this.signer.getPublicKey();
+            this.selectedSlug = this.settings.subjects[0]?.slug || '';
+            await this.reload();
+            this.settings.subjects.filter(subject => subject.subscribed).forEach(subject => this.joinSubject(subject.slug));
+            this.ready = true;
         },
-        readStorage(key) { try { const value = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(value) ? value : []; } catch (_) { return []; } },
-        saveFeed() { localStorage.setItem(window.TacitFeed.storageKey, JSON.stringify(this.tacitData)); },
-        savePending() { localStorage.setItem(window.TacitFeed.pendingStorageKey, JSON.stringify(this.pendingData)); },
-        saveSettings() { localStorage.setItem('tacit_settings', JSON.stringify(this.settings)); },
-        saveSubjectCategories() { localStorage.setItem('tacit_subject_categories', JSON.stringify(this.subjectCategories)); },
-        addSubjectCategory() {
-            const category = this.newSubjectCategory.trim();
-            if (!category) return;
-            if (!this.subjectCategories.includes(category)) this.subjectCategories.push(category);
-            this.selectedSubjectCategory = category;
-            this.newSubjectCategory = '';
-            this.saveSubjectCategories();
+        async reload() {
+            this.drafts = (await store.getAll('pending')).filter(item => item.kind === 'draft').sort((a, b) => a.createdAt - b.createdAt);
+            this.library = (await store.getAll('library')).sort((a, b) => b.event.created_at - a.event.created_at).map(item => ({ ...item, content: JSON.parse(item.event.content) }));
         },
+        saveSettings() { localStorage.setItem('tacit.settings', JSON.stringify(this.settings)); },
         logSync(message) { this.syncLogs.unshift(`[${new Date().toLocaleTimeString()}] ${message}`); if (this.syncLogs.length > 50) this.syncLogs.pop(); },
-        stringify(value) { return JSON.stringify(value); },
-        formatDate(value) { return new Date(value).toLocaleString(); },
-        knowledgeSummary(data) { return data.chunk || data.information_chunks || data.title || JSON.stringify(data); },
-        handleFileUpload(event) {
+        formatDate(seconds) { return new Date(seconds * 1000).toLocaleString(); },
+        authorLabel(pubkey) { return pubkey === this.pubkey ? 'you' : this.previousKeys.includes(pubkey) ? 'by previous key' : shortKey(pubkey); },
+        async copy(text, label) {
+            try { await navigator.clipboard.writeText(text); } catch (_) {
+                const area = document.createElement('textarea'); area.value = text; document.body.appendChild(area); area.select();
+                const copied = document.execCommand('copy'); area.remove();
+                if (!copied) { this.copied = 'copy failed'; return; }
+            }
+            this.copied = label; setTimeout(() => { this.copied = ''; }, 1500);
+        },
+
+        createSubject() {
+            try {
+                const { subjects, subject } = addSubject(this.settings.subjects, this.newSubject);
+                this.settings.subjects = subjects; this.selectedSlug = subject.slug; this.newSubject = ''; this.subjectError = ''; this.saveSettings();
+            } catch (error) { this.subjectError = error.message; }
+        },
+        toggleSubscribe(subject) {
+            subject.subscribed = !subject.subscribed; this.saveSettings();
+            if (subject.subscribed) this.joinSubject(subject.slug); else this.leaveSubject(subject.slug);
+        },
+        joinSubject(slug) {
+            if (rooms[slug]) return;
+            try { rooms[slug] = connectRoom(this, slug); this.logSync(`Joined ${slug}.`); } catch (error) { this.logSync(`Could not join ${slug}: ${error.message}`); }
+        },
+        leaveSubject(slug) { rooms[slug]?.room.leave(); delete rooms[slug]; this.logSync(`Left ${slug}.`); },
+
+        async importFile(event) {
             const file = event.target.files[0]; if (!file) return;
-            const reader = new FileReader();
-            reader.onload = loadEvent => {
-                try {
-                    const records = file.name.toLowerCase().endsWith('.json') ? window.TacitJsonParser.parse(loadEvent.target.result) : window.TacitCsvParser.parse(loadEvent.target.result);
-                    this.queueForReview(records, 'Local upload'); this.activeUploadTab = 'share'; event.target.value = '';
-                } catch (error) { alert(`Could not import ${file.name}: ${error.message}`); }
-            };
-            reader.readAsText(file);
+            await this.runImport(await file.text(), file.name); event.target.value = '';
         },
-        queueForReview(records, source) {
-            let queued = 0;
-            records.forEach(data => { if (!window.TacitFeed.isDuplicate(this.tacitData, data) && !window.TacitFeed.isDuplicate(this.pendingData, data)) { this.pendingData.push(window.TacitFeed.makeEntry(data, source)); queued += 1; } });
-            this.savePending(); this.logSync(queued ? `${queued} record(s) queued for review from ${source}.` : `No new records from ${source}.`);
+        async importPasted() { await this.runImport(this.pasteText); this.pasteText = ''; },
+        async runImport(text, fileName) {
+            const subject = this.selectedSubject; if (!subject) return;
+            try {
+                const existing = [...this.drafts.map(draft => draft.content), ...this.library.filter(item => item.event.pubkey === this.pubkey).map(item => item.content)]
+                    .map(content => ({ slug: addSubject([], content.subject || '').subject.slug, chunk: String(content.information_chunks).trim() }));
+                const result = buildDrafts(parseText(text, fileName), subject, existing);
+                for (const draft of result.drafts) await store.put('pending', { id: crypto.randomUUID(), kind: 'draft', content: draft.content, warnings: draft.warnings, createdAt: Date.now() });
+                this.importSummary = { created: result.drafts.length, rejected: result.rejected, skipped: result.skipped, error: '' };
+                await this.reload();
+            } catch (error) { this.importSummary = { created: 0, rejected: [], skipped: [], error: `Could not import: ${error.message}` }; }
         },
-        storePending(id) {
-            const index = this.pendingData.findIndex(entry => entry.id === id); if (index < 0) return;
-            const [entry] = this.pendingData.splice(index, 1);
-            if (!window.TacitFeed.isDuplicate(this.tacitData, entry.data)) this.tacitData.push(entry);
-            this.saveFeed(); this.savePending(); this.logSync('Record stored locally.');
+        async discardDraft(id) { await store.remove('pending', id); await this.reload(); },
+        async editDraft(draft) {
+            const text = prompt('Information chunk', draft.content.information_chunks);
+            if (text?.trim()) { draft.content.information_chunks = text.trim(); await store.put('pending', JSON.parse(JSON.stringify(draft))); await this.reload(); }
         },
-        sharePending(id) {
-            const entry = this.pendingData.find(entry => entry.id === id); if (!entry || !this.isConnected) return;
-            window.TacitSync.broadcast(this, [entry.data]); this.discardPending(id); this.logSync('Record shared to subscribed channels.');
+        async signDraft(draft) {
+            const event = await this.signer.signEvent(buildRecordTemplate(draft.content));
+            return { key: recordKey(event), event, subjectSlug: addSubject([], draft.content.subject).subject.slug, receivedAt: Date.now() };
         },
-        discardPending(id) { this.pendingData = this.pendingData.filter(entry => entry.id !== id); this.savePending(); this.logSync('Record discarded.'); },
-        receiveFromPeer(data, channel, peerId) { if (Array.isArray(data)) this.queueForReview(data, `Channel ${channel} · peer ${peerId.substring(0, 6)}`); },
-        broadcastSavedData() { if (!this.isConnected || !this.tacitData.length) return; window.TacitSync.broadcast(this, this.tacitData.map(entry => entry.data)); this.logSync('Saved records shared to all subscribed channels.'); },
-        addSubscription() { const channel = this.newChannel.trim(); if (!channel) return; if (!this.settings.channels.includes(channel)) this.settings.channels.push(channel); this.newChannel = ''; this.saveSettings(); },
-        removeSubscription(channel) { this.settings.channels = this.settings.channels.filter(item => item !== channel); this.saveSettings(); },
-        connectSubscribedChannels() {
-            if (!window.TacitSync) return alert('Network module is still loading. Please try again.');
-            this.isConnecting = true;
-            try { this.settings.channels.forEach(channel => window.TacitSync.connect(this, channel)); } catch (error) { console.error(error); alert('Failed to connect. Check the relay settings and browser console.'); } finally { this.isConnecting = false; }
-        }
+        async storeDraft(draft) {
+            await store.put('library', { ...await this.signDraft(draft), visibility: 'local' });
+            await store.remove('pending', draft.id); await this.reload(); this.activeTab = 'feed';
+        },
+        async shareDraft(draft) {
+            const record = await this.signDraft(draft);
+            await store.put('library', { ...record, visibility: 'shared' });
+            await store.remove('pending', draft.id); await this.reload();
+            this.publish(record);
+        },
+        async shareRecord(item) {
+            const { content, ...record } = item;
+            await store.put('library', { ...record, visibility: 'shared' }); await this.reload();
+            this.publish(item);
+        },
+        publish(record) {
+            const subject = this.settings.subjects.find(item => item.slug === record.subjectSlug);
+            if (subject && !subject.subscribed) { subject.subscribed = true; this.saveSettings(); }
+            this.joinSubject(record.subjectSlug);
+            rooms[record.subjectSlug]?.action.send([record.event]);
+            this.logSync(`Shared record to ${record.subjectSlug}.`);
+        },
+        sendShared(slug, peerId) {
+            const events = this.library.filter(item => item.visibility === 'shared' && item.subjectSlug === slug).map(item => item.event);
+            if (events.length) rooms[slug]?.action.send(events, { target: peerId });
+        },
+        async receiveFromPeer(events, slug, peerId) {
+            if (!Array.isArray(events)) return;
+            for (const event of events) {
+                const held = Object.fromEntries(this.library.map(item => [item.key, item.event]));
+                const decision = decideIncoming(event, { held, trustedPubkeys: this.selfKeys });
+                if (decision.reason === 'tampered') { console.warn(`Rejected tampered record from peer ${peerId.slice(0, 6)}`); this.logSync(`Rejected tampered record from peer ${peerId.slice(0, 6)}`); }
+                if (decision.action !== 'accept') continue;
+                await store.put('library', { key: recordKey(event), event, visibility: 'shared', subjectSlug: slug, receivedFrom: peerId, receivedAt: Date.now() });
+                await this.reload();
+            }
+        },
+
+        revealSecret() { this.secretHex = localStorage.getItem('tacit.secretKey'); this.secretNsec = encodeNsec(this.secretHex); this.secretRevealed = true; },
+        hideSecret() { this.secretRevealed = false; this.secretHex = this.secretNsec = ''; this.exportAck = false; },
+        async importIdentity() {
+            try {
+                if (!this.importAck) throw new Error('Confirm that you exported your current key first.');
+                const secret = parseSecretKey(this.importKeyText);
+                const signer = createLocalSigner(secret);
+                const newPubkey = await signer.getPublicKey();
+                if (newPubkey !== this.pubkey) {
+                    this.previousKeys = [...new Set([...this.previousKeys, this.pubkey])]; localStorage.setItem('tacit.previousKeys', JSON.stringify(this.previousKeys));
+                }
+                localStorage.setItem('tacit.secretKey', secret);
+                this.signer = signer; this.pubkey = newPubkey; this.importKeyText = ''; this.importAck = false; this.hideSecret();
+                this.identityMessage = 'Identity imported.';
+            } catch (error) { this.identityMessage = error.message; }
+        },
     }));
-});
+}

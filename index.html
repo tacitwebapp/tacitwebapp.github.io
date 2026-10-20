@@ -4,32 +4,113 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tacit Knowledge</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="tacit-json-parser.js"></script>
-    <script defer src="tacit-csv-parser.js"></script>
-    <script defer src="tacit-prompt.js"></script>
-    <script defer src="tacit-feed.js"></script>
-    <script type="module" src="tacit-sync.js"></script>
-    <script defer src="tacit-app.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="vendor/tailwind.css">
+    <script type="module" src="tacit-main.js"></script>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans antialiased">
     <div x-data="tacitApp()" x-init="initApp()" class="max-w-5xl mx-auto p-6">
         <header class="mb-6"><h1 class="text-3xl font-bold text-blue-600">Tacit</h1><p class="text-sm text-gray-500 mt-1">Capture, curate, and exchange practical knowledge.</p></header>
-        <nav class="flex space-x-2 border-b border-gray-300 mb-6" aria-label="Main navigation">
-            <template x-for="tab in mainTabs" :key="tab.id"><button @click="activeTab = tab.id" :class="activeTab === tab.id ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'" class="px-4 py-2 rounded-t font-semibold transition-colors" x-text="tab.label"></button></template>
+        <nav class="flex flex-wrap gap-2 border-b border-gray-300 mb-6" aria-label="Main navigation">
+            <template x-for="tab in mainTabs" :key="tab.id"><button :data-tab="tab.id" @click="activeTab = tab.id" :class="activeTab === tab.id ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'" class="px-4 py-2 rounded-t font-semibold transition-colors" x-text="tab.label"></button></template>
         </nav>
-        <section x-show="activeTab === 'feed'" class="bg-white p-6 rounded shadow">
-            <div class="flex justify-between items-start gap-4 mb-5"><div><h2 class="text-xl font-bold">Tacit Feed</h2><p class="text-sm text-gray-600">Knowledge you have kept from your uploads and subscribed channels.</p></div><span class="text-sm bg-blue-50 text-blue-700 rounded px-3 py-1" x-text="`${tacitData.length} saved`"></span></div>
-            <div class="grid grid-cols-1 gap-4"><template x-for="entry in tacitData" :key="entry.id"><article class="p-4 border rounded shadow-sm bg-gray-50"><div class="flex justify-between gap-3 mb-2"><span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded uppercase font-semibold" x-text="entry.data.subject || 'Uncategorized'"></span><span class="text-xs text-gray-500" x-text="entry.source"></span></div><p class="text-sm font-medium text-gray-800" x-text="knowledgeSummary(entry.data)"></p><div x-show="entry.data.action_item || entry.data.actionable_workflows" class="mt-2 text-sm text-gray-600 border-l-2 border-blue-400 pl-2"><strong>Action:</strong> <span x-text="entry.data.action_item || stringify(entry.data.actionable_workflows)"></span></div></article></template><p x-show="tacitData.length === 0" class="text-gray-500 italic py-4">No saved knowledge yet. Upload a file or review records received from a subscribed channel.</p></div>
+
+        <section id="tab-feed" x-show="activeTab === 'feed'" class="bg-white p-6 rounded shadow">
+            <div class="flex justify-between items-start gap-4 mb-5"><h2 class="text-xl font-bold">Feed</h2><span class="text-sm bg-blue-50 text-blue-700 rounded px-3 py-1" x-text="`${library.length} records`"></span></div>
+            <div class="grid grid-cols-1 gap-4">
+                <template x-for="item in library" :key="item.key"><article class="record p-4 border rounded shadow-sm bg-gray-50">
+                    <div class="flex flex-wrap justify-between gap-2 mb-2">
+                        <span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded uppercase font-semibold" x-text="item.content.subject"></span>
+                        <span class="text-xs text-gray-500"><span x-text="authorLabel(item.event.pubkey)"></span> · <span class="text-green-700 font-semibold">verified</span> · <span x-text="item.visibility"></span> · <span x-text="formatDate(item.event.created_at)"></span></span>
+                    </div>
+                    <p class="text-sm font-medium text-gray-800" x-text="item.content.information_chunks"></p>
+                    <div x-show="item.content.actionable_workflows" class="mt-2 text-sm text-gray-600 border-l-2 border-blue-400 pl-2"><strong>Action:</strong> <span x-text="item.content.actionable_workflows"></span></div>
+                    <div class="mt-2 flex flex-wrap gap-2 items-center"><template x-if="item.visibility === 'local' && item.event.pubkey === pubkey"><button @click="shareRecord(item)" class="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700">Share</button></template></div>
+                </article></template>
+                <p x-show="library.length === 0" class="text-gray-500 italic py-4">No records yet. Import knowledge and store or share a draft.</p>
+            </div>
         </section>
-        <section x-show="activeTab === 'upload'" class="bg-white p-6 rounded shadow" style="display: none;">
-            <div class="flex space-x-2 border-b border-gray-200 mb-6"><template x-for="tab in uploadTabs" :key="tab.id"><button @click="activeUploadTab = tab.id" :class="activeUploadTab === tab.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-gray-800'" class="px-3 py-2 border-b-2 font-semibold text-sm" x-text="tab.label"></button></template></div>
-            <div x-show="activeUploadTab === 'prompt'"><h2 class="text-xl font-bold mb-4">Prompt for Extraction</h2><p class="mb-4 text-sm text-gray-600">Select the source and subject channel to generate a tailored extraction prompt.</p><div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5"><div><label for="input-type" class="block text-sm font-medium mb-1">Input Type</label><select id="input-type" x-model="selectedInputType" class="px-3 py-2 border rounded w-full"><template x-for="(label, value) in inputTypeLabels" :key="value"><option :value="value" x-text="label"></option></template></select></div><div><label for="subject-category" class="block text-sm font-medium mb-1">Subject Category (Channel)</label><select id="subject-category" x-model="selectedSubjectCategory" class="px-3 py-2 border rounded w-full"><option value="">Select a category</option><template x-for="category in subjectCategories" :key="category"><option :value="category" x-text="category"></option></template></select></div></div><div class="flex gap-2 mb-5"><input type="text" x-model="newSubjectCategory" @keyup.enter="addSubjectCategory" placeholder="Create a new subject category" class="px-3 py-2 border rounded w-full"><button @click="addSubjectCategory" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 whitespace-nowrap">Create category</button></div><div class="bg-gray-800 text-green-400 p-4 rounded font-mono text-sm whitespace-pre-wrap select-all" x-text="dynamicPrompt"></div></div>
-            <div x-show="activeUploadTab === 'upload'" style="display: none;"><h2 class="text-xl font-bold mb-2">Upload Tacit Knowledge</h2><p class="mb-4 text-sm text-gray-600">Import JSON or CSV, then review each record before keeping or sharing it.</p><input type="file" @change="handleFileUpload" accept=".json,.csv,application/json,text/csv" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"></div>
-            <div x-show="activeUploadTab === 'share'" style="display: none;"><div class="flex flex-col md:flex-row md:justify-between gap-3 mb-5"><div><h2 class="text-xl font-bold">Review & Share</h2><p class="text-sm text-gray-600">Choose whether each record stays local, is sent to your subscribed channels, or is discarded.</p></div><button @click="broadcastSavedData" :disabled="!isConnected || tacitData.length === 0" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 h-fit">Share all saved records</button></div><p class="text-sm mb-4" :class="isConnected ? 'text-green-700' : 'text-amber-700'" x-text="connectionStatus"></p><div x-show="pendingData.length > 0" class="grid grid-cols-1 gap-4"><template x-for="entry in pendingData" :key="entry.id"><article class="p-4 border rounded bg-amber-50"><div class="flex justify-between gap-3 mb-2"><span class="text-xs font-semibold text-amber-800" x-text="entry.source"></span><span class="text-xs text-gray-500" x-text="formatDate(entry.receivedAt)"></span></div><p class="text-sm font-medium mb-3" x-text="knowledgeSummary(entry.data)"></p><div class="flex flex-wrap gap-2"><button @click="storePending(entry.id)" class="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100">Store locally</button><button @click="sharePending(entry.id)" :disabled="!isConnected" class="px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50">Share to network</button><button @click="discardPending(entry.id)" class="px-3 py-1.5 text-sm text-red-700 hover:bg-red-100 rounded">Discard</button></div></article></template></div><p x-show="pendingData.length === 0" class="text-gray-500 italic py-4">Nothing waiting for review.</p><div x-show="syncLogs.length > 0" class="mt-6 p-3 bg-gray-900 text-green-400 font-mono text-xs rounded h-28 overflow-y-auto"><template x-for="(log, index) in syncLogs" :key="index"><div x-text="log"></div></template></div></div>
+
+        <section id="tab-extract" x-show="activeTab === 'extract'" class="bg-white p-6 rounded shadow" style="display: none;">
+            <h2 class="text-xl font-bold mb-4">Extract</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+                <div><label for="input-type" class="block text-sm font-medium mb-1">Input type</label><select id="input-type" x-model="selectedInputType" class="px-3 py-2 border rounded w-full"><template x-for="(label, value) in inputTypeLabels" :key="value"><option :value="value" x-text="label"></option></template></select></div>
+                <div><label for="subject-select" class="block text-sm font-medium mb-1">Subject</label><select id="subject-select" x-model="selectedSlug" class="px-3 py-2 border rounded w-full"><option value="">Select a subject</option><template x-for="subject in settings.subjects" :key="subject.slug"><option :value="subject.slug" x-text="subject.label"></option></template></select></div>
+            </div>
+            <div class="flex gap-2 mb-2"><input id="new-subject" type="text" x-model="newSubject" @keyup.enter="createSubject" placeholder="Create a subject" class="px-3 py-2 border rounded w-full"><button id="create-subject" @click="createSubject" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 whitespace-nowrap">Create subject</button></div>
+            <p class="text-sm text-red-700 mb-3" x-show="subjectError" x-text="subjectError"></p>
+            <button id="copy-prompt" @click="copy(dynamicPrompt, 'prompt')" class="mb-2 px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100">Copy prompt</button> <span class="text-sm text-green-700" x-show="copied === 'prompt'">Copied</span>
+            <div class="bg-gray-800 text-green-400 p-4 rounded font-mono text-sm whitespace-pre-wrap" x-text="dynamicPrompt"></div>
         </section>
-        <section x-show="activeTab === 'settings'" class="bg-white p-6 rounded shadow" style="display: none;"><h2 class="text-xl font-bold mb-2">Settings</h2><p class="text-sm text-gray-600 mb-5">Subscribe to Nostr channels whose shared knowledge you want to review.</p><label class="block text-sm font-medium mb-1" for="relays">Custom WSS relays</label><input id="relays" type="text" x-model="settings.relays" @change="saveSettings" placeholder="wss://relay.example.com, wss://relay.example.org" class="px-3 py-2 border rounded text-sm w-full mb-5" title="Leave blank for default Nostr relays"><label class="block text-sm font-medium mb-1" for="channel">Subscribe to a channel</label><div class="flex gap-2 mb-4"><input id="channel" type="text" x-model="newChannel" @keyup.enter="addSubscription" placeholder="Channel or room name" class="px-3 py-2 border rounded w-full"><button @click="addSubscription" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Add</button></div><div class="space-y-2 mb-5"><template x-for="channel in settings.channels" :key="channel"><div class="flex items-center justify-between border rounded px-3 py-2"><span x-text="channel"></span><button @click="removeSubscription(channel)" class="text-sm text-red-700 hover:underline">Remove</button></div></template><p x-show="settings.channels.length === 0" class="text-gray-500 italic text-sm">No subscribed channels.</p></div><button @click="connectSubscribedChannels" :disabled="settings.channels.length === 0 || isConnecting" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50" x-text="isConnecting ? 'Connecting…' : 'Connect subscribed channels'"></button></section>
+
+        <section id="tab-import" x-show="activeTab === 'import'" class="bg-white p-6 rounded shadow" style="display: none;">
+            <h2 class="text-xl font-bold mb-2">Import</h2>
+            <label for="import-subject" class="block text-sm font-medium mb-1">Subject</label>
+            <select id="import-subject" x-model="selectedSlug" class="px-3 py-2 border rounded w-full md:w-1/2 mb-4"><option value="">Select a subject</option><template x-for="subject in settings.subjects" :key="subject.slug"><option :value="subject.slug" x-text="subject.label"></option></template></select>
+            <input id="import-file" type="file" @change="importFile" :disabled="!selectedSubject" accept=".json,.csv,application/json,text/csv" class="block w-full text-sm text-gray-500 mb-3 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700">
+            <textarea id="import-paste" x-model="pasteText" rows="5" placeholder="Or paste JSON or CSV here" class="px-3 py-2 border rounded w-full font-mono text-sm mb-2"></textarea>
+            <button id="import-paste-button" @click="importPasted" :disabled="!selectedSubject || !pasteText.trim()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">Import pasted text</button>
+            <p class="text-sm text-amber-700 mt-2" x-show="!selectedSubject">Select a subject to enable import.</p>
+            <div id="import-summary" x-show="importSummary" class="mt-4 p-3 bg-blue-50 rounded text-sm">
+                <template x-if="importSummary"><div>
+                    <p x-show="importSummary.error" class="text-red-700" x-text="importSummary.error"></p>
+                    <p x-show="!importSummary.error" x-text="`${importSummary.created} drafts created, ${importSummary.rejected.length} rejected, ${importSummary.skipped.length} duplicates skipped`"></p>
+                    <ul class="list-disc ml-5"><template x-for="item in importSummary.rejected"><li x-text="`Row ${item.row} rejected: ${item.reason}`"></li></template><template x-for="item in importSummary.skipped"><li x-text="`Row ${item.row} skipped: ${item.reason}`"></li></template></ul>
+                </div></template>
+            </div>
+            <h3 class="text-lg font-bold mt-6 mb-3">Review queue</h3>
+            <div class="grid grid-cols-1 gap-4">
+                <template x-for="draft in drafts" :key="draft.id"><article class="draft p-4 border rounded bg-amber-50">
+                    <span class="text-xs font-semibold text-amber-800" x-text="draft.content.subject"></span>
+                    <p class="text-sm font-medium my-2" x-text="draft.content.information_chunks"></p>
+                    <p x-show="draft.content.actionable_workflows" class="text-sm text-gray-600 mb-2" x-text="draft.content.actionable_workflows"></p>
+                    <ul class="mb-2"><template x-for="warning in draft.warnings"><li class="text-xs text-amber-800" x-text="warning"></li></template></ul>
+                    <div class="flex flex-wrap gap-2">
+                        <button class="store-draft px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100" @click="storeDraft(draft)">Store locally</button>
+                        <button class="share-draft px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700" @click="shareDraft(draft)">Share</button>
+                        <button class="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100" @click="editDraft(draft)">Edit</button>
+                        <button class="px-3 py-1.5 text-sm text-red-700 hover:bg-red-100 rounded" @click="discardDraft(draft.id)">Discard</button>
+                    </div>
+                </article></template>
+                <p x-show="drafts.length === 0" class="text-gray-500 italic">Nothing waiting for review.</p>
+            </div>
+        </section>
+
+        <section id="tab-subjects" x-show="activeTab === 'subjects'" class="bg-white p-6 rounded shadow" style="display: none;">
+            <h2 class="text-xl font-bold mb-4">Subjects</h2>
+            <div class="flex gap-2 mb-2"><input type="text" x-model="newSubject" @keyup.enter="createSubject" placeholder="Create a subject" class="px-3 py-2 border rounded w-full"><button @click="createSubject" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 whitespace-nowrap">Create subject</button></div>
+            <p class="text-sm text-red-700 mb-3" x-show="subjectError" x-text="subjectError"></p>
+            <div class="space-y-2 mb-5">
+                <template x-for="subject in settings.subjects" :key="subject.slug"><div class="subject-row flex items-center justify-between border rounded px-3 py-2"><span><span x-text="subject.label"></span> <span class="text-xs text-gray-500" x-text="subject.slug"></span></span><label class="text-sm flex items-center gap-2"><input type="checkbox" :checked="subject.subscribed" @change="toggleSubscribe(subject)"> Subscribed</label></div></template>
+                <p x-show="settings.subjects.length === 0" class="text-gray-500 italic text-sm">No subjects yet.</p>
+            </div>
+            <h3 class="font-bold mb-2">Sync log</h3>
+            <div id="sync-log" class="p-3 bg-gray-900 text-green-400 font-mono text-xs rounded h-40 overflow-y-auto"><template x-for="(log, index) in syncLogs" :key="index"><div x-text="log"></div></template></div>
+        </section>
+
+        <section id="tab-identity" x-show="activeTab === 'identity'" class="bg-white p-6 rounded shadow" style="display: none;">
+            <h2 class="text-xl font-bold mb-4">Identity</h2>
+            <p class="text-sm">Signer: <strong>local key</strong></p>
+            <p class="text-sm break-all">Public key: <span id="npub" x-text="npub"></span></p>
+            <p class="text-sm break-all mb-4">Hex: <span id="pubkey-hex" x-text="pubkey.slice(0, 12)"></span>…</p>
+            <div class="border rounded p-3 mb-4">
+                <h3 class="font-bold mb-2">Export private key</h3>
+                <p class="text-sm text-red-700 mb-2">Anyone with this key can sign records as you. Never share it.</p>
+                <label class="text-sm flex items-center gap-2 mb-2"><input id="export-ack" type="checkbox" x-model="exportAck"> I understand</label>
+                <button id="reveal-secret" @click="revealSecret" :disabled="!exportAck" class="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50">Reveal key</button>
+                <div x-show="secretRevealed" class="mt-2 text-sm break-all"><p>Hex: <code id="secret-hex" x-text="secretHex"></code></p><p>nsec: <code id="secret-nsec" x-text="secretNsec"></code></p><button @click="copy(secretHex, 'secret')" class="mt-2 px-3 py-1 text-sm bg-white border border-gray-300 rounded">Copy hex</button> <button @click="hideSecret" class="mt-2 px-3 py-1 text-sm bg-white border border-gray-300 rounded">Hide</button> <span x-show="copied === 'secret'" class="text-green-700">Copied</span></div>
+            </div>
+            <div class="border rounded p-3 mb-4">
+                <h3 class="font-bold mb-2">Import identity</h3>
+                <input id="import-key" type="text" x-model="importKeyText" placeholder="hex or nsec1..." class="px-3 py-2 border rounded w-full mb-2">
+                <label class="text-sm flex items-center gap-2 mb-2"><input id="import-ack" type="checkbox" x-model="importAck"> I have exported my current key</label>
+                <button id="import-identity" @click="importIdentity" :disabled="!importAck" class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded disabled:opacity-50">Import identity</button>
+                <p id="identity-message" class="text-sm mt-2" x-text="identityMessage"></p>
+            </div>
+            <h3 class="font-bold mb-2">Previous keys</h3>
+            <ul class="text-sm"><template x-for="key in previousKeys" :key="key"><li class="break-all" x-text="`${key}`"></li></template></ul>
+            <p x-show="previousKeys.length === 0" class="text-gray-500 italic text-sm">None.</p>
+        </section>
     </div>
 </body>
 </html>

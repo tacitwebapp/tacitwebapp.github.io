@@ -1,4 +1,4 @@
-window.TacitPrompt = `**Input Type:** [INSERT INPUT TYPE HERE - e.g., WhatsApp Chat Export, YouTube Video Transcript, Social Media Post, Raw Text]
+const TacitPrompt = `**Input Type:** [INSERT INPUT TYPE HERE - e.g., WhatsApp Chat Export, YouTube Video Transcript, Social Media Post, Raw Text]
 
 **Input Parsing Instructions:** [INSERT PARSING INSTRUCTIONS HERE - e.g., "Ignore timestamps and phone numbers. Focus on Q&A exchanges between group members." or "Summarize the transcript first, ignoring sponsor segments."]
 
@@ -68,7 +68,7 @@ You MUST return the final output strictly as a JSON array of objects. Do not inc
 
 Please process the provided input now based on these instructions.`;
 
-window.TacitInputParsingInstructions = {
+const TacitInputParsingInstructions = {
     'whatsapp-export-zip': "Extract the .txt chat file from the archive. Ignore timestamps, phone numbers, system messages, and '<Media omitted>' tags. Focus on Q&A exchanges, problem-solving threads, and advice shared between members.",
     'youtube-link': 'Extract the video transcript or subtitles. Ignore sponsor segments, intro/outro boilerplate, and auto-generated filler words. Focus on spoken explanations, personal anecdotes, and step-by-step demonstrations of techniques.',
     'website-link': 'Extract the primary article body or forum comments. Strip out navigation menus, footers, sidebars, and ads. Focus on author opinions, case studies, undocumented tips, and user-generated solutions in comment sections.',
@@ -78,7 +78,7 @@ window.TacitInputParsingInstructions = {
     image: 'Perform OCR to extract readable text. If the image contains a diagram, flowchart, or handwritten notes, transcribe the relationships and annotations. Focus on unwritten heuristics, decision points, or marginalia.'
 };
 
-window.TacitInputTypeLabels = {
+export const TacitInputTypeLabels = {
     'whatsapp-export-zip': 'WhatsApp chat export (.zip)',
     'youtube-link': 'YouTube link',
     'website-link': 'Website link',
@@ -88,11 +88,11 @@ window.TacitInputTypeLabels = {
     image: 'Image'
 };
 
-window.buildTacitPrompt = ({ inputType, subjectCategory }) => {
-    const inputLabel = window.TacitInputTypeLabels[inputType] || 'Not selected';
-    const parsingInstructions = window.TacitInputParsingInstructions[inputType] || 'Select an input type to receive parsing instructions.';
+export const buildTacitPrompt = ({ inputType, subjectCategory }) => {
+    const inputLabel = TacitInputTypeLabels[inputType] || 'Not selected';
+    const parsingInstructions = TacitInputParsingInstructions[inputType] || 'Select an input type to receive parsing instructions.';
     const subject = subjectCategory || 'Not selected';
-    return window.TacitPrompt
+    return TacitPrompt
         .replace(/\*\*Input Type:\*\*.*/, `**Input Type:** ${inputLabel}`)
         .replace(/\*\*Input Parsing Instructions:\*\*.*/, `**Input Parsing Instructions:** ${parsingInstructions}`)
         .replace('### **Role & Objective**', `**Subject Category (Channel):** ${subject}\n\n### **Role & Objective**`)

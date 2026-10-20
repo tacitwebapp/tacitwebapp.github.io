@@ -1,0 +1,17 @@
+# Issues by slice
+
+Each slice is a vertical, independently testable increment. Every slice folder has a README with its issues, the slices it depends on, and a standalone test. Issue filenames are unchanged, so "Blocked by" references still resolve.
+
+| Slice | Issues | Needs |
+|---|---|---|
+| [01 basic posting](slice-01-basic-posting/) | 01, 02, 03, 04, 05 | - |
+| [02 secure sharing](slice-02-secure-sharing/) | 06 | 01 |
+| [03 block and hide](slice-03-block-and-hide/) | 07, 11 | 02 |
+| [04 edit and delete](slice-04-edit-and-delete/) | 09, 10 | 02 |
+| [05 private subjects](slice-05-private-subjects/) | 12 | 02 |
+| [06 discover subjects](slice-06-discover-subjects/) | 13 | 02 |
+| [07 trust management](slice-07-trust-management/) | 14 | 03 |
+| [08 feed filters](slice-08-feed-filters/) | 15 | 03 |
+| [09 backup restore](slice-09-backup-restore/) | 16 | 04, 07 |
+| [10 extension signer](slice-10-extension-signer/) | 08 | 01 |
+| [11 e2e verification](slice-11-e2e-verification/) | 17 | 01-10 |

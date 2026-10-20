@@ -1,24 +1,28 @@
-import { joinRoom } from 'https://esm.sh/trystero@0.26.0/nostr';
+import { joinRoom } from './vendor/trystero-nostr.js';
+import { isValidRecord, recordKey, RECORD_KIND } from './tacit-events.js';
 
-window.TacitSync = {
-    connect(app, channel) {
-        if (app.connections[channel]) return;
-        const config = { appId: app.appId };
-        if (app.settings.relays.trim()) {
-            config.relayConfig = { urls: app.settings.relays.split(',').map(relay => relay.trim()).filter(Boolean) };
-        }
-        const room = joinRoom(config, channel);
-        const syncAction = room.makeAction('syncTacit');
-        syncAction.onMessage = (data, peerId) => app.receiveFromPeer(data, channel, peerId);
-        room.onPeerJoin = peerId => {
-            app.logSync(`Peer ${peerId.substring(0, 6)} joined ${channel}.`);
-            if (app.tacitData.length) syncAction.send(app.tacitData.map(entry => entry.data), peerId);
-        };
-        room.onPeerLeave = peerId => app.logSync(`Peer ${peerId.substring(0, 6)} left ${channel}.`);
-        app.connections[channel] = { room, syncAction };
-        app.logSync(`Connected to channel: ${channel}`);
-    },
-    broadcast(app, records) {
-        Object.values(app.connections).forEach(({ syncAction }) => syncAction.send(records));
-    }
-};
+export const APP_ID = 'com.tacit-sync.v1';
+export const roomId = slug => `subject:${slug}`;
+
+export function decideIncoming(event, { held, trustedPubkeys }) {
+    if (!isValidRecord(event)) return { action: 'drop', reason: 'tampered' };
+    if (event.kind !== RECORD_KIND) return { action: 'drop', reason: 'kind' };
+    const current = held[recordKey(event)];
+    if (current && current.created_at >= event.created_at) return { action: 'drop', reason: 'duplicate-or-older' };
+    if (trustedPubkeys.has(event.pubkey)) return { action: 'accept' };
+    return { action: 'drop', reason: 'unknown-author' };
+}
+
+export function connectRoom(app, slug) {
+    const config = { appId: APP_ID };
+    if (app.settings.relays.length) config.relayConfig = { urls: app.settings.relays };
+    const room = joinRoom(config, roomId(slug));
+    const action = room.makeAction('syncTacit');
+    action.onMessage = (events, { peerId }) => app.receiveFromPeer(events, slug, peerId);
+    room.onPeerJoin = peerId => {
+        app.logSync(`Peer ${peerId.slice(0, 6)} joined ${slug}.`);
+        app.sendShared(slug, peerId);
+    };
+    room.onPeerLeave = peerId => app.logSync(`Peer ${peerId.slice(0, 6)} left ${slug}.`);
+    return { room, action };
+}
