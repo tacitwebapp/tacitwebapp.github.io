@@ -161,8 +161,18 @@
                     <div class="row flex-wrap"><button data-icon="check" class="accept-all btn-success" @click="acceptGroup(group)">Accept all</button><button data-icon="trash" class="discard-all btn-danger" @click="discardGroup(group)">Discard all</button><button data-icon="shield-check" class="trust-author btn-secondary" @click="trustAuthor(group.pubkey)">Trust author</button><button data-icon="ban" class="block-author btn-danger" @click="blockAuthor(group.pubkey)">Block author</button></div>
                     <template x-for="item in group.records" :key="item.id"><article class="incoming row flex-col items-stretch gap-1">
                         <span class="flex items-center gap-2 text-xs font-semibold text-accent"><span class="avatar" aria-hidden="true" :style="avatarStyle(item.event.pubkey)" :class="{ 'avatar-neutral': avatarOf(item.event.pubkey).neutral }" x-text="avatarOf(item.event.pubkey).initial"></span><span x-text="item.content.subject"></span></span>
-                        <p class="break-words text-sm font-medium" x-text="item.content.information_chunks"></p>
-                        <p x-show="item.content.actionable_workflows" class="break-words text-sm text-muted" x-text="item.content.actionable_workflows"></p>
+                        <p x-show="!isInsight(item.content)" class="break-words text-sm font-medium" x-text="item.content.information_chunks"></p>
+                        <p x-show="!isInsight(item.content) && item.content.actionable_workflows" class="break-words text-sm text-muted" x-text="item.content.actionable_workflows"></p>
+                        <template x-if="isInsight(item.content)"><div class="incoming-insight flex flex-col gap-1 text-sm">
+                            <p class="font-semibold" x-text="`Insight: ${insightCard(item).label}`"></p>
+                            <p class="text-xs text-muted" x-show="insightCard(item).directed" x-text="`${insightCard(item).from.shortId} to ${insightCard(item).to.shortId}`"></p>
+                            <p class="whitespace-pre-wrap break-words text-muted" x-show="insightCard(item).rationale" x-text="insightCard(item).rationale"></p>
+                            <template x-for="end in [insightCard(item).from, insightCard(item).to]" :key="end.shortId"><div class="flex flex-col rounded-ctl bg-surface2 p-3">
+                                <span x-show="end.preview !== null" class="font-mono text-xs text-muted" x-text="end.shortId"></span>
+                                <p x-show="end.preview !== null" class="line-clamp-2 break-words" x-text="end.preview"></p>
+                                <p x-show="end.preview === null" class="text-muted" x-text="`${end.shortId} — not in your library`"></p>
+                            </div></template>
+                        </div></template>
                         <div class="mt-1 flex flex-wrap gap-2"><button data-icon="check" class="accept-incoming btn-success" @click="acceptIncoming(item)">Accept</button><button data-icon="trash" class="btn-danger" @click="discardIncoming(item)">Discard</button></div>
                     </article></template>
                 </div>
