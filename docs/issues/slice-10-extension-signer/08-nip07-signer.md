@@ -1,6 +1,7 @@
 # 08 — Browser-extension signer (NIP-07)
 
 Type: AFK
+**Status:** DONE
 
 ## What to build
 
@@ -10,10 +11,10 @@ Reference: SPEC §5.1, §5.3.
 
 ## Acceptance criteria
 
-- [ ] With an extension installed, records are signed by the extension's key, and the signer shows "extension".
-- [ ] Without an extension, the local key is used, with no errors.
-- [ ] Switching signer warns, then records the old key as a previous key.
-- [ ] Records signed by the old key are read-only and labelled "by previous key".
+- [x] With an extension installed, records are signed by the extension's key, and the signer shows "extension".
+- [x] Without an extension, the local key is used, with no errors.
+- [x] Switching signer warns, then records the old key as a previous key.
+- [x] Records signed by the old key are read-only and labelled "by previous key".
 
 ## Blocked by
 
