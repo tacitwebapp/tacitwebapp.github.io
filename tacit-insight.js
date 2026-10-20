@@ -61,6 +61,16 @@ export function relationsOf(library, key) {
         .filter(group => group.items.length);
 }
 
+export function feedBadges(library) {
+    const superseded = new Set(), conflicts = new Map();
+    const link = (key, other) => conflicts.set(key, (conflicts.get(key) ?? new Set()).add(other));
+    for (const { content } of visibleInsights(library)) {
+        if (content.relation === 'supersedes') superseded.add(content.to);
+        if (content.relation === 'conflicts') { link(content.from, content.to); link(content.to, content.from); }
+    }
+    return new Map([...new Set([...superseded, ...conflicts.keys()])].map(key => [key, { superseded: superseded.has(key), conflicts: conflicts.get(key)?.size ?? 0 }]));
+}
+
 export const findOwnInsight = (library, pubkey, keyA, keyB) => library.find(item => item.key === `${pubkey}:${insightD(keyA, keyB)}`);
 
 export function groupInsights(library, { subject = '', relation = '', author = '' } = {}, { selfKeys = new Set(), trustedKeys = new Set() } = {}) {
@@ -77,4 +87,18 @@ export function groupInsights(library, { subject = '', relation = '', author = '
     const order = Object.keys(RELATIONS);
     return [...groups.values()].map(group => ({ ...group, count: group.items.length }))
         .sort((x, y) => x.pair.localeCompare(y.pair) || order.indexOf(x.relation) - order.indexOf(y.relation));
+}
+
+export const cascadeTargets = (library, drafts, pubkey, recordKey) => {
+    const onRecord = content => content?.from === recordKey || content?.to === recordKey;
+    return {
+        insights: library.filter(item => isInsight(item.content) && item.event.pubkey === pubkey && onRecord(item.content)),
+        drafts: drafts.filter(draft => draft.kind === 'insight-draft' && onRecord(draft.content)),
+    };
+};
+
+export function incomingInsightCard(content, library, pending) {
+    const previewOf = key => (library.find(item => item.key === key) ?? pending.find(item => item.id === key))?.content.information_chunks ?? null;
+    const end = key => ({ shortId: shortIdOf(key), preview: previewOf(key) });
+    return { label: RELATIONS[content.relation]?.label ?? content.relation, directed: !!RELATIONS[content.relation]?.directed, rationale: content.rationale ?? '', from: end(content.from), to: end(content.to) };
 }

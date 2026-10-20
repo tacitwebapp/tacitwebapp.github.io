@@ -1,7 +1,7 @@
 # 34 — Incoming insights in Import & Review
 
 Type: AFK
-**Status:** TODO
+**Status:** DONE
 **Label:** ready-for-agent
 
 ## Parent
@@ -17,9 +17,9 @@ Incoming insights from unknown authors already reach the review queue through th
 - [ ] An unknown author's shared insight shows as an insight card under that author, not as a record card.
 - [ ] Accept moves it into the library as shared and relays it; it shows once both records are held.
 - [ ] Trust author moves their pending insights into the library; Block author removes them and refuses new ones.
-- [ ] Insights count toward the author's 50-item cap.
+- [x] Insights count toward the author's 50-item cap.
 - [ ] A record missing from the library shows the "not in your library" line.
-- [ ] `npm test` passes.
+- [x] `npm test` passes.
 
 ## Blocked by
 

@@ -39,7 +39,11 @@
                     <span class="avatar" aria-hidden="true" :style="avatarStyle(item.event.pubkey)" :class="{ 'avatar-neutral': avatarOf(item.event.pubkey).neutral }" x-text="avatarOf(item.event.pubkey).initial"></span>
                     <span class="min-w-0 flex-1">
                         <span class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted"><span class="font-semibold uppercase tracking-wide text-accent" x-text="item.content.subject"></span><span x-show="item.content.specialty" x-text="item.content.specialty"></span><span x-text="authorLabel(item.event.pubkey)"></span><span class="rounded-ctl bg-success-soft px-1.5 font-semibold text-success">verified</span><span x-text="item.visibility"></span><span x-text="formatDate(item.event.created_at)"></span></span>
-                        <span class="mt-1 line-clamp-2 break-words text-sm text-ink" x-text="item.content.information_chunks"></span>
+                        <span x-show="badgesOf(item).superseded || badgesOf(item).conflicts" class="feed-badges mt-1 flex flex-wrap items-center gap-1 text-xs font-semibold">
+                            <span x-show="badgesOf(item).superseded" role="link" class="badge-superseded rounded-ctl bg-warn-soft px-1.5 text-warn" @click.stop="openRelations(item, $el.closest('button'))">Superseded</span>
+                            <span x-show="badgesOf(item).conflicts" role="link" class="badge-conflicts rounded-ctl bg-warn-soft px-1.5 text-warn" @click.stop="openRelations(item, $el.closest('button'))" x-text="`Conflicts (${badgesOf(item).conflicts})`"></span>
+                        </span>
+                        <span class="mt-1 line-clamp-2 break-words text-sm text-ink" :class="{ 'italic text-muted': badgesOf(item).superseded }" x-text="item.content.information_chunks"></span>
                     </span>
                     <span class="text-muted" aria-hidden="true">&rsaquo;</span>
                 </button></template>
@@ -55,7 +59,7 @@
                     <ul x-show="detailItem.warnings && detailItem.warnings.length" class="rounded-ctl bg-warn-soft p-3 text-sm text-warn"><template x-for="warning in detailItem.warnings || []"><li x-text="warning"></li></template></ul>
                     <div class="flex flex-wrap items-center gap-2">
                         <template x-if="detailItem.visibility === 'local' && detailItem.event.pubkey === pubkey"><button data-icon="share" type="button" class="btn-success" @click="shareRecord(detailItem)">Share</button></template>
-                        <template x-if="detailItem.event.pubkey === pubkey"><span class="flex flex-wrap gap-2"><button data-icon="pencil" type="button" class="edit-record btn-secondary" @click="editRecord(detailItem)">Edit</button><button data-icon="trash" type="button" class="delete-record btn-danger" @click="deleteRecord(detailItem); closeDetail()">Delete</button></span></template>
+                        <template x-if="detailItem.event.pubkey === pubkey"><span class="flex flex-wrap gap-2"><button data-icon="pencil" type="button" class="edit-record btn-secondary" @click="editRecord(detailItem)">Edit</button><button data-icon="trash" type="button" class="delete-record btn-danger" @click="deleteRecord(detailItem).then(deleted => deleted && closeDetail())">Delete</button></span></template>
                         <template x-if="!selfKeys.has(detailItem.event.pubkey)"><span class="flex flex-wrap gap-2"><button data-icon="eye-off" type="button" class="hide-record btn-secondary" @click="hideRecord(detailItem); closeDetail()">Hide</button><button data-icon="shield-check" type="button" x-show="statusOf(detailItem.event.pubkey) !== 'trusted'" class="trust-author btn-secondary" @click="trustAuthor(detailItem.event.pubkey)">Trust author</button><button data-icon="ban" type="button" class="block-author btn-danger" @click="blockAuthor(detailItem.event.pubkey); closeDetail()">Block author</button></span></template>
                         <button data-icon="plus" type="button" class="link-record btn-secondary" @click="openLink()">Link…</button>
                         <button data-icon="x" type="button" class="btn-secondary ml-auto" @click="closeDetail()">Close</button>
@@ -161,8 +165,18 @@
                     <div class="row flex-wrap"><button data-icon="check" class="accept-all btn-success" @click="acceptGroup(group)">Accept all</button><button data-icon="trash" class="discard-all btn-danger" @click="discardGroup(group)">Discard all</button><button data-icon="shield-check" class="trust-author btn-secondary" @click="trustAuthor(group.pubkey)">Trust author</button><button data-icon="ban" class="block-author btn-danger" @click="blockAuthor(group.pubkey)">Block author</button></div>
                     <template x-for="item in group.records" :key="item.id"><article class="incoming row flex-col items-stretch gap-1">
                         <span class="flex items-center gap-2 text-xs font-semibold text-accent"><span class="avatar" aria-hidden="true" :style="avatarStyle(item.event.pubkey)" :class="{ 'avatar-neutral': avatarOf(item.event.pubkey).neutral }" x-text="avatarOf(item.event.pubkey).initial"></span><span x-text="item.content.subject"></span></span>
-                        <p class="break-words text-sm font-medium" x-text="item.content.information_chunks"></p>
-                        <p x-show="item.content.actionable_workflows" class="break-words text-sm text-muted" x-text="item.content.actionable_workflows"></p>
+                        <p x-show="!isInsight(item.content)" class="break-words text-sm font-medium" x-text="item.content.information_chunks"></p>
+                        <p x-show="!isInsight(item.content) && item.content.actionable_workflows" class="break-words text-sm text-muted" x-text="item.content.actionable_workflows"></p>
+                        <template x-if="isInsight(item.content)"><div class="incoming-insight flex flex-col gap-1 text-sm">
+                            <p class="font-semibold" x-text="`Insight: ${insightCard(item).label}`"></p>
+                            <p class="text-xs text-muted" x-show="insightCard(item).directed" x-text="`${insightCard(item).from.shortId} to ${insightCard(item).to.shortId}`"></p>
+                            <p class="whitespace-pre-wrap break-words text-muted" x-show="insightCard(item).rationale" x-text="insightCard(item).rationale"></p>
+                            <template x-for="end in [insightCard(item).from, insightCard(item).to]" :key="end.shortId"><div class="flex flex-col rounded-ctl bg-surface2 p-3">
+                                <span x-show="end.preview !== null" class="font-mono text-xs text-muted" x-text="end.shortId"></span>
+                                <p x-show="end.preview !== null" class="line-clamp-2 break-words" x-text="end.preview"></p>
+                                <p x-show="end.preview === null" class="text-muted" x-text="`${end.shortId} — not in your library`"></p>
+                            </div></template>
+                        </div></template>
                         <div class="mt-1 flex flex-wrap gap-2"><button data-icon="check" class="accept-incoming btn-success" @click="acceptIncoming(item)">Accept</button><button data-icon="trash" class="btn-danger" @click="discardIncoming(item)">Discard</button></div>
                     </article></template>
                 </div>
