@@ -1,6 +1,7 @@
 # 13 — Directory room and Discover list
 
 Type: AFK
+**Status:** DONE
 
 ## What to build
 
@@ -10,11 +11,11 @@ Reference: SPEC §9.1, §9.4.
 
 ## Acceptance criteria
 
-- [ ] B sees A's public subject in Discover, with a peer count of 1, and can subscribe to it in one click.
-- [ ] A private subject never appears in anyone's Discover list.
-- [ ] Entries disappear when the announcing peer leaves.
-- [ ] Malformed entries (mismatched slug, label too long, over 100) are ignored.
-- [ ] Unit tests: announcement validation and the Discover grouping.
+- [x] B sees A's public subject in Discover, with a peer count of 1, and can subscribe to it in one click.
+- [x] A private subject never appears in anyone's Discover list.
+- [x] Entries disappear when the announcing peer leaves.
+- [x] Malformed entries (mismatched slug, label too long, over 100) are ignored.
+- [x] Unit tests: announcement validation and the Discover grouping.
 
 ## Blocked by
 
