@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseSecretKey, encodeNsec, createLocalSigner, generateSecretKeyHex } from '../tacit-identity.js';
 import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, isValidRecord, recordKey } from '../tacit-events.js';
-import { decideIncoming } from '../tacit-sync.js';
+import { decideIncoming, roomConfig } from '../tacit-sync.js';
 
 test('parseSecretKey accepts hex and nsec, rejects others', () => {
     const hex = generateSecretKeyHex();
@@ -84,4 +84,10 @@ test('deletion: author check, removes held, tombstone blocks older re-insert', a
     assert.equal(decideIncoming(edited, { held: {}, trustedPubkeys: new Set([record.pubkey]), tombstones: { [key]: 200 } }).action, 'accept');
     const newerHeld = await author.signEvent(buildEditTemplate(record, content, 300));
     assert.equal(decideIncoming(deletion, { ...base, held: { [key]: newerHeld } }).removeHeld, false);
+});
+
+test('roomConfig adds password only for private subjects and keeps relays', () => {
+    assert.deepEqual(roomConfig([], ''), { appId: 'com.tacit-sync.v1' });
+    assert.deepEqual(roomConfig([], undefined), { appId: 'com.tacit-sync.v1' });
+    assert.deepEqual(roomConfig(['wss://r'], 'pw'), { appId: 'com.tacit-sync.v1', relayConfig: { urls: ['wss://r'] }, password: 'pw' });
 });

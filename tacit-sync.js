@@ -23,10 +23,15 @@ export function decideIncoming(event, { held, pendingIncoming = {}, trustedPubke
     return { action: trustedPubkeys.has(event.pubkey) ? 'accept' : 'review' };
 }
 
-export function connectRoom(app, slug) {
+export function roomConfig(relays, password) {
     const config = { appId: APP_ID };
-    if (app.settings.relays.length) config.relayConfig = { urls: app.settings.relays };
-    const room = joinRoom(config, roomId(slug));
+    if (relays.length) config.relayConfig = { urls: relays };
+    if (password) config.password = password;
+    return config;
+}
+
+export function connectRoom(app, slug, password) {
+    const room = joinRoom(roomConfig(app.settings.relays, password), roomId(slug));
     const action = room.makeAction('syncTacit');
     action.onMessage = (events, { peerId }) => app.receiveFromPeer(events, slug, peerId);
     room.onPeerJoin = peerId => {

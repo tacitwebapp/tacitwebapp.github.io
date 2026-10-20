@@ -70,7 +70,13 @@ export function registerTacitApp(Alpine) {
         },
         joinSubject(slug) {
             if (rooms[slug]) return;
-            try { rooms[slug] = connectRoom(this, slug); this.logSync(`Joined ${slug}.`); } catch (error) { this.logSync(`Could not join ${slug}: ${error.message}`); }
+            const password = this.settings.subjects.find(subject => subject.slug === slug)?.password;
+            try { rooms[slug] = connectRoom(this, slug, password); this.logSync(`Joined ${slug}${password ? ' (private)' : ''}.`); } catch (error) { this.logSync(`Could not join ${slug}: ${error.message}`); }
+        },
+        setPassword(subject, password) {
+            subject.password = password.trim() || undefined; this.saveSettings();
+            this.leaveSubject(subject.slug);
+            if (subject.subscribed) this.joinSubject(subject.slug);
         },
         leaveSubject(slug) { rooms[slug]?.room.leave(); delete rooms[slug]; this.logSync(`Left ${slug}.`); },
 
