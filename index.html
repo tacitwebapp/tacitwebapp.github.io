@@ -113,65 +113,77 @@
             </div></template>
         </section>
 
-        <section id="tab-subjects" x-show="activeTab === 'subjects'" class="group p-6" style="display: none;">
+        <section id="tab-subjects" x-show="activeTab === 'subjects'" style="display: none;">
             <h2 class="large-title">Subjects</h2>
-            <div class="flex gap-2 mb-2"><input type="text" x-model="newSubject" @keyup.enter="createSubject" placeholder="Create a subject" class="px-3 py-2 border rounded w-full"><button @click="createSubject" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 whitespace-nowrap">Create subject</button></div>
-            <p class="text-sm text-red-700 mb-3" x-show="subjectError" x-text="subjectError"></p>
-            <div class="space-y-2 mb-5">
-                <template x-for="subject in settings.subjects" :key="subject.slug"><div class="subject-row flex items-center justify-between border rounded px-3 py-2"><span><span x-text="subject.label"></span> <span class="text-xs text-gray-500" x-text="subject.slug"></span> <span class="private-badge text-xs font-semibold text-purple-800 bg-purple-100 px-2 py-0.5 rounded" x-show="subject.password || subject.needsPassword">Private</span></span><div class="flex items-center gap-3"><input type="password" class="subject-password px-2 py-1 border rounded text-sm" placeholder="Password (optional)" autocomplete="off" :value="subject.password || ''" @change="setPassword(subject, $event.target.value)"><label class="text-sm flex items-center gap-2"><input type="checkbox" :checked="subject.subscribed" @change="toggleSubscribe(subject)"> Subscribed</label></div></div></template>
-                <p x-show="settings.subjects.length === 0" class="text-gray-500 italic text-sm">No subjects yet.</p>
+            <div class="group">
+                <div class="row flex-wrap"><input type="text" x-model="newSubject" @keyup.enter="createSubject" placeholder="Create a subject" aria-label="New subject name" class="field min-w-0 flex-1 basis-48"><button @click="createSubject" class="btn-primary whitespace-nowrap">Create subject</button></div>
             </div>
-            <h3 class="font-bold mb-2">Discover</h3>
-            <div id="discover" class="space-y-2 mb-5">
-                <template x-for="row in discover" :key="row.slug"><div class="discover-row flex items-center justify-between border rounded px-3 py-2"><span><span x-text="row.label"></span> <span class="text-xs text-gray-500" x-text="`${row.peers} ${row.peers === 1 ? 'peer' : 'peers'}, ${row.sharedCount} shared`"></span></span><span x-show="hasSubject(row.slug)" class="text-xs text-gray-500">Added</span><button x-show="!hasSubject(row.slug)" class="discover-subscribe px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700" @click="subscribeDiscovered(row)">Subscribe</button></div></template>
-                <p x-show="discover.length === 0" class="text-gray-500 italic text-sm">No public subjects found yet.</p>
+            <p class="group-note text-danger" x-show="subjectError" x-text="subjectError"></p>
+            <h3 class="group-title">Your subjects</h3>
+            <div class="group">
+                <template x-for="subject in settings.subjects" :key="subject.slug"><div class="subject-row row flex-wrap justify-between"><span class="min-w-0 break-words"><span class="font-medium" x-text="subject.label"></span> <span class="text-xs text-muted" x-text="subject.slug"></span> <span class="private-badge rounded-full bg-warn-soft px-2 py-0.5 text-xs font-semibold text-warn" x-show="subject.password || subject.needsPassword">Private</span></span><div class="flex min-w-0 flex-wrap items-center gap-3"><input type="password" class="subject-password field w-48 max-w-full" placeholder="Password (optional)" aria-label="Subject password" autocomplete="off" :value="subject.password || ''" @change="setPassword(subject, $event.target.value)"><label class="flex min-h-[44px] items-center gap-2 text-sm"><input type="checkbox" class="h-5 w-5 accent-accent" :checked="subject.subscribed" @change="toggleSubscribe(subject)"> Subscribed</label></div></div></template>
+                <p x-show="settings.subjects.length === 0" class="row text-sm italic text-muted">No subjects yet.</p>
             </div>
-            <h3 class="font-bold mb-2">Sync log</h3>
-            <div id="sync-log" class="p-3 bg-gray-900 text-green-400 font-mono text-xs rounded h-40 overflow-y-auto"><template x-for="(log, index) in syncLogs" :key="index"><div x-text="log"></div></template></div>
+            <h3 class="group-title">Discover</h3>
+            <div id="discover" class="group">
+                <template x-for="row in discover" :key="row.slug"><div class="discover-row row justify-between"><span class="min-w-0 break-words"><span class="font-medium" x-text="row.label"></span> <span class="text-xs text-muted" x-text="`${row.peers} ${row.peers === 1 ? 'peer' : 'peers'}, ${row.sharedCount} shared`"></span></span><span x-show="hasSubject(row.slug)" class="text-xs text-muted">Added</span><button x-show="!hasSubject(row.slug)" class="discover-subscribe btn-primary" @click="subscribeDiscovered(row)">Subscribe</button></div></template>
+                <p x-show="discover.length === 0" class="row text-sm italic text-muted">No public subjects found yet.</p>
+            </div>
+            <h3 class="group-title">Sync log</h3>
+            <div id="sync-log" class="group h-40 overflow-y-auto break-words p-4 font-mono text-xs text-muted"><template x-for="(log, index) in syncLogs" :key="index"><div x-text="log"></div></template></div>
         </section>
 
-        <section id="tab-identity" x-show="activeTab === 'identity'" class="group p-6" style="display: none;">
+        <section id="tab-identity" x-show="activeTab === 'identity'" style="display: none;">
             <h2 class="large-title">Identity</h2>
-            <p class="text-sm">Signer: <strong id="signer-source" x-text="signerLabel"></strong></p>
-            <p class="text-sm break-all">Public key: <span id="npub" x-text="npub"></span></p>
-            <p class="text-sm break-all mb-4">Hex: <span id="pubkey-hex" x-text="pubkey.slice(0, 12)"></span>…</p>
-            <div class="border rounded p-3 mb-4">
-                <h3 class="font-bold mb-2">Export private key</h3>
-                <p x-show="extensionActive" class="text-sm text-gray-600 mb-2">Disabled while the extension is active. The extension manages your key.</p>
-                <p class="text-sm text-red-700 mb-2">Anyone with this key can sign records as you. Never share it.</p>
-                <label class="text-sm flex items-center gap-2 mb-2"><input id="export-ack" type="checkbox" :disabled="extensionActive" x-model="exportAck"> I understand</label>
-                <button id="reveal-secret" @click="revealSecret" :disabled="extensionActive || !exportAck" class="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50">Reveal key</button>
-                <div x-show="secretRevealed" class="mt-2 text-sm break-all"><p>Hex: <code id="secret-hex" x-text="secretHex"></code></p><p>nsec: <code id="secret-nsec" x-text="secretNsec"></code></p><button @click="copy(secretHex, 'secret')" class="mt-2 px-3 py-1 text-sm bg-white border border-gray-300 rounded">Copy hex</button> <button @click="hideSecret" class="mt-2 px-3 py-1 text-sm bg-white border border-gray-300 rounded">Hide</button> <span x-show="copied === 'secret'" class="text-green-700">Copied</span></div>
+            <div class="group">
+                <div class="row text-sm"><span class="text-muted">Signer</span><strong id="signer-source" class="ml-auto" x-text="signerLabel"></strong></div>
+                <div class="row flex-col items-start gap-1 text-sm"><span class="text-muted">Public key</span><span id="npub" class="w-full break-all font-mono text-xs" x-text="npub"></span></div>
+                <div class="row flex-col items-start gap-1 text-sm"><span class="text-muted">Hex</span><span class="w-full break-all font-mono text-xs"><span id="pubkey-hex" x-text="pubkey.slice(0, 12)"></span>…</span></div>
             </div>
-            <div class="border rounded p-3 mb-4">
-                <h3 class="font-bold mb-2">Import identity</h3>
-                <p x-show="extensionActive" class="text-sm text-gray-600 mb-2">Disabled while the extension is active.</p>
-                <input id="import-key" type="text" :disabled="extensionActive" x-model="importKeyText" placeholder="hex or nsec1..." class="px-3 py-2 border rounded w-full mb-2">
-                <label class="text-sm flex items-center gap-2 mb-2"><input id="import-ack" type="checkbox" :disabled="extensionActive" x-model="importAck"> I have exported my current key</label>
-                <button id="import-identity" @click="importIdentity" :disabled="extensionActive || !importAck" class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded disabled:opacity-50">Import identity</button>
-                <p id="identity-message" class="text-sm mt-2" x-text="identityMessage"></p>
+
+            <h3 class="group-title">Export private key</h3>
+            <div class="group">
+                <template x-if="extensionActive"><p class="row text-sm text-muted">Disabled while the extension is active. The extension manages your key.</p></template>
+                <p class="row bg-warn-soft text-sm text-warn">Anyone with this key can sign records as you. Never share it.</p>
+                <label class="row min-h-[44px] text-sm"><input id="export-ack" type="checkbox" class="h-5 w-5 shrink-0 accent-accent" :disabled="extensionActive" x-model="exportAck"> I understand</label>
+                <div class="row"><button id="reveal-secret" @click="revealSecret" :disabled="extensionActive || !exportAck" class="btn-secondary">Reveal key</button></div>
+                <div x-show="secretRevealed" class="row flex-col items-stretch text-sm"><p class="break-all">Hex: <code id="secret-hex" class="font-mono text-xs" x-text="secretHex"></code></p><p class="break-all">nsec: <code id="secret-nsec" class="font-mono text-xs" x-text="secretNsec"></code></p><div class="flex flex-wrap items-center gap-2"><button @click="copy(secretHex, 'secret')" class="btn-secondary">Copy hex</button> <button @click="hideSecret" class="btn-secondary">Hide</button> <span x-show="copied === 'secret'" class="text-success">Copied</span></div></div>
             </div>
-            <div x-show="extensionAvailable" class="border rounded p-3 mb-4">
-                <h3 class="font-bold mb-2">Switch signer</h3>
-                <p class="text-sm text-red-700 mb-2">Switching changes your identity. Records signed by your current key stay, but become read-only and are labelled "by previous key". If you use a local key, export it first.</p>
-                <label class="text-sm flex items-center gap-2 mb-2"><input id="switch-ack" type="checkbox" x-model="switchAck"> I understand</label>
-                <button id="switch-signer" @click="switchSigner(extensionActive ? 'local' : 'extension')" :disabled="!switchAck" class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded disabled:opacity-50" x-text="extensionActive ? 'Switch to local key' : 'Switch to extension'"></button>
+
+            <h3 class="group-title">Import identity</h3>
+            <div class="group">
+                <template x-if="extensionActive"><p class="row text-sm text-muted">Disabled while the extension is active.</p></template>
+                <div class="row"><input id="import-key" type="text" :disabled="extensionActive" x-model="importKeyText" placeholder="hex or nsec1..." aria-label="Private key to import" class="field font-mono"></div>
+                <label class="row min-h-[44px] text-sm"><input id="import-ack" type="checkbox" class="h-5 w-5 shrink-0 accent-accent" :disabled="extensionActive" x-model="importAck"> I have exported my current key</label>
+                <div class="row"><button id="import-identity" @click="importIdentity" :disabled="extensionActive || !importAck" class="btn-danger">Import identity</button></div>
+                <p id="identity-message" class="row text-sm empty:hidden" x-text="identityMessage"></p>
             </div>
-            <div class="border rounded p-3 mb-4">
-                <h3 class="font-bold mb-2">Backup</h3>
-                <p class="text-sm text-gray-600 mb-2">Your records, deletions, trust list and subjects. It does not include your private key or subject passwords.</p>
-                <button id="export-backup" @click="exportBackup" class="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100">Export backup</button>
-                <input id="import-backup" type="file" accept=".json,application/json" @change="importBackup" class="block w-full text-sm text-gray-500 mt-3 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700">
-                <p id="backup-summary" class="text-sm mt-2" x-text="backupSummary"></p>
+
+            <div x-show="extensionAvailable">
+                <h3 class="group-title">Switch signer</h3>
+                <div class="group">
+                    <p class="row bg-warn-soft text-sm text-warn">Switching changes your identity. Records signed by your current key stay, but become read-only and are labelled "by previous key". If you use a local key, export it first.</p>
+                    <label class="row min-h-[44px] text-sm"><input id="switch-ack" type="checkbox" class="h-5 w-5 shrink-0 accent-accent" x-model="switchAck"> I understand</label>
+                    <div class="row"><button id="switch-signer" @click="switchSigner(extensionActive ? 'local' : 'extension')" :disabled="!switchAck" class="btn-danger" x-text="extensionActive ? 'Switch to local key' : 'Switch to extension'"></button></div>
+                </div>
             </div>
-            <h3 class="font-bold mb-2">Trusted and blocked authors</h3>
-            <div id="trust-list" class="space-y-2 mb-4">
-                <template x-for="entry in trust" :key="entry.pubkey"><div class="trust-row flex flex-wrap items-center justify-between gap-2 border rounded px-3 py-2"><span class="text-sm break-all" x-text="shortKey(entry.pubkey)"></span><span class="flex items-center gap-2"><input type="text" class="trust-nickname px-2 py-1 border rounded text-sm" placeholder="Nickname" :value="entry.nickname || ''" @change="setNickname(entry, $event.target.value)"><select class="trust-status px-2 py-1 border rounded text-sm" :value="entry.status" @change="setStatus(entry, $event.target.value)"><option value="trusted">Trusted</option><option value="blocked">Blocked</option></select><button class="trust-remove px-3 py-1 text-sm text-red-700 hover:bg-red-100 rounded" @click="removeTrust(entry.pubkey)">Remove</button></span></div></template>
-                <p x-show="trust.length === 0" class="text-gray-500 italic text-sm">No trusted or blocked authors.</p>
+
+            <h3 class="group-title">Backup</h3>
+            <div class="group">
+                <p class="row text-sm text-muted">Your records, deletions, trust list and subjects. It does not include your private key or subject passwords.</p>
+                <div class="row"><button id="export-backup" @click="exportBackup" class="btn-secondary">Export backup</button></div>
+                <div class="row"><input id="import-backup" type="file" accept=".json,application/json" @change="importBackup" class="block w-full min-w-0 text-sm text-muted file:mr-4 file:min-h-[44px] file:cursor-pointer file:rounded-ctl file:border-0 file:bg-accent-soft file:px-4 file:text-sm file:font-semibold file:text-accent"></div>
+                <p id="backup-summary" class="row text-sm empty:hidden" x-text="backupSummary"></p>
             </div>
-            <h3 class="font-bold mb-2">Previous keys</h3>
-            <ul class="text-sm"><template x-for="key in previousKeys" :key="key"><li class="break-all" x-text="`${key}`"></li></template></ul>
-            <p x-show="previousKeys.length === 0" class="text-gray-500 italic text-sm">None.</p>
+
+            <h3 class="group-title">Trusted and blocked authors</h3>
+            <div id="trust-list" class="group">
+                <template x-for="entry in trust" :key="entry.pubkey"><div class="trust-row row flex-wrap justify-between"><span class="min-w-0 break-all font-mono text-xs" x-text="shortKey(entry.pubkey)"></span><span class="flex min-w-0 flex-wrap items-center gap-2"><input type="text" class="trust-nickname field w-40 max-w-full" placeholder="Nickname" aria-label="Nickname" :value="entry.nickname || ''" @change="setNickname(entry, $event.target.value)"><select class="trust-status field w-auto" aria-label="Status" :value="entry.status" @change="setStatus(entry, $event.target.value)"><option value="trusted">Trusted</option><option value="blocked">Blocked</option></select><button class="trust-remove btn-danger" @click="removeTrust(entry.pubkey)">Remove</button></span></div></template>
+                <p x-show="trust.length === 0" class="row text-sm italic text-muted">No trusted or blocked authors.</p>
+            </div>
+
+            <h3 class="group-title">Previous keys</h3>
+            <ul class="group"><template x-for="key in previousKeys" :key="key"><li class="row break-all font-mono text-xs" x-text="`${key}`"></li></template><li x-show="previousKeys.length === 0" class="row text-sm italic text-muted">None.</li></ul>
         </section>
         </main>
     </div>
