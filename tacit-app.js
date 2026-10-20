@@ -28,7 +28,8 @@ export function registerTacitApp(Alpine) {
         pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], directoryPeers: {}, ready: false,
         feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null,
         authorOptions: [{ value: '', label: 'All' }, { value: 'mine', label: 'Mine' }, { value: 'trusted', label: 'Trusted' }, { value: 'others', label: 'Others' }],
-        get selectedSubject() { return this.settings.subjects.find(subject => subject.slug === this.selectedSlug); },
+        get subjectOptions() { return [...this.settings.subjects, ...this.discover.filter(row => !this.hasSubject(row.slug))]; },
+        get selectedSubject() { return this.subjectOptions.find(subject => subject.slug === this.selectedSlug); },
         get dynamicPrompt() { return buildTacitPrompt({ inputType: this.selectedInputType, subjectCategory: this.selectedSubject?.label || '', specialty: this.specialty }); },
         get discover() { return groupDiscover(this.directoryPeers); },
         get extensionActive() { return this.signer?.source === 'extension'; },
@@ -168,6 +169,7 @@ export function registerTacitApp(Alpine) {
         async runImport(text, fileName) {
             const subject = this.selectedSubject; if (!subject) return;
             try {
+                if (!this.hasSubject(subject.slug)) { this.settings.subjects = addSubject(this.settings.subjects, subject.label).subjects; this.saveSettings(); }
                 const existing = [...this.drafts.map(draft => draft.content), ...this.library.filter(item => item.event.pubkey === this.pubkey).map(item => item.content)]
                     .map(content => ({ slug: addSubject([], content.subject || '').subject.slug, chunk: String(content.information_chunks).trim() }));
                 const result = buildDrafts(parseText(text, fileName), subject, existing);
