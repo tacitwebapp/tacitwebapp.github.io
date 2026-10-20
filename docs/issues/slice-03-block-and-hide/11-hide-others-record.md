@@ -1,7 +1,7 @@
 # 11 — Hide another author's record
 
 Type: AFK
-**Status:** PARTIAL — Delete (ticket 09/10) does not exist yet, so own records offer neither Hide nor Delete
+**Status:** DONE
 
 ## What to build
 
@@ -13,7 +13,7 @@ Reference: SPEC §7.3 step 5, §7.4 (Hide), §8.1 (`hidden`).
 
 - [x] A hidden record does not come back after re-joining the room.
 - [x] A hidden record is not sent to peers who join later.
-- [ ] Your own records offer Delete, not Hide.
+- [x] Your own records offer Delete, not Hide.
 
 ## Blocked by
 
