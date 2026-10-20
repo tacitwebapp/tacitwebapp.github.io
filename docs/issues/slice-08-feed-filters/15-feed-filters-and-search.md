@@ -1,6 +1,7 @@
 # 15 — Feed filters and text search
 
 Type: AFK
+**Status:** DONE
 
 ## What to build
 
@@ -10,9 +11,9 @@ Reference: SPEC §10 (Feed).
 
 ## Acceptance criteria
 
-- [ ] Each filter alone and in combination narrows the Feed correctly.
-- [ ] Search matches text in either field, ignoring case.
-- [ ] Unit tests: the filter and search predicate.
+- [x] Each filter alone and in combination narrows the Feed correctly.
+- [x] Search matches text in either field, ignoring case.
+- [x] Unit tests: the filter and search predicate.
 
 ## Blocked by
 
