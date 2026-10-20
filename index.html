@@ -95,6 +95,11 @@
                 <template x-for="subject in settings.subjects" :key="subject.slug"><div class="subject-row flex items-center justify-between border rounded px-3 py-2"><span><span x-text="subject.label"></span> <span class="text-xs text-gray-500" x-text="subject.slug"></span> <span class="private-badge text-xs font-semibold text-purple-800 bg-purple-100 px-2 py-0.5 rounded" x-show="subject.password">Private</span></span><div class="flex items-center gap-3"><input type="password" class="subject-password px-2 py-1 border rounded text-sm" placeholder="Password (optional)" autocomplete="off" :value="subject.password || ''" @change="setPassword(subject, $event.target.value)"><label class="text-sm flex items-center gap-2"><input type="checkbox" :checked="subject.subscribed" @change="toggleSubscribe(subject)"> Subscribed</label></div></div></template>
                 <p x-show="settings.subjects.length === 0" class="text-gray-500 italic text-sm">No subjects yet.</p>
             </div>
+            <h3 class="font-bold mb-2">Discover</h3>
+            <div id="discover" class="space-y-2 mb-5">
+                <template x-for="row in discover" :key="row.slug"><div class="discover-row flex items-center justify-between border rounded px-3 py-2"><span><span x-text="row.label"></span> <span class="text-xs text-gray-500" x-text="`${row.peers} ${row.peers === 1 ? 'peer' : 'peers'}, ${row.sharedCount} shared`"></span></span><span x-show="hasSubject(row.slug)" class="text-xs text-gray-500">Added</span><button x-show="!hasSubject(row.slug)" class="discover-subscribe px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700" @click="subscribeDiscovered(row)">Subscribe</button></div></template>
+                <p x-show="discover.length === 0" class="text-gray-500 italic text-sm">No public subjects found yet.</p>
+            </div>
             <h3 class="font-bold mb-2">Sync log</h3>
             <div id="sync-log" class="p-3 bg-gray-900 text-green-400 font-mono text-xs rounded h-40 overflow-y-auto"><template x-for="(log, index) in syncLogs" :key="index"><div x-text="log"></div></template></div>
         </section>

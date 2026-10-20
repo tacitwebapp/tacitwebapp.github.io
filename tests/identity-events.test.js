@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseSecretKey, encodeNsec, createLocalSigner, generateSecretKeyHex } from '../tacit-identity.js';
 import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, isValidRecord, recordKey } from '../tacit-events.js';
-import { decideIncoming, roomConfig } from '../tacit-sync.js';
+import { decideIncoming, roomConfig, announcementFor, validAnnouncements, groupDiscover } from '../tacit-sync.js';
+import { slugify } from '../tacit-subject.js';
 
 test('parseSecretKey accepts hex and nsec, rejects others', () => {
     const hex = generateSecretKeyHex();
@@ -90,4 +91,47 @@ test('roomConfig adds password only for private subjects and keeps relays', () =
     assert.deepEqual(roomConfig([], ''), { appId: 'com.tacit-sync.v1' });
     assert.deepEqual(roomConfig([], undefined), { appId: 'com.tacit-sync.v1' });
     assert.deepEqual(roomConfig(['wss://r'], 'pw'), { appId: 'com.tacit-sync.v1', relayConfig: { urls: ['wss://r'] }, password: 'pw' });
+});
+
+test('announcementFor lists subscribed public subjects with shared counts, never private', () => {
+    const subjects = [
+        { label: 'Pest Control', slug: 'pest-control', subscribed: true },
+        { label: 'Secret', slug: 'secret', subscribed: true, password: 'pw' },
+        { label: 'Idle', slug: 'idle', subscribed: false },
+    ];
+    const library = [
+        { subjectSlug: 'pest-control', visibility: 'shared' }, { subjectSlug: 'pest-control', visibility: 'shared' },
+        { subjectSlug: 'pest-control', visibility: 'local' }, { subjectSlug: 'secret', visibility: 'shared' },
+    ];
+    assert.deepEqual(announcementFor(subjects, library), [{ label: 'Pest Control', slug: 'pest-control', sharedCount: 2 }]);
+});
+
+test('validAnnouncements drops malformed entries and caps at 100', () => {
+    const good = { label: 'Pest Control', slug: 'pest-control', sharedCount: 3 };
+    const result = validAnnouncements([
+        good,
+        { label: 'Pest Control', slug: 'wrong', sharedCount: 1 },
+        { label: 'x'.repeat(81), slug: 'x'.repeat(81), sharedCount: 1 },
+        { label: 5, slug: '5', sharedCount: 1 },
+        null,
+        { label: 'Roofing', slug: 'roofing', sharedCount: 'many' },
+    ]);
+    assert.deepEqual(result, [good, { label: 'Roofing', slug: 'roofing', sharedCount: 0 }]);
+    assert.equal(validAnnouncements('nope').length, 0);
+    const many = Array.from({ length: 150 }, (_, i) => ({ label: `s${i}`, slug: `s${i}`, sharedCount: 0 }));
+    assert.equal(validAnnouncements(many).length, 100);
+});
+
+test('groupDiscover groups by slug, most common label, peer count, max shared, sorted by peers', () => {
+    const entry = (label, sharedCount) => ({ label, slug: slugify(label), sharedCount });
+    const rows = groupDiscover({
+        p1: [entry('Roofing', 2), entry('Pest Control', 5)],
+        p2: [entry('Pest-Control', 9)],
+        p3: [entry('Pest Control', 1)],
+    });
+    assert.deepEqual(rows, [
+        { slug: 'pest-control', label: 'Pest Control', peers: 3, sharedCount: 9 },
+        { slug: 'roofing', label: 'Roofing', peers: 1, sharedCount: 2 },
+    ]);
+    assert.deepEqual(groupDiscover({}), []);
 });

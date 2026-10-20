@@ -3,10 +3,11 @@ import { addSubject, slugify } from './tacit-subject.js';
 import { parseText, buildDrafts } from './tacit-import.js';
 import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, recordKey } from './tacit-events.js';
 import { createLocalSigner, generateSecretKeyHex, parseSecretKey, encodeNsec, encodeNpub } from './tacit-identity.js';
-import { decideIncoming, connectRoom } from './tacit-sync.js';
+import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover } from './tacit-sync.js';
 import * as store from './tacit-store.js';
 
 const rooms = {};
+let directory;
 const readJson = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch (_) { return fallback; } };
 const shortKey = pubkey => `${encodeNpub(pubkey).slice(0, 12)}…${pubkey.slice(0, 6)}`;
 
@@ -17,9 +18,10 @@ export function registerTacitApp(Alpine) {
         settings: { relays: [], subjects: [] }, newSubject: '', subjectError: '',
         pubkey: '', previousKeys: [], signer: null, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
         importKeyText: '', importAck: false, identityMessage: '', copied: '',
-        pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], ready: false,
+        pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], directoryPeers: {}, ready: false,
         get selectedSubject() { return this.settings.subjects.find(subject => subject.slug === this.selectedSlug); },
         get dynamicPrompt() { return buildTacitPrompt({ inputType: this.selectedInputType, subjectCategory: this.selectedSubject?.label || '' }); },
+        get discover() { return groupDiscover(this.directoryPeers); },
         get npub() { return this.pubkey ? encodeNpub(this.pubkey) : ''; },
         get selfKeys() { return new Set([this.pubkey, ...this.previousKeys]); },
         async initApp() {
@@ -31,6 +33,7 @@ export function registerTacitApp(Alpine) {
             this.pubkey = await this.signer.getPublicKey();
             this.selectedSlug = this.settings.subjects[0]?.slug || '';
             await this.reload();
+            try { directory = connectDirectory(this); } catch (error) { this.logSync(`Could not join directory: ${error.message}`); }
             this.settings.subjects.filter(subject => subject.subscribed).forEach(subject => this.joinSubject(subject.slug));
             this.ready = true;
         },
@@ -72,13 +75,22 @@ export function registerTacitApp(Alpine) {
             if (rooms[slug]) return;
             const password = this.settings.subjects.find(subject => subject.slug === slug)?.password;
             try { rooms[slug] = connectRoom(this, slug, password); this.logSync(`Joined ${slug}${password ? ' (private)' : ''}.`); } catch (error) { this.logSync(`Could not join ${slug}: ${error.message}`); }
+            this.announce();
         },
         setPassword(subject, password) {
             subject.password = password.trim() || undefined; this.saveSettings();
             this.leaveSubject(subject.slug);
             if (subject.subscribed) this.joinSubject(subject.slug);
         },
-        leaveSubject(slug) { rooms[slug]?.room.leave(); delete rooms[slug]; this.logSync(`Left ${slug}.`); },
+        leaveSubject(slug) { rooms[slug]?.room.leave(); delete rooms[slug]; this.logSync(`Left ${slug}.`); this.announce(); },
+        announce(peerId) { directory?.action.send(announcementFor(this.settings.subjects, this.library), peerId ? { target: peerId } : undefined); },
+        receiveAnnouncement(entries, peerId) { this.directoryPeers = { ...this.directoryPeers, [peerId]: validAnnouncements(entries) }; },
+        dropAnnouncements(peerId) { const { [peerId]: _, ...rest } = this.directoryPeers; this.directoryPeers = rest; },
+        hasSubject(slug) { return this.settings.subjects.some(subject => subject.slug === slug); },
+        subscribeDiscovered(row) {
+            this.settings.subjects = addSubject(this.settings.subjects, row.label).subjects;
+            this.toggleSubscribe(this.settings.subjects.find(subject => subject.slug === row.slug));
+        },
 
         async importFile(event) {
             const file = event.target.files[0]; if (!file) return;
