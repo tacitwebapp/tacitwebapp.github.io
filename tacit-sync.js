@@ -1,5 +1,6 @@
 import { joinRoom } from './vendor/trystero-nostr.js';
 import { slugify } from './tacit-subject.js';
+import { isInsight } from './tacit-insight.js';
 import { isValidSignature, recordKey, deletionKey, RECORD_KIND, DELETION_KIND } from './tacit-events.js';
 
 export const APP_ID = 'com.tacit-sync.v1';
@@ -36,7 +37,7 @@ export function decideIncoming(event, { held, pendingIncoming = {}, pendingCount
 export function announcementFor(subjects, library, cache = {}) {
     const own = subjects.filter(subject => subject.subscribed && !subject.password && !subject.needsPassword).map(subject => ({
         label: subject.label, slug: subject.slug,
-        sharedCount: library.filter(item => item.visibility === 'shared' && item.subjectSlug === subject.slug).length,
+        sharedCount: library.filter(item => item.visibility === 'shared' && item.subjectSlug === subject.slug && !isInsight(item.content)).length,
     }));
     const taken = new Set(own.map(entry => entry.slug));
     const relayed = Object.entries(cache).filter(([slug]) => !taken.has(slug))

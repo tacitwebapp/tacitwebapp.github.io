@@ -1,10 +1,11 @@
 import { TacitInputTypeLabels, buildTacitPrompt } from './tacit-prompt.js';
 import { addSubject, slugify } from './tacit-subject.js';
-import { parseText, buildDrafts } from './tacit-import.js';
+import { parseText, buildDrafts, existingRecords } from './tacit-import.js';
 import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, recordKey, cleanAuthorName, latestAuthorNames } from './tacit-events.js';
 import { createLocalSigner, createExtensionSigner, pickSource, retireKey, generateSecretKeyHex, parseSecretKey, encodeNsec, encodeNpub } from './tacit-identity.js';
 import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache } from './tacit-sync.js';
 import { filterFeed } from './tacit-feed.js';
+import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit, shareBlocker, relationsOf, findOwnInsight } from './tacit-insight.js';
 import { buildBackup, parseBackup, restoreBackup } from './tacit-backup.js';
 import { avatarFor, nextTheme, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition } from './tacit-ui.js';
 import * as store from './tacit-store.js';
@@ -26,7 +27,7 @@ export function registerTacitApp(Alpine) {
         pubkey: '', previousKeys: [], signer: null, extensionAvailable: false, switchAck: false, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
         importKeyText: '', importAck: false, identityMessage: '', backupSummary: '', theme: localStorage.getItem('tacit.theme') || '', toasts: [],
         pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], authorNames: {}, directoryPeers: {}, subjectCache: {}, ready: false,
-        feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null,
+        feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null, linkForm: null, relations: RELATIONS,
         authorOptions: [{ value: '', label: 'All' }, { value: 'mine', label: 'Mine' }, { value: 'trusted', label: 'Trusted' }, { value: 'others', label: 'Others' }],
         get subjectOptions() { return [...this.settings.subjects, ...this.discover.filter(row => !this.hasSubject(row.slug))]; },
         get selectedSubject() { return this.subjectOptions.find(subject => subject.slug === this.selectedSlug); },
@@ -36,7 +37,8 @@ export function registerTacitApp(Alpine) {
         get signerLabel() { return this.extensionActive ? 'extension' : 'local key'; },
         get npub() { return this.pubkey ? encodeNpub(this.pubkey) : ''; },
         get feedItems() { return filterFeed(this.library, this.feedFilters, { selfKeys: this.selfKeys, trustedKeys: new Set(this.trust.filter(entry => entry.status === 'trusted').map(entry => entry.pubkey)) }); },
-        get feedSubjects() { return [...new Map(this.library.map(item => [item.subjectSlug, item.content.subject])).entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1]))); },
+        get records() { return this.library.filter(item => !isInsight(item.content)); },
+        get feedSubjects() { return [...new Map(this.records.map(item => [item.subjectSlug, item.content.subject])).entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1]))); },
         get selfKeys() { return new Set([this.pubkey, ...this.previousKeys]); },
         async initApp() {
             this.settings = { relays: [], subjects: [], ...readJson('tacit.settings', {}) };
@@ -213,8 +215,7 @@ export function registerTacitApp(Alpine) {
             const subject = this.selectedSubject; if (!subject) return;
             try {
                 if (!this.hasSubject(subject.slug)) { this.settings.subjects = addSubject(this.settings.subjects, subject.label).subjects; this.saveSettings(); }
-                const existing = [...this.drafts.map(draft => draft.content), ...this.library.filter(item => item.event.pubkey === this.pubkey).map(item => item.content)]
-                    .map(content => ({ slug: addSubject([], content.subject || '').subject.slug, chunk: String(content.information_chunks).trim() }));
+                const existing = existingRecords([...this.drafts.map(draft => draft.content), ...this.library.filter(item => item.event.pubkey === this.pubkey).map(item => item.content)]);
                 const result = buildDrafts(parseText(text, fileName), subject, existing);
                 for (const draft of result.drafts) await store.put('pending', { id: crypto.randomUUID(), kind: 'draft', content: draft.content, warnings: draft.warnings, createdAt: Date.now() });
                 this.importSummary = { created: result.drafts.length, rejected: result.rejected, skipped: result.skipped, error: '' };
@@ -253,7 +254,7 @@ export function registerTacitApp(Alpine) {
         },
         detailClosed() {
             const opener = detailOpener;
-            detailOpener = null; this.detailItem = null;
+            detailOpener = null; this.detailItem = null; this.linkForm = null;
             if (opener?.isConnected) opener.focus();
         },
         syncDetail() {
@@ -262,7 +263,42 @@ export function registerTacitApp(Alpine) {
             if (!current) this.closeDetail();
             else if (current.event.id !== this.detailItem.event.id || current.visibility !== this.detailItem.visibility) this.detailItem = current;
         },
+        shortIdOf,
+        get detailRelations() { return this.detailItem ? relationsOf(this.library, this.detailItem.key) : []; },
+        get linkCandidates() {
+            const needle = this.linkForm.search.trim().toLowerCase();
+            return this.records.filter(item => item.subjectSlug === this.detailItem.subjectSlug && item.key !== this.detailItem.key
+                && (!needle || shortIdOf(item.key).includes(needle) || String(item.content.information_chunks ?? '').toLowerCase().includes(needle))).slice(0, 20);
+        },
+        get linkOther() { return this.library.find(item => item.key === this.linkForm.otherKey); },
+        openLink() { this.linkForm = { insight: null, relation: 'conflicts', search: '', otherKey: '', direction: 'forward', rationale: '' }; },
+        editLink(insight) {
+            const { relation, from, to, rationale } = insight.content;
+            this.linkForm = { insight, relation, search: '', otherKey: from === this.detailItem.key ? to : from, direction: from === this.detailItem.key ? 'forward' : 'reverse', rationale };
+        },
+        pickLinkOther(item) {
+            const own = findOwnInsight(this.library, this.pubkey, this.detailItem.key, item.key);
+            if (own) { this.editLink(own); this.toast('Already linked: editing your insight'); } else this.linkForm.otherKey = item.key;
+        },
+        directionText(entry) { return !RELATIONS[entry.insight.content.relation].directed ? '' : entry.insight.content.from === this.detailItem.key ? 'this record to the other' : 'the other to this record'; },
+        async saveLink(choice) {
+            const form = this.linkForm, record = this.detailItem;
+            const [from, to] = form.direction === 'forward' ? [record.key, form.otherKey] : [form.otherKey, record.key];
+            const fields = { relation: form.relation, from, to, rationale: form.rationale.trim() };
+            if (!form.insight && choice === 'shared') { const blocked = shareBlocker(fields, this.library); if (blocked) { this.toast(blocked, true); return; } }
+            const event = await this.signer.signEvent(form.insight
+                ? buildInsightEdit(form.insight.event, fields, undefined, this.settings.authorName)
+                : buildInsightTemplate({ ...fields, subject: record.content.subject }, undefined, this.settings.authorName));
+            const { content, ...base } = form.insight ?? { key: recordKey(event), visibility: choice, subjectSlug: record.subjectSlug };
+            const saved = { ...base, event, receivedAt: Date.now() };
+            await store.put('library', saved); await this.reload();
+            this.linkForm = null;
+            if (saved.visibility === 'shared') this.publish(saved);
+            this.toast(form.insight ? 'Insight edited' : 'Insight stored');
+        },
         async shareRecord(item) {
+            const blocked = isInsight(item.content) && shareBlocker(item.content, this.library);
+            if (blocked) { this.toast(blocked, true); return; }
             const { content, ...record } = item;
             await store.put('library', { ...record, visibility: 'shared' }); await this.reload();
             this.publish(item);
@@ -284,7 +320,7 @@ export function registerTacitApp(Alpine) {
                 await store.remove('library', item.key); await this.reload();
                 this.publish({ subjectSlug: item.subjectSlug, event });
             } else { await store.remove('library', item.key); await this.reload(); }
-            this.toast('Record deleted');
+            this.toast(`${isInsight(item.content) ? 'Insight' : 'Record'} deleted`);
         },
         publish(record) {
             const subject = this.settings.subjects.find(item => item.slug === record.subjectSlug);
@@ -355,7 +391,7 @@ export function registerTacitApp(Alpine) {
         },
         async hideRecord(item) {
             await store.put('hidden', { key: item.key, hiddenAt: Date.now() }); await store.remove('library', item.key); await this.reload();
-            this.toast('Record hidden');
+            this.toast(`${isInsight(item.content) ? 'Insight' : 'Record'} hidden`);
         },
 
         exportBackup() {

@@ -1,6 +1,7 @@
 import { TacitJsonParser } from './tacit-json-parser.js';
 import { TacitCsvParser } from './tacit-csv-parser.js';
 import { slugify } from './tacit-subject.js';
+import { isInsight } from './tacit-insight.js';
 
 export const detectFormat = (text, fileName) => {
     if (fileName) return fileName.toLowerCase().endsWith('.json') ? 'json' : 'csv';
@@ -10,6 +11,9 @@ export const detectFormat = (text, fileName) => {
 export const parseText = (text, fileName) => (detectFormat(text, fileName) === 'json' ? TacitJsonParser : TacitCsvParser).parse(text);
 
 const chunkOf = value => (typeof value === 'string' ? value.trim() : '');
+
+export const existingRecords = contents => contents.filter(content => !isInsight(content))
+    .map(content => ({ slug: slugify(content.subject || ''), chunk: String(content.information_chunks).trim() }));
 
 export function buildDrafts(rawObjects, subject, existing = []) {
     const seen = new Set(existing.map(item => `${item.slug}\n${item.chunk}`));
