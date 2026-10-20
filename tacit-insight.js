@@ -62,3 +62,11 @@ export function relationsOf(library, key) {
 }
 
 export const findOwnInsight = (library, pubkey, keyA, keyB) => library.find(item => item.key === `${pubkey}:${insightD(keyA, keyB)}`);
+
+export const cascadeTargets = (library, drafts, pubkey, recordKey) => {
+    const onRecord = content => content?.from === recordKey || content?.to === recordKey;
+    return {
+        insights: library.filter(item => isInsight(item.content) && item.event.pubkey === pubkey && onRecord(item.content)),
+        drafts: drafts.filter(draft => draft.kind === 'insight-draft' && onRecord(draft.content)),
+    };
+};

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { shortIdOf, resolveShortId, buildInsightTemplate, buildInsightEdit, insightD, shareBlocker, visibleInsights, relationsOf, findOwnInsight } from '../tacit-insight.js';
+import { shortIdOf, resolveShortId, buildInsightTemplate, buildInsightEdit, insightD, shareBlocker, visibleInsights, relationsOf, findOwnInsight, cascadeTargets } from '../tacit-insight.js';
 import { filterFeed } from '../tacit-feed.js';
 import { announcementFor, decideIncoming } from '../tacit-sync.js';
 import { buildDrafts, existingRecords } from '../tacit-import.js';
@@ -125,4 +125,16 @@ test('editing an insight keeps d and subject, re-sorts symmetric pairs and moves
     assert.deepEqual(edited.tags, original.tags);
     assert.equal(edited.created_at, 501);
     assert.deepEqual(JSON.parse(edited.content), { schemaVersion: 1, type: 'insight', relation: 'conflicts', from: a, to: b, rationale: 'y', source: 'manual' });
+});
+
+test('cascade targets are only the current key\'s insights and insight drafts on the deleted record', () => {
+    const one = rec(A, U1), two = rec(B, U2), three = rec(B, U3);
+    const mine = insightItem(A, one.key, two.key), mineOther = insightItem(A, two.key, three.key);
+    const theirs = insightItem(B, one.key, three.key), previousKey = insightItem('c'.repeat(64), one.key, two.key);
+    const onRecord = { id: 'd1', kind: 'insight-draft', content: { from: two.key, to: one.key } };
+    const elsewhere = { id: 'd2', kind: 'insight-draft', content: { from: two.key, to: three.key } };
+    const recordDraft = { id: 'd3', kind: 'draft', content: { subject: 'Pest' } };
+    const targets = cascadeTargets([one, two, three, mine, mineOther, theirs, previousKey], [onRecord, elsewhere, recordDraft], A, one.key);
+    assert.deepEqual(targets.insights.map(item => item.key), [mine.key]);
+    assert.deepEqual(targets.drafts.map(draft => draft.id), ['d1']);
 });
