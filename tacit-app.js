@@ -5,7 +5,7 @@ import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, recordKe
 import { createLocalSigner, createExtensionSigner, pickSource, retireKey, generateSecretKeyHex, parseSecretKey, encodeNsec, encodeNpub } from './tacit-identity.js';
 import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache } from './tacit-sync.js';
 import { filterFeed } from './tacit-feed.js';
-import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit, shareBlocker, relationsOf, findOwnInsight } from './tacit-insight.js';
+import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit, shareBlocker, relationsOf, feedBadges, findOwnInsight } from './tacit-insight.js';
 import { buildBackup, parseBackup, restoreBackup } from './tacit-backup.js';
 import { avatarFor, nextTheme, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition } from './tacit-ui.js';
 import * as store from './tacit-store.js';
@@ -265,6 +265,12 @@ export function registerTacitApp(Alpine) {
         },
         shortIdOf,
         get detailRelations() { return this.detailItem ? relationsOf(this.library, this.detailItem.key) : []; },
+        get feedBadgeMap() { return feedBadges(this.library); },
+        badgesOf(item) { return this.feedBadgeMap.get(item.key) ?? { superseded: false, conflicts: 0 }; },
+        async openRelations(item, el) {
+            await this.openDetail(item, el);
+            document.querySelector('#record-detail .relations')?.scrollIntoView({ block: 'start' });
+        },
         get linkCandidates() {
             const needle = this.linkForm.search.trim().toLowerCase();
             return this.records.filter(item => item.subjectSlug === this.detailItem.subjectSlug && item.key !== this.detailItem.key
