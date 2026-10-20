@@ -119,6 +119,9 @@
     .toast-failure { @apply border-danger text-danger; }
     .toast-close { @apply inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-ctl text-xl text-muted; }
     .kbd { @apply rounded border border-line bg-surface2 px-1.5 py-0.5 font-mono text-xs; }
+    .help { @apply relative inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-line text-xs font-semibold leading-none text-muted hover:text-ink; }
+    .help::before { content: ''; position: absolute; inset: -12px; }
+    .help-tip { @apply pointer-events-none fixed z-50 w-max max-w-[16rem] rounded-ctl border border-line bg-surface px-3 py-2 text-xs text-ink shadow-lg; }
     .empty-state { @apply flex w-full flex-col items-start gap-1 p-4; }
     .empty-title { @apply font-semibold; }
     .empty-text { @apply mb-2 text-sm text-muted; }

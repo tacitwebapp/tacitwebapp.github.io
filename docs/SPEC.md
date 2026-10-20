@@ -289,6 +289,8 @@ There is no change from shared back to local. Delete is how an author withdraws 
 | **Subjects** | Subject list with a subscribe toggle, optional password, room status and peer count. Create subject. Discover list (§9.4). Sync log. |
 | **Identity** | Public key, signer source and switch, key export/import (§5), previous keys, trust and block lists, relay URLs, backup export/import (§11). |
 
+Help icons (a small "?" button) sit next to controls that need a note: the Extract specialty field and, in the Subjects tab, a subject's password and subscribe toggle. Hover, focus or tap shows the note in a tooltip that stays inside the viewport; Escape or tapping elsewhere closes it.
+
 The redesign changes presentation and navigation only. Data, signing, sync and storage behave as specified elsewhere in this document.
 
 ### 10.1 Look and feel

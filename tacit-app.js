@@ -6,7 +6,7 @@ import { createLocalSigner, createExtensionSigner, pickSource, retireKey, genera
 import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover } from './tacit-sync.js';
 import { filterFeed } from './tacit-feed.js';
 import { buildBackup, parseBackup, restoreBackup } from './tacit-backup.js';
-import { avatarFor, nextTheme, addToast, dismissToast, expireToasts, resolveShortcut } from './tacit-ui.js';
+import { avatarFor, nextTheme, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition } from './tacit-ui.js';
 import * as store from './tacit-store.js';
 
 const rooms = {};
@@ -51,6 +51,7 @@ export function registerTacitApp(Alpine) {
             try { directory = connectDirectory(this); } catch (error) { this.logSync(`Could not join directory: ${error.message}`); }
             this.settings.subjects.filter(subject => subject.subscribed).forEach(subject => this.joinSubject(subject.slug));
             window.addEventListener('keydown', event => this.onKey(event));
+            this.initHelpTips();
             setInterval(() => { const live = expireToasts(this.toasts, Date.now()); if (live.length !== this.toasts.length) this.toasts = live; }, 500);
             this.ready = true;
         },
@@ -106,6 +107,22 @@ export function registerTacitApp(Alpine) {
         avatarOf(pubkey) { return avatarFor(pubkey, this.authorLabel(pubkey)); },
         avatarStyle(pubkey) { return `--hue: ${this.avatarOf(pubkey).hue}`; },
         focusNewSubject() { document.getElementById(this.activeTab === 'extract' ? 'new-subject' : 'new-subject-tab')?.focus(); },
+        initHelpTips() {
+            const tip = document.getElementById('help-tip');
+            const anchorOf = event => event.target.closest?.('[data-tip]');
+            const hide = () => { tip.hidden = true; };
+            const show = el => {
+                tip.textContent = el.dataset.tip; tip.hidden = false;
+                const pos = tipPosition(el.getBoundingClientRect(), { width: tip.offsetWidth, height: tip.offsetHeight }, { width: window.innerWidth, height: window.innerHeight });
+                tip.style.left = `${pos.left}px`; tip.style.top = `${pos.top}px`;
+                el.setAttribute('aria-describedby', 'help-tip');
+            };
+            for (const type of ['mouseover', 'focusin']) document.addEventListener(type, event => { const el = anchorOf(event); if (el) show(el); });
+            for (const type of ['mouseout', 'focusout']) document.addEventListener(type, event => { if (anchorOf(event)) hide(); });
+            document.addEventListener('click', event => { const el = anchorOf(event); if (el) show(el); else hide(); });
+            document.addEventListener('keydown', event => { if (event.key === 'Escape') hide(); });
+            window.addEventListener('scroll', hide, true);
+        },
         openShortcuts(el) { shortcutOpener = el; document.getElementById('shortcut-list').showModal(); },
         shortcutsClosed() { shortcutOpener?.focus(); shortcutOpener = null; },
         onKey(event) {

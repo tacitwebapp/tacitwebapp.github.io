@@ -67,3 +67,14 @@ export function resolveShortcut(state, key, now) {
         default: return { action: null, state: { pendingG: null } };
     }
 }
+
+const TIP_GAP = 6;
+const TIP_MARGIN = 8;
+
+export function tipPosition(anchor, tip, viewport) {
+    const centred = anchor.left + anchor.width / 2 - tip.width / 2;
+    const left = Math.max(TIP_MARGIN, Math.min(centred, viewport.width - tip.width - TIP_MARGIN));
+    const below = anchor.top + anchor.height + TIP_GAP;
+    const top = below + tip.height + TIP_MARGIN > viewport.height ? anchor.top - TIP_GAP - tip.height : below;
+    return { left, top };
+}

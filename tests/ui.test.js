@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { avatarFor, resolveTheme, nextTheme, addToast, dismissToast, expireToasts, resolveShortcut } from '../tacit-ui.js';
+import { avatarFor, resolveTheme, nextTheme, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition } from '../tacit-ui.js';
 
 const keyOf = n => n.toString(16).padStart(2, '0').repeat(32);
 const sampleKeys = ['3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d', '79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798', 'fa984bd7dbb282f07e16e7ae87b26a2a7b9b90b7246a44771f0cf5ae58018f52', 'e8f32e723decf4051aefac8e2c93c9c5b214313817cdb01a1494b917c8436b35', '0000000000000000000000000000000000000000000000000000000000000001'];
@@ -175,4 +175,22 @@ test('resolveShortcut does not mutate the input state', () => {
     const state = Object.freeze({ pendingG: 1000 });
     resolveShortcut(state, press('f'), 1100);
     assert.equal(state.pendingG, 1000);
+});
+
+const viewport = { width: 400, height: 800 };
+const tipSize = { width: 200, height: 60 };
+
+test('tip is centred under the anchor', () => {
+    const anchor = { left: 190, top: 100, width: 20, height: 20 };
+    assert.deepEqual(tipPosition(anchor, tipSize, viewport), { left: 100, top: 126 });
+});
+
+test('tip is kept inside the viewport horizontally', () => {
+    assert.equal(tipPosition({ left: 0, top: 100, width: 20, height: 20 }, tipSize, viewport).left, 8);
+    assert.equal(tipPosition({ left: 380, top: 100, width: 20, height: 20 }, tipSize, viewport).left, 192);
+});
+
+test('tip flips above the anchor when there is no room below', () => {
+    const anchor = { left: 190, top: 760, width: 20, height: 20 };
+    assert.equal(tipPosition(anchor, tipSize, viewport).top, 694);
 });
