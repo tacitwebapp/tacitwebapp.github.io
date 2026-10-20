@@ -45,58 +45,72 @@
             </div>
         </section>
 
-        <section id="tab-extract" x-show="activeTab === 'extract'" class="group p-6" style="display: none;">
+        <section id="tab-extract" x-show="activeTab === 'extract'" style="display: none;">
             <h2 class="large-title">Extract</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-                <div><label for="input-type" class="block text-sm font-medium mb-1">Input type</label><select id="input-type" x-model="selectedInputType" class="px-3 py-2 border rounded w-full"><template x-for="(label, value) in inputTypeLabels" :key="value"><option :value="value" x-text="label"></option></template></select></div>
-                <div><label for="subject-select" class="block text-sm font-medium mb-1">Subject</label><select id="subject-select" x-model="selectedSlug" class="px-3 py-2 border rounded w-full"><option value="">Select a subject</option><template x-for="subject in settings.subjects" :key="subject.slug"><option :value="subject.slug" x-text="subject.label"></option></template></select></div>
+            <div class="group">
+                <div class="row"><label for="input-type" class="field-label mb-0 w-28 shrink-0">Input type</label><select id="input-type" x-model="selectedInputType" class="field"><template x-for="(label, value) in inputTypeLabels" :key="value"><option :value="value" x-text="label"></option></template></select></div>
+                <div class="row"><label for="subject-select" class="field-label mb-0 w-28 shrink-0">Subject</label><select id="subject-select" x-model="selectedSlug" class="field"><option value="">Select a subject</option><template x-for="subject in settings.subjects" :key="subject.slug"><option :value="subject.slug" x-text="subject.label"></option></template></select></div>
             </div>
-            <div class="flex gap-2 mb-2"><input id="new-subject" type="text" x-model="newSubject" @keyup.enter="createSubject" placeholder="Create a subject" class="px-3 py-2 border rounded w-full"><button id="create-subject" @click="createSubject" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 whitespace-nowrap">Create subject</button></div>
-            <p class="text-sm text-red-700 mb-3" x-show="subjectError" x-text="subjectError"></p>
-            <button id="copy-prompt" @click="copy(dynamicPrompt, 'prompt')" class="mb-2 px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100">Copy prompt</button> <span class="text-sm text-green-700" x-show="copied === 'prompt'">Copied</span>
-            <div class="bg-gray-800 text-green-400 p-4 rounded font-mono text-sm whitespace-pre-wrap" x-text="dynamicPrompt"></div>
+            <h3 class="group-title">New subject</h3>
+            <div class="group">
+                <div class="row"><input id="new-subject" type="text" x-model="newSubject" @keyup.enter="createSubject" placeholder="Create a subject" aria-label="New subject name" class="field"><button id="create-subject" @click="createSubject" class="btn-primary shrink-0">Create subject</button></div>
+            </div>
+            <p class="group-note text-danger" x-show="subjectError" x-text="subjectError"></p>
+            <h3 class="group-title">Prompt</h3>
+            <div class="group">
+                <div class="row"><button id="copy-prompt" @click="copy(dynamicPrompt, 'prompt')" class="btn-secondary">Copy prompt</button><span class="text-sm text-success" x-show="copied === 'prompt'">Copied</span></div>
+                <div class="row"><div class="w-full whitespace-pre-wrap break-words rounded-ctl bg-surface2 p-3 font-mono text-sm text-ink" x-text="dynamicPrompt"></div></div>
+            </div>
         </section>
 
-        <section id="tab-import" x-show="activeTab === 'import'" class="group p-6" style="display: none;">
+        <section id="tab-import" x-show="activeTab === 'import'" style="display: none;">
             <h2 class="large-title">Import &amp; Review</h2>
-            <label for="import-subject" class="block text-sm font-medium mb-1">Subject</label>
-            <select id="import-subject" x-model="selectedSlug" class="px-3 py-2 border rounded w-full md:w-1/2 mb-4"><option value="">Select a subject</option><template x-for="subject in settings.subjects" :key="subject.slug"><option :value="subject.slug" x-text="subject.label"></option></template></select>
-            <input id="import-file" type="file" @change="importFile" :disabled="!selectedSubject" accept=".json,.csv,application/json,text/csv" class="block w-full text-sm text-gray-500 mb-3 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700">
-            <textarea id="import-paste" x-model="pasteText" rows="5" placeholder="Or paste JSON or CSV here" class="px-3 py-2 border rounded w-full font-mono text-sm mb-2"></textarea>
-            <button id="import-paste-button" @click="importPasted" :disabled="!selectedSubject || !pasteText.trim()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">Import pasted text</button>
-            <p class="text-sm text-amber-700 mt-2" x-show="!selectedSubject">Select a subject to enable import.</p>
-            <div id="import-summary" x-show="importSummary" class="mt-4 p-3 bg-blue-50 rounded text-sm">
-                <template x-if="importSummary"><div>
-                    <p x-show="importSummary.error" class="text-red-700" x-text="importSummary.error"></p>
+            <h3 class="group-title">Subject</h3>
+            <div class="group">
+                <div class="row"><label for="import-subject" class="field-label mb-0 w-28 shrink-0">Subject</label><select id="import-subject" x-model="selectedSlug" class="field"><option value="">Select a subject</option><template x-for="subject in settings.subjects" :key="subject.slug"><option :value="subject.slug" x-text="subject.label"></option></template></select></div>
+            </div>
+            <h3 class="group-title">Import</h3>
+            <div class="group">
+                <div class="row"><input id="import-file" type="file" @change="importFile" :disabled="!selectedSubject" accept=".json,.csv,application/json,text/csv" aria-label="Import file" class="field flex items-center py-1.5 text-muted file:mr-3 file:min-h-[36px] file:rounded-ctl file:border-0 file:bg-accent-soft file:px-3 file:text-sm file:font-semibold file:text-accent disabled:opacity-50"></div>
+                <div class="row"><textarea id="import-paste" x-model="pasteText" rows="5" placeholder="Or paste JSON or CSV here" aria-label="Pasted JSON or CSV" class="field font-mono"></textarea></div>
+                <div class="row"><button id="import-paste-button" @click="importPasted" :disabled="!selectedSubject || !pasteText.trim()" class="btn-primary">Import pasted text</button></div>
+            </div>
+            <p class="group-note text-warn" x-show="!selectedSubject">Select a subject to enable import.</p>
+            <div id="import-summary" x-show="importSummary" class="group mt-4 bg-accent-soft">
+                <template x-if="importSummary"><div class="row flex-col items-stretch gap-1 text-sm">
+                    <p x-show="importSummary.error" class="text-danger" x-text="importSummary.error"></p>
                     <p x-show="!importSummary.error" x-text="`${importSummary.created} drafts created, ${importSummary.rejected.length} rejected, ${importSummary.skipped.length} duplicates skipped`"></p>
-                    <ul class="list-disc ml-5"><template x-for="item in importSummary.rejected"><li x-text="`Row ${item.row} rejected: ${item.reason}`"></li></template><template x-for="item in importSummary.skipped"><li x-text="`Row ${item.row} skipped: ${item.reason}`"></li></template></ul>
+                    <ul class="ml-5 list-disc"><template x-for="item in importSummary.rejected"><li x-text="`Row ${item.row} rejected: ${item.reason}`"></li></template><template x-for="item in importSummary.skipped"><li x-text="`Row ${item.row} skipped: ${item.reason}`"></li></template></ul>
                 </div></template>
             </div>
-            <h3 class="text-lg font-bold mt-6 mb-3">Review queue</h3>
-            <div class="grid grid-cols-1 gap-4">
-                <template x-for="draft in drafts" :key="draft.id"><article class="draft p-4 border rounded bg-amber-50">
-                    <span class="text-xs font-semibold text-amber-800" x-text="draft.content.subject"></span>
-                    <p class="text-sm font-medium my-2" x-text="draft.content.information_chunks"></p>
-                    <p x-show="draft.content.actionable_workflows" class="text-sm text-gray-600 mb-2" x-text="draft.content.actionable_workflows"></p>
-                    <ul class="mb-2"><template x-for="warning in draft.warnings"><li class="text-xs text-amber-800" x-text="warning"></li></template></ul>
-                    <div class="flex flex-wrap gap-2">
-                        <button class="store-draft px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100" @click="storeDraft(draft)">Store locally</button>
-                        <button class="share-draft px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700" @click="shareDraft(draft)">Share</button>
-                        <button class="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100" @click="editDraft(draft)">Edit</button>
-                        <button class="px-3 py-1.5 text-sm text-red-700 hover:bg-red-100 rounded" @click="discardDraft(draft.id)">Discard</button>
+            <h3 class="group-title">Review queue</h3>
+            <p x-show="drafts.length === 0 && incoming.length === 0" class="group-note">Nothing waiting for review.</p>
+            <div class="group" x-show="drafts.length > 0">
+                <template x-for="draft in drafts" :key="draft.id"><article class="draft row flex-col items-stretch gap-1 bg-warn-soft">
+                    <span class="text-xs font-semibold text-warn" x-text="draft.content.subject"></span>
+                    <p class="break-words text-sm font-medium" x-text="draft.content.information_chunks"></p>
+                    <p x-show="draft.content.actionable_workflows" class="break-words text-sm text-muted" x-text="draft.content.actionable_workflows"></p>
+                    <ul><template x-for="warning in draft.warnings"><li class="text-xs text-warn" x-text="warning"></li></template></ul>
+                    <div class="mt-1 flex flex-wrap gap-2">
+                        <button class="store-draft btn-secondary" @click="storeDraft(draft)">Store locally</button>
+                        <button class="share-draft btn-success" @click="shareDraft(draft)">Share</button>
+                        <button class="btn-secondary" @click="editDraft(draft)">Edit</button>
+                        <button class="btn-danger" @click="discardDraft(draft.id)">Discard</button>
                     </div>
                 </article></template>
-                <p x-show="drafts.length === 0 && incoming.length === 0" class="text-gray-500 italic">Nothing waiting for review.</p>
-                <template x-for="group in incoming" :key="group.pubkey"><div class="incoming-group border rounded p-3 bg-blue-50">
-                    <div class="flex flex-wrap items-center justify-between gap-2 mb-2"><span class="text-sm font-semibold" x-text="`${authorLabel(group.pubkey)} (${group.records.length})`"></span><span class="flex gap-2"><button class="accept-all px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700" @click="acceptGroup(group)">Accept all</button><button class="discard-all px-3 py-1 text-sm text-red-700 hover:bg-red-100 rounded" @click="discardGroup(group)">Discard all</button><button class="trust-author px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100" @click="trustAuthor(group.pubkey)">Trust author</button><button class="block-author px-3 py-1 text-sm text-red-700 hover:bg-red-100 rounded" @click="blockAuthor(group.pubkey)">Block author</button></span></div>
-                    <template x-for="item in group.records" :key="item.id"><article class="incoming p-3 border rounded bg-white mb-2">
-                        <span class="text-xs font-semibold text-blue-800" x-text="item.content.subject"></span>
-                        <p class="text-sm font-medium my-1" x-text="item.content.information_chunks"></p>
-                        <p x-show="item.content.actionable_workflows" class="text-sm text-gray-600 mb-2" x-text="item.content.actionable_workflows"></p>
-                        <div class="flex gap-2"><button class="accept-incoming px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700" @click="acceptIncoming(item)">Accept</button><button class="px-3 py-1.5 text-sm text-red-700 hover:bg-red-100 rounded" @click="discardIncoming(item)">Discard</button></div>
-                    </article></template>
-                </div></template>
             </div>
+            <template x-for="group in incoming" :key="group.pubkey"><div class="incoming-group">
+                <h3 class="group-title break-words normal-case" x-text="`${authorLabel(group.pubkey)} (${group.records.length})`"></h3>
+                <div class="group">
+                    <div class="row flex-wrap"><button class="accept-all btn-success" @click="acceptGroup(group)">Accept all</button><button class="discard-all btn-danger" @click="discardGroup(group)">Discard all</button><button class="trust-author btn-secondary" @click="trustAuthor(group.pubkey)">Trust author</button><button class="block-author btn-danger" @click="blockAuthor(group.pubkey)">Block author</button></div>
+                    <template x-for="item in group.records" :key="item.id"><article class="incoming row flex-col items-stretch gap-1">
+                        <span class="text-xs font-semibold text-accent" x-text="item.content.subject"></span>
+                        <p class="break-words text-sm font-medium" x-text="item.content.information_chunks"></p>
+                        <p x-show="item.content.actionable_workflows" class="break-words text-sm text-muted" x-text="item.content.actionable_workflows"></p>
+                        <div class="mt-1 flex flex-wrap gap-2"><button class="accept-incoming btn-success" @click="acceptIncoming(item)">Accept</button><button class="btn-danger" @click="discardIncoming(item)">Discard</button></div>
+                    </article></template>
+                </div>
+            </div></template>
         </section>
 
         <section id="tab-subjects" x-show="activeTab === 'subjects'" class="group p-6" style="display: none;">
