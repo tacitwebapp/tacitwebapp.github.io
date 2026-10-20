@@ -5,6 +5,7 @@ import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, recordKe
 import { createLocalSigner, generateSecretKeyHex, parseSecretKey, encodeNsec, encodeNpub } from './tacit-identity.js';
 import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover } from './tacit-sync.js';
 import { filterFeed } from './tacit-feed.js';
+import { buildBackup, parseBackup, restoreBackup } from './tacit-backup.js';
 import * as store from './tacit-store.js';
 
 const rooms = {};
@@ -18,7 +19,7 @@ export function registerTacitApp(Alpine) {
         activeTab: 'feed', inputTypeLabels: TacitInputTypeLabels, selectedInputType: 'txt', selectedSlug: '',
         settings: { relays: [], subjects: [] }, newSubject: '', subjectError: '',
         pubkey: '', previousKeys: [], signer: null, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
-        importKeyText: '', importAck: false, identityMessage: '', copied: '',
+        importKeyText: '', importAck: false, identityMessage: '', copied: '', backupSummary: '',
         pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], directoryPeers: {}, ready: false,
         feedFilters: { subject: '', author: '', visibility: '', search: '' },
         get selectedSubject() { return this.settings.subjects.find(subject => subject.slug === this.selectedSlug); },
@@ -216,6 +217,29 @@ export function registerTacitApp(Alpine) {
             await store.put('hidden', { key: item.key, hiddenAt: Date.now() }); await store.remove('library', item.key); await this.reload();
         },
 
+        exportBackup() {
+            const backup = buildBackup({ library: this.library, tombstones: this.tombstones, trust: this.trust, subjects: this.settings.subjects });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
+            link.download = `tacit-backup-${backup.exportedAt.slice(0, 10)}.json`;
+            link.click(); URL.revokeObjectURL(link.href);
+            this.backupSummary = `Exported ${backup.records.length} records.`;
+        },
+        async importBackup(event) {
+            const file = event.target.files[0]; if (!file) return;
+            try {
+                const plan = restoreBackup(parseBackup(await file.text()), { library: this.library, tombstones: this.tombstones, trust: this.trust, hiddenKeys: this.hiddenKeys, subjects: this.settings.subjects });
+                for (const key of plan.removeLibrary) { await store.remove('library', key); await store.remove('pending', key); }
+                for (const name of ['library', 'tombstones', 'trust']) for (const value of plan.puts[name]) await store.put(name, value);
+                const joined = plan.subjects.filter(subject => subject.subscribed && !this.hasSubject(subject.slug));
+                this.settings.subjects = plan.subjects; this.saveSettings();
+                joined.forEach(subject => this.joinSubject(subject.slug));
+                await this.reload();
+                const { imported, skipped, rejected } = plan.summary;
+                this.backupSummary = `${imported} imported, ${skipped} skipped, ${rejected} rejected.`;
+            } catch (error) { this.backupSummary = `Could not import: ${error.message}`; }
+            event.target.value = '';
+        },
         revealSecret() { this.secretHex = localStorage.getItem('tacit.secretKey'); this.secretNsec = encodeNsec(this.secretHex); this.secretRevealed = true; },
         hideSecret() { this.secretRevealed = false; this.secretHex = this.secretNsec = ''; this.exportAck = false; },
         async importIdentity() {

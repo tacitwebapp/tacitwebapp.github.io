@@ -130,6 +130,13 @@
                 <button id="import-identity" @click="importIdentity" :disabled="!importAck" class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded disabled:opacity-50">Import identity</button>
                 <p id="identity-message" class="text-sm mt-2" x-text="identityMessage"></p>
             </div>
+            <div class="border rounded p-3 mb-4">
+                <h3 class="font-bold mb-2">Backup</h3>
+                <p class="text-sm text-gray-600 mb-2">Your records, deletions, trust list and subjects. It does not include your private key or subject passwords.</p>
+                <button id="export-backup" @click="exportBackup" class="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100">Export backup</button>
+                <input id="import-backup" type="file" accept=".json,application/json" @change="importBackup" class="block w-full text-sm text-gray-500 mt-3 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700">
+                <p id="backup-summary" class="text-sm mt-2" x-text="backupSummary"></p>
+            </div>
             <h3 class="font-bold mb-2">Trusted and blocked authors</h3>
             <div id="trust-list" class="space-y-2 mb-4">
                 <template x-for="entry in trust" :key="entry.pubkey"><div class="trust-row flex flex-wrap items-center justify-between gap-2 border rounded px-3 py-2"><span class="text-sm break-all" x-text="shortKey(entry.pubkey)"></span><span class="flex items-center gap-2"><input type="text" class="trust-nickname px-2 py-1 border rounded text-sm" placeholder="Nickname" :value="entry.nickname || ''" @change="setNickname(entry, $event.target.value)"><select class="trust-status px-2 py-1 border rounded text-sm" :value="entry.status" @change="setStatus(entry, $event.target.value)"><option value="trusted">Trusted</option><option value="blocked">Blocked</option></select><button class="trust-remove px-3 py-1 text-sm text-red-700 hover:bg-red-100 rounded" @click="removeTrust(entry.pubkey)">Remove</button></span></div></template>
