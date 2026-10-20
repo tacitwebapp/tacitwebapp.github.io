@@ -102,7 +102,7 @@ signer = {
 
 - **Extension (NIP-07):** used when `window.nostr` is present and the `signerPreference` setting is `extension` (the default). Key export and import are disabled; the extension manages the key.
 - **Local key:** otherwise. On first run, `generateSecretKey()` creates a key, which is stored as hex in `localStorage['tacit.secretKey']`. nostr-tools v2 expects `Uint8Array` keys, so convert with `hexToBytes`/`bytesToHex`.
-- Identity tab: shows the public key (npub plus short hex) and the signer source. The user can switch the signer when both are available. Switching changes identity, so it gets the same warning as an import (§5.3).
+- Identity tab: shows the public key (npub plus short hex), the signer source and an optional author name (`settings.authorName`, sent as the `author_name` tag of §7.1). The user can switch the signer when both are available. Switching changes identity, so it gets the same warning as an import (§5.3).
 
 ### 5.2 Export
 - "Export private key" (local signer only) reveals the key in hex and nsec and offers a copy button, behind a warning: anyone with this key can sign records as you.
@@ -160,6 +160,7 @@ signer = {
   tags: [
     ['d', 'tacit-entry-' + uuid],       // stays the same across edits
     ['subject', '<subject label>'],
+    ['author_name', '<name>'],          // optional: only when the author has set a name
   ],
   content: JSON.stringify(recordContent),
 }
@@ -167,6 +168,8 @@ signer = {
 ```
 
 - Identity of a record: `key = pubkey + ':' + d`.
+- `author_name` is the author's self-chosen name (at most 40 characters, control characters stripped). It is signed with the record. It is added to every record signed or edited while a name is set, and omitted when none is set. Records signed earlier keep the name they were signed with.
+- A receiver shows an author's name from that author's newest held record (library or review queue). A newer record without the tag means the author cleared the name.
 - `kind 30000` (the kind named in the original brief) is NIP-51 follow sets and must not be used.
 
 ### 7.2 Deletion event (NIP-09)
@@ -221,7 +224,7 @@ Per decision Q18, events are **not** checked for subject/room match, timestamp s
 There is no change from shared back to local. Delete is how an author withdraws a shared record.
 
 ### 7.5 Trust lists
-- There is one global list of `{ pubkey, status: 'trusted' | 'blocked', nickname? }`. An author can be trusted or blocked, not both.
+- There is one global list of `{ pubkey, status: 'trusted' | 'blocked', nickname?, authorName? }`. `authorName` is the name the author shared, snapshotted when the author is trusted or blocked (blocking removes their records). `nickname` is this node's override and wins over the shared name; the Identity tab prefills it with the shared name, and saving it empty or equal to the shared name removes the override. An author can be trusted or blocked, not both.
 - **Trust**: the author's pending records move into the library as `shared`.
 - **Block**: all library and pending records by the author are removed, and future events from them are dropped (§7.3 step 2).
 - The Identity tab lists, renames and removes entries.
@@ -235,7 +238,7 @@ There is no change from shared back to local. Delete is how an author withdraws 
 | `library` | `key` | `subjectSlug`, `pubkey`, `visibility` | `{ key, event, visibility, subjectSlug, receivedFrom?, receivedAt }` |
 | `pending` | `id` | `pubkey`, `kind` (`draft` / `incoming`) | Drafts: `{ id, kind:'draft', content, warnings[], createdAt }`. Incoming: `{ id: key, kind:'incoming', event, pubkey, receivedFrom, receivedAt }` |
 | `tombstones` | `key` | – | `{ key, created_at, event }` |
-| `trust` | `pubkey` | `status` | `{ pubkey, status, nickname? }` |
+| `trust` | `pubkey` | `status` | `{ pubkey, status, nickname?, authorName? }` |
 | `hidden` | `key` | – | `{ key, hiddenAt }` |
 
 ### 8.2 localStorage
@@ -285,7 +288,7 @@ There is no change from shared back to local. Delete is how an author withdraws 
 
 | Tab | Contents |
 |---|---|
-| **Feed** | The library. Filters: subject; author (all / mine / trusted / others); visibility (local / shared); text search over `information_chunks` and `actionable_workflows`. A row shows the subject label, a two-line preview of the information chunk, author avatar and label (nickname or short npub), verified badge, `created_at` and visibility. Tapping a row opens the record detail (§10.3), which shows the full record, warnings and the actions of §7.4. |
+| **Feed** | The library. Filters: subject; author (all / mine / trusted / others); visibility (local / shared); text search over `information_chunks` and `actionable_workflows`. A row shows the subject label, a two-line preview of the information chunk, author avatar and label (nickname, the name the author shared, or short npub), verified badge, `created_at` and visibility. Tapping a row opens the record detail (§10.3), which shows the full record, warnings and the actions of §7.4. |
 | **Extract** | §6.1 |
 | **Import & Review** | Import panel (§6.2). Review queue: drafts first, then incoming records grouped by author, with bulk actions, trust/block buttons and a per-author count. Drafts can be edited before storing. |
 | **Subjects** | Subject list with a subscribe toggle, optional password, room status and peer count. Create subject. Discover list (§9.4). Sync log. |

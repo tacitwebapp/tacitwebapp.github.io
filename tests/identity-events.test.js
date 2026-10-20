@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseSecretKey, encodeNsec, createLocalSigner, createExtensionSigner, pickSource, retireKey, generateSecretKeyHex } from '../tacit-identity.js';
-import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, isValidRecord, recordKey } from '../tacit-events.js';
+import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, isValidRecord, recordKey, authorNameOf, latestAuthorNames } from '../tacit-events.js';
 import { decideIncoming, PENDING_CAP, roomConfig, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache, SUBJECT_CACHE_TTL } from '../tacit-sync.js';
 import { slugify } from '../tacit-subject.js';
 
@@ -244,4 +244,29 @@ test('groupDiscover lists cached subjects with no live peer as saved rows', () =
     const cache = { roofing: { label: 'Roofing', sharedCount: 4, seenAt: 7 }, 'pest-control': { label: 'Pest Control', sharedCount: 1, seenAt: 9 } };
     const rows = groupDiscover({ p1: [{ label: 'Pest Control', slug: 'pest-control', sharedCount: 2 }] }, cache);
     assert.deepEqual(rows, [{ slug: 'pest-control', label: 'Pest Control', peers: 1, sharedCount: 2 }, { slug: 'roofing', label: 'Roofing', peers: 0, sharedCount: 4 }]);
+});
+
+test('author name rides as a signed tag only when set, and is cleaned', async () => {
+    assert.deepEqual(buildRecordTemplate(content, 100, 'u1').tags, [['d', 'tacit-entry-u1'], ['subject', 'Pest Control']]);
+    assert.deepEqual(buildRecordTemplate(content, 100, 'u1', '   ').tags, [['d', 'tacit-entry-u1'], ['subject', 'Pest Control']]);
+    const named = buildRecordTemplate(content, 100, 'u1', ' Ada\nLovelace '.padEnd(80, 'x'));
+    assert.equal(named.tags[2][0], 'author_name');
+    assert.equal(named.tags[2][1].length, 40);
+    assert.ok(!/[\n]/.test(named.tags[2][1]));
+    const signer = createLocalSigner(generateSecretKeyHex());
+    const event = await signer.signEvent(buildRecordTemplate(content, 100, 'u1', 'Ada'));
+    assert.equal(isValidRecord(event), true);
+    assert.equal(authorNameOf(event), 'Ada');
+    assert.equal(recordKey(event), `${event.pubkey}:tacit-entry-u1`);
+});
+
+test('edit template replaces the author name tag, or drops it when none is set', () => {
+    const event = { created_at: 100, tags: [['d', 'tacit-entry-u1'], ['subject', 'Pest Control'], ['author_name', 'Old']] };
+    assert.deepEqual(buildEditTemplate(event, content, 200, 'New').tags, [['d', 'tacit-entry-u1'], ['subject', 'Pest Control'], ['author_name', 'New']]);
+    assert.deepEqual(buildEditTemplate(event, content, 200).tags, [['d', 'tacit-entry-u1'], ['subject', 'Pest Control']]);
+});
+
+test('latestAuthorNames takes the newest event per author; an unnamed newer event clears the name', () => {
+    const at = (pubkey, created_at, name) => ({ pubkey, created_at, tags: name ? [['author_name', name]] : [] });
+    assert.deepEqual(latestAuthorNames([at('a', 1, 'Old'), at('a', 2, 'New'), at('b', 1, 'Bee'), at('b', 2), at('c', 1)]), { a: 'New' });
 });

@@ -1,7 +1,7 @@
 import { TacitInputTypeLabels, buildTacitPrompt } from './tacit-prompt.js';
 import { addSubject, slugify } from './tacit-subject.js';
 import { parseText, buildDrafts } from './tacit-import.js';
-import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, recordKey } from './tacit-events.js';
+import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, recordKey, cleanAuthorName, latestAuthorNames } from './tacit-events.js';
 import { createLocalSigner, createExtensionSigner, pickSource, retireKey, generateSecretKeyHex, parseSecretKey, encodeNsec, encodeNpub } from './tacit-identity.js';
 import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache } from './tacit-sync.js';
 import { filterFeed } from './tacit-feed.js';
@@ -25,7 +25,7 @@ export function registerTacitApp(Alpine) {
         settings: { relays: [], subjects: [] }, newSubject: '', subjectError: '',
         pubkey: '', previousKeys: [], signer: null, extensionAvailable: false, switchAck: false, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
         importKeyText: '', importAck: false, identityMessage: '', backupSummary: '', theme: localStorage.getItem('tacit.theme') || '', toasts: [],
-        pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], directoryPeers: {}, subjectCache: {}, ready: false,
+        pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], authorNames: {}, directoryPeers: {}, subjectCache: {}, ready: false,
         feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null,
         authorOptions: [{ value: '', label: 'All' }, { value: 'mine', label: 'Mine' }, { value: 'trusted', label: 'Trusted' }, { value: 'others', label: 'Others' }],
         get subjectOptions() { return [...this.settings.subjects, ...this.discover.filter(row => !this.hasSubject(row.slug))]; },
@@ -91,12 +91,19 @@ export function registerTacitApp(Alpine) {
             this.hiddenKeys = (await store.getAll('hidden')).map(item => item.key);
             this.tombstones = await store.getAll('tombstones');
             this.library = (await store.getAll('library')).sort((a, b) => b.event.created_at - a.event.created_at).map(item => ({ ...item, content: parseContent(item.event) })).filter(item => item.content);
+            this.authorNames = latestAuthorNames([...this.library, ...pending.filter(item => item.kind === 'incoming')].map(item => item.event));
         },
         saveSettings() { localStorage.setItem('tacit.settings', JSON.stringify(this.settings)); },
         logSync(message) { this.syncLogs.unshift(`[${new Date().toLocaleTimeString()}] ${message}`); if (this.syncLogs.length > 50) this.syncLogs.pop(); },
         formatDate(seconds) { return new Date(seconds * 1000).toLocaleString(); },
         shortKey,
-        authorLabel(pubkey) { return pubkey === this.pubkey ? 'you' : this.previousKeys.includes(pubkey) ? 'by previous key' : this.trust.find(entry => entry.pubkey === pubkey)?.nickname || shortKey(pubkey); },
+        sharedName(pubkey) { return this.authorNames[pubkey] || this.trust.find(entry => entry.pubkey === pubkey)?.authorName || ''; },
+        authorLabel(pubkey) { return pubkey === this.pubkey ? 'you' : this.previousKeys.includes(pubkey) ? 'by previous key' : this.trust.find(entry => entry.pubkey === pubkey)?.nickname || this.sharedName(pubkey) || shortKey(pubkey); },
+        setAuthorName(input) {
+            this.settings.authorName = cleanAuthorName(input.value) || undefined; this.saveSettings();
+            input.value = this.settings.authorName || '';
+            this.toast(this.settings.authorName ? 'Name saved' : 'Name cleared');
+        },
         get themeIcon() { return { light: 'sun', dark: 'moon' }[this.theme] || 'monitor'; },
         get themeLabel() { return { light: 'Light', dark: 'Dark' }[this.theme] || 'System'; },
         cycleTheme() {
@@ -220,7 +227,7 @@ export function registerTacitApp(Alpine) {
             if (text?.trim()) { draft.content.information_chunks = text.trim(); await store.put('pending', JSON.parse(JSON.stringify(draft))); await this.reload(); this.toast('Draft edited'); }
         },
         async signDraft(draft) {
-            const event = await this.signer.signEvent(buildRecordTemplate(draft.content));
+            const event = await this.signer.signEvent(buildRecordTemplate(draft.content, undefined, undefined, this.settings.authorName));
             return { key: recordKey(event), event, subjectSlug: addSubject([], draft.content.subject).subject.slug, receivedAt: Date.now() };
         },
         async storeDraft(draft) {
@@ -263,7 +270,7 @@ export function registerTacitApp(Alpine) {
         async editRecord(item) {
             const text = prompt('Information chunk', item.content.information_chunks);
             if (!text?.trim() || text.trim() === item.content.information_chunks) return;
-            const event = await this.signer.signEvent(buildEditTemplate(item.event, { ...item.content, information_chunks: text.trim() }));
+            const event = await this.signer.signEvent(buildEditTemplate(item.event, { ...item.content, information_chunks: text.trim() }, undefined, this.settings.authorName));
             const { content, ...record } = item;
             const edited = { ...record, event, receivedAt: Date.now() };
             await store.put('library', edited); await this.reload();
@@ -326,18 +333,21 @@ export function registerTacitApp(Alpine) {
         async discardIncoming(item) { await store.remove('pending', item.id); await this.reload(); },
         async acceptGroup(group) { for (const item of group.records) await this.acceptIncoming(item); },
         async discardGroup(group) { for (const item of group.records) await store.remove('pending', item.id); await this.reload(); },
-        async setNickname(entry, nickname) { await store.put('trust', { ...entry, nickname: nickname.trim() || undefined }); await this.reload(); },
+        async setNickname(entry, nickname) {
+            const name = nickname.trim();
+            await store.put('trust', { ...entry, nickname: name && name !== this.sharedName(entry.pubkey) ? name : undefined }); await this.reload();
+        },
         async setStatus(entry, status) { if (status === 'blocked') await this.blockAuthor(entry.pubkey); else await this.trustAuthor(entry.pubkey); },
         async removeTrust(pubkey) { await store.remove('trust', pubkey); await this.reload(); },
         async trustAuthor(pubkey) {
-            await store.put('trust', { ...this.trust.find(entry => entry.pubkey === pubkey), pubkey, status: 'trusted' });
+            await store.put('trust', { ...this.trust.find(entry => entry.pubkey === pubkey), pubkey, status: 'trusted', authorName: this.sharedName(pubkey) || undefined });
             const group = this.incoming.find(entry => entry.pubkey === pubkey);
             await this.reload();
             for (const item of group?.records || []) await this.acceptIncoming(item);
             this.toast('Author trusted');
         },
         async blockAuthor(pubkey) {
-            await store.put('trust', { ...this.trust.find(entry => entry.pubkey === pubkey), pubkey, status: 'blocked' });
+            await store.put('trust', { ...this.trust.find(entry => entry.pubkey === pubkey), pubkey, status: 'blocked', authorName: this.sharedName(pubkey) || undefined });
             for (const item of this.library.filter(entry => entry.event.pubkey === pubkey)) await store.remove('library', item.key);
             for (const item of (await store.getAll('pending')).filter(entry => entry.pubkey === pubkey)) await store.remove('pending', item.id);
             await this.reload();
