@@ -51,7 +51,8 @@ export function registerTacitApp(Alpine) {
         saveSettings() { localStorage.setItem('tacit.settings', JSON.stringify(this.settings)); },
         logSync(message) { this.syncLogs.unshift(`[${new Date().toLocaleTimeString()}] ${message}`); if (this.syncLogs.length > 50) this.syncLogs.pop(); },
         formatDate(seconds) { return new Date(seconds * 1000).toLocaleString(); },
-        authorLabel(pubkey) { return pubkey === this.pubkey ? 'you' : this.previousKeys.includes(pubkey) ? 'by previous key' : shortKey(pubkey); },
+        shortKey,
+        authorLabel(pubkey) { return pubkey === this.pubkey ? 'you' : this.previousKeys.includes(pubkey) ? 'by previous key' : this.trust.find(entry => entry.pubkey === pubkey)?.nickname || shortKey(pubkey); },
         async copy(text, label) {
             try { await navigator.clipboard.writeText(text); } catch (_) {
                 const area = document.createElement('textarea'); area.value = text; document.body.appendChild(area); area.select();
@@ -167,12 +168,14 @@ export function registerTacitApp(Alpine) {
             for (const event of events) {
                 const held = Object.fromEntries(this.library.map(item => [item.key, item.event]));
                 const pendingIncoming = Object.fromEntries(this.incoming.flatMap(group => group.records).map(item => [item.id, item.event]));
+                const pendingCount = this.incoming.find(group => group.pubkey === event.pubkey)?.records.length ?? 0;
                 const decision = decideIncoming(event, {
-                    held, pendingIncoming, hiddenKeys: new Set(this.hiddenKeys), tombstones: Object.fromEntries(this.tombstones.map(item => [item.key, item.created_at])),
+                    held, pendingIncoming, pendingCount, hiddenKeys: new Set(this.hiddenKeys), tombstones: Object.fromEntries(this.tombstones.map(item => [item.key, item.created_at])),
                     trustedPubkeys: new Set([...this.selfKeys, ...this.trust.filter(entry => entry.status === 'trusted').map(entry => entry.pubkey)]),
                     blockedPubkeys: new Set(this.trust.filter(entry => entry.status === 'blocked').map(entry => entry.pubkey)),
                 });
                 if (decision.reason === 'tampered') { console.warn(`Rejected tampered record from peer ${peerId.slice(0, 6)}`); this.logSync(`Rejected tampered record from peer ${peerId.slice(0, 6)}`); }
+                if (decision.reason === 'queue-full') this.logSync(`Review queue full for ${shortKey(event.pubkey)}`);
                 if (decision.action === 'delete') {
                     await store.put('tombstones', { key: decision.key, created_at: event.created_at, event });
                     if (decision.removeHeld) { await store.remove('library', decision.key); await store.remove('pending', decision.key); }
@@ -188,14 +191,19 @@ export function registerTacitApp(Alpine) {
             this.publish(record);
         },
         async discardIncoming(item) { await store.remove('pending', item.id); await this.reload(); },
+        async acceptGroup(group) { for (const item of group.records) await this.acceptIncoming(item); },
+        async discardGroup(group) { for (const item of group.records) await store.remove('pending', item.id); await this.reload(); },
+        async setNickname(entry, nickname) { await store.put('trust', { ...entry, nickname: nickname.trim() || undefined }); await this.reload(); },
+        async setStatus(entry, status) { if (status === 'blocked') await this.blockAuthor(entry.pubkey); else await this.trustAuthor(entry.pubkey); },
+        async removeTrust(pubkey) { await store.remove('trust', pubkey); await this.reload(); },
         async trustAuthor(pubkey) {
-            await store.put('trust', { pubkey, status: 'trusted' });
+            await store.put('trust', { ...this.trust.find(entry => entry.pubkey === pubkey), pubkey, status: 'trusted' });
             const group = this.incoming.find(entry => entry.pubkey === pubkey);
             await this.reload();
             for (const item of group?.records || []) await this.acceptIncoming(item);
         },
         async blockAuthor(pubkey) {
-            await store.put('trust', { pubkey, status: 'blocked' });
+            await store.put('trust', { ...this.trust.find(entry => entry.pubkey === pubkey), pubkey, status: 'blocked' });
             for (const item of this.library.filter(entry => entry.event.pubkey === pubkey)) await store.remove('library', item.key);
             for (const item of (await store.getAll('pending')).filter(entry => entry.pubkey === pubkey)) await store.remove('pending', item.id);
             await this.reload();

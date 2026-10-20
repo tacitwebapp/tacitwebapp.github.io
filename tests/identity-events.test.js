@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseSecretKey, encodeNsec, createLocalSigner, generateSecretKeyHex } from '../tacit-identity.js';
 import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, isValidRecord, recordKey } from '../tacit-events.js';
-import { decideIncoming, roomConfig, announcementFor, validAnnouncements, groupDiscover } from '../tacit-sync.js';
+import { decideIncoming, PENDING_CAP, roomConfig, announcementFor, validAnnouncements, groupDiscover } from '../tacit-sync.js';
 import { slugify } from '../tacit-subject.js';
 
 test('parseSecretKey accepts hex and nsec, rejects others', () => {
@@ -53,6 +53,17 @@ test('decideIncoming: blocked dropped, hidden dropped, pending duplicate dropped
     assert.equal(decideIncoming(event, { ...base, trustedPubkeys: new Set([event.pubkey]), blockedPubkeys: new Set([event.pubkey]) }).action, 'drop');
 });
 
+test('decideIncoming: unknown author capped at 50 pending; update of a pending record still allowed', async () => {
+    const signer = createLocalSigner(generateSecretKeyHex());
+    const event = await signer.signEvent(buildRecordTemplate(content, 100, 'u'));
+    const base = { held: {}, trustedPubkeys: new Set() };
+    assert.equal(PENDING_CAP, 50);
+    assert.equal(decideIncoming(event, { ...base, pendingCount: 49 }).action, 'review');
+    assert.deepEqual(decideIncoming(event, { ...base, pendingCount: 50 }), { action: 'drop', reason: 'queue-full' });
+    const newer = await signer.signEvent(buildRecordTemplate(content, 200, 'u'));
+    assert.equal(decideIncoming(newer, { ...base, pendingCount: 50, pendingIncoming: { [recordKey(event)]: event } }).action, 'review');
+    assert.equal(decideIncoming(event, { ...base, pendingCount: 50, trustedPubkeys: new Set([event.pubkey]) }).action, 'accept');
+});
 
 test('edit template keeps d, bumps created_at; newer replaces in either order', async () => {
     const signer = createLocalSigner(generateSecretKeyHex());

@@ -5,8 +5,9 @@ import { isValidSignature, recordKey, deletionKey, RECORD_KIND, DELETION_KIND } 
 export const APP_ID = 'com.tacit-sync.v1';
 export const roomId = slug => `subject:${slug}`;
 export const DIRECTORY_ROOM = 'directory';
+export const PENDING_CAP = 50;
 
-export function decideIncoming(event, { held, pendingIncoming = {}, trustedPubkeys, blockedPubkeys = new Set(), hiddenKeys = new Set(), tombstones = {} }) {
+export function decideIncoming(event, { held, pendingIncoming = {}, pendingCount = 0, trustedPubkeys, blockedPubkeys = new Set(), hiddenKeys = new Set(), tombstones = {} }) {
     if (!isValidSignature(event)) return { action: 'drop', reason: 'tampered' };
     if (blockedPubkeys.has(event.pubkey)) return { action: 'drop', reason: 'blocked' };
     if (event.kind === DELETION_KIND) {
@@ -22,7 +23,9 @@ export function decideIncoming(event, { held, pendingIncoming = {}, trustedPubke
     if (tombstones[key] >= event.created_at) return { action: 'drop', reason: 'tombstoned' };
     const current = held[key] ?? pendingIncoming[key];
     if (current && current.created_at >= event.created_at) return { action: 'drop', reason: 'duplicate-or-older' };
-    return { action: trustedPubkeys.has(event.pubkey) ? 'accept' : 'review' };
+    if (trustedPubkeys.has(event.pubkey)) return { action: 'accept' };
+    if (!pendingIncoming[key] && pendingCount >= PENDING_CAP) return { action: 'drop', reason: 'queue-full' };
+    return { action: 'review' };
 }
 
 export const announcementFor = (subjects, library) => subjects.filter(subject => subject.subscribed && !subject.password).map(subject => ({

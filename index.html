@@ -76,7 +76,7 @@
                 </article></template>
                 <p x-show="drafts.length === 0 && incoming.length === 0" class="text-gray-500 italic">Nothing waiting for review.</p>
                 <template x-for="group in incoming" :key="group.pubkey"><div class="incoming-group border rounded p-3 bg-blue-50">
-                    <div class="flex flex-wrap items-center justify-between gap-2 mb-2"><span class="text-sm font-semibold" x-text="`${authorLabel(group.pubkey)} (${group.records.length})`"></span><span class="flex gap-2"><button class="trust-author px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100" @click="trustAuthor(group.pubkey)">Trust author</button><button class="block-author px-3 py-1 text-sm text-red-700 hover:bg-red-100 rounded" @click="blockAuthor(group.pubkey)">Block author</button></span></div>
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-2"><span class="text-sm font-semibold" x-text="`${authorLabel(group.pubkey)} (${group.records.length})`"></span><span class="flex gap-2"><button class="accept-all px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700" @click="acceptGroup(group)">Accept all</button><button class="discard-all px-3 py-1 text-sm text-red-700 hover:bg-red-100 rounded" @click="discardGroup(group)">Discard all</button><button class="trust-author px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100" @click="trustAuthor(group.pubkey)">Trust author</button><button class="block-author px-3 py-1 text-sm text-red-700 hover:bg-red-100 rounded" @click="blockAuthor(group.pubkey)">Block author</button></span></div>
                     <template x-for="item in group.records" :key="item.id"><article class="incoming p-3 border rounded bg-white mb-2">
                         <span class="text-xs font-semibold text-blue-800" x-text="item.content.subject"></span>
                         <p class="text-sm font-medium my-1" x-text="item.content.information_chunks"></p>
@@ -122,6 +122,11 @@
                 <label class="text-sm flex items-center gap-2 mb-2"><input id="import-ack" type="checkbox" x-model="importAck"> I have exported my current key</label>
                 <button id="import-identity" @click="importIdentity" :disabled="!importAck" class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded disabled:opacity-50">Import identity</button>
                 <p id="identity-message" class="text-sm mt-2" x-text="identityMessage"></p>
+            </div>
+            <h3 class="font-bold mb-2">Trusted and blocked authors</h3>
+            <div id="trust-list" class="space-y-2 mb-4">
+                <template x-for="entry in trust" :key="entry.pubkey"><div class="trust-row flex flex-wrap items-center justify-between gap-2 border rounded px-3 py-2"><span class="text-sm break-all" x-text="shortKey(entry.pubkey)"></span><span class="flex items-center gap-2"><input type="text" class="trust-nickname px-2 py-1 border rounded text-sm" placeholder="Nickname" :value="entry.nickname || ''" @change="setNickname(entry, $event.target.value)"><select class="trust-status px-2 py-1 border rounded text-sm" :value="entry.status" @change="setStatus(entry, $event.target.value)"><option value="trusted">Trusted</option><option value="blocked">Blocked</option></select><button class="trust-remove px-3 py-1 text-sm text-red-700 hover:bg-red-100 rounded" @click="removeTrust(entry.pubkey)">Remove</button></span></div></template>
+                <p x-show="trust.length === 0" class="text-gray-500 italic text-sm">No trusted or blocked authors.</p>
             </div>
             <h3 class="font-bold mb-2">Previous keys</h3>
             <ul class="text-sm"><template x-for="key in previousKeys" :key="key"><li class="break-all" x-text="`${key}`"></li></template></ul>
