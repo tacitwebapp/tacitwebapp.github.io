@@ -16,9 +16,15 @@
         </nav>
 
         <section id="tab-feed" x-show="activeTab === 'feed'" class="bg-white p-6 rounded shadow">
-            <div class="flex justify-between items-start gap-4 mb-5"><h2 class="text-xl font-bold">Feed</h2><span class="text-sm bg-blue-50 text-blue-700 rounded px-3 py-1" x-text="`${library.length} records`"></span></div>
+            <div class="flex justify-between items-start gap-4 mb-5"><h2 class="text-xl font-bold">Feed</h2><span class="text-sm bg-blue-50 text-blue-700 rounded px-3 py-1" x-text="feedItems.length === library.length ? `${library.length} records` : `${feedItems.length} of ${library.length} records`"></span></div>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4">
+                <select id="feed-subject" x-model="feedFilters.subject" aria-label="Filter by subject" class="px-3 py-2 border rounded w-full"><option value="">All subjects</option><template x-for="[slug, label] in feedSubjects" :key="slug"><option :value="slug" x-text="label"></option></template></select>
+                <select id="feed-author" x-model="feedFilters.author" aria-label="Filter by author" class="px-3 py-2 border rounded w-full"><option value="">All authors</option><option value="mine">Mine</option><option value="trusted">Trusted</option><option value="others">Others</option></select>
+                <select id="feed-visibility" x-model="feedFilters.visibility" aria-label="Filter by visibility" class="px-3 py-2 border rounded w-full"><option value="">Local and shared</option><option value="local">Local</option><option value="shared">Shared</option></select>
+                <input id="feed-search" type="search" x-model="feedFilters.search" placeholder="Search text" aria-label="Search records" class="px-3 py-2 border rounded w-full">
+            </div>
             <div class="grid grid-cols-1 gap-4">
-                <template x-for="item in library" :key="item.key"><article class="record p-4 border rounded shadow-sm bg-gray-50">
+                <template x-for="item in feedItems" :key="item.key"><article class="record p-4 border rounded shadow-sm bg-gray-50">
                     <div class="flex flex-wrap justify-between gap-2 mb-2">
                         <span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded uppercase font-semibold" x-text="item.content.subject"></span>
                         <span class="text-xs text-gray-500"><span x-text="authorLabel(item.event.pubkey)"></span> · <span class="text-green-700 font-semibold">verified</span> · <span x-text="item.visibility"></span> · <span x-text="formatDate(item.event.created_at)"></span></span>
@@ -30,6 +36,7 @@
                         <template x-if="!selfKeys.has(item.event.pubkey)"><span class="flex gap-2"><button class="hide-record px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100" @click="hideRecord(item)">Hide</button><button x-show="statusOf(item.event.pubkey) !== 'trusted'" class="trust-author px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-100" @click="trustAuthor(item.event.pubkey)">Trust author</button><button class="block-author px-3 py-1 text-sm text-red-700 hover:bg-red-100 rounded" @click="blockAuthor(item.event.pubkey)">Block author</button></span></template></div>
                 </article></template>
                 <p x-show="library.length === 0" class="text-gray-500 italic py-4">No records yet. Import knowledge and store or share a draft.</p>
+                <p id="feed-empty" x-show="library.length > 0 && feedItems.length === 0" class="text-gray-500 italic py-4">No records match these filters.</p>
             </div>
         </section>
 

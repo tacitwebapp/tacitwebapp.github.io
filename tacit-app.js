@@ -4,6 +4,7 @@ import { parseText, buildDrafts } from './tacit-import.js';
 import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, recordKey } from './tacit-events.js';
 import { createLocalSigner, generateSecretKeyHex, parseSecretKey, encodeNsec, encodeNpub } from './tacit-identity.js';
 import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover } from './tacit-sync.js';
+import { filterFeed } from './tacit-feed.js';
 import * as store from './tacit-store.js';
 
 const rooms = {};
@@ -19,10 +20,13 @@ export function registerTacitApp(Alpine) {
         pubkey: '', previousKeys: [], signer: null, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
         importKeyText: '', importAck: false, identityMessage: '', copied: '',
         pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], directoryPeers: {}, ready: false,
+        feedFilters: { subject: '', author: '', visibility: '', search: '' },
         get selectedSubject() { return this.settings.subjects.find(subject => subject.slug === this.selectedSlug); },
         get dynamicPrompt() { return buildTacitPrompt({ inputType: this.selectedInputType, subjectCategory: this.selectedSubject?.label || '' }); },
         get discover() { return groupDiscover(this.directoryPeers); },
         get npub() { return this.pubkey ? encodeNpub(this.pubkey) : ''; },
+        get feedItems() { return filterFeed(this.library, this.feedFilters, { selfKeys: this.selfKeys, trustedKeys: new Set(this.trust.filter(entry => entry.status === 'trusted').map(entry => entry.pubkey)) }); },
+        get feedSubjects() { return [...new Map(this.library.map(item => [item.subjectSlug, item.content.subject])).entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1]))); },
         get selfKeys() { return new Set([this.pubkey, ...this.previousKeys]); },
         async initApp() {
             this.settings = { relays: [], subjects: [], ...readJson('tacit.settings', {}) };
