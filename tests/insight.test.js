@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { shortIdOf, resolveShortId, buildInsightTemplate, buildInsightEdit, insightD, shareBlocker, visibleInsights, relationsOf, findOwnInsight, cascadeTargets } from '../tacit-insight.js';
+import { shortIdOf, resolveShortId, buildInsightTemplate, buildInsightEdit, insightD, shareBlocker, visibleInsights, relationsOf, findOwnInsight, cascadeTargets, incomingInsightCard } from '../tacit-insight.js';
 import { filterFeed } from '../tacit-feed.js';
 import { announcementFor, decideIncoming } from '../tacit-sync.js';
 import { buildDrafts, existingRecords } from '../tacit-import.js';
@@ -137,4 +137,31 @@ test('cascade targets are only the current key\'s insights and insight drafts on
     const targets = cascadeTargets([one, two, three, mine, mineOther, theirs, previousKey], [onRecord, elsewhere, recordDraft], A, one.key);
     assert.deepEqual(targets.insights.map(item => item.key), [mine.key]);
     assert.deepEqual(targets.drafts.map(draft => draft.id), ['d1']);
+});
+
+test('incoming insight card names the relation, direction, rationale and both records', () => {
+    const held = rec(A, U1), queued = rec(B, U2);
+    const link = insightItem(B, held.key, queued.key, { relation: 'supersedes', rationale: 'newer data' });
+    const pending = [{ id: queued.key, content: queued.content }];
+    assert.deepEqual(incomingInsightCard(link.content, [held], pending), {
+        label: 'supersedes', directed: true, rationale: 'newer data',
+        from: { shortId: 't:3f9a1c2e', preview: 'chunk 3f9a' },
+        to: { shortId: 't:7b20aa91', preview: 'chunk 7b20' },
+    });
+});
+
+test('incoming insight card shows a record held nowhere as not in your library', () => {
+    const held = rec(A, U1), missing = rec(B, U2);
+    const card = incomingInsightCard(insightItem(B, held.key, missing.key).content, [held], []);
+    assert.equal(card.directed, false);
+    assert.deepEqual(card.to, { shortId: 't:7b20aa91', preview: null });
+});
+
+test('incoming insights from one author count toward the 50 item queue cap', async () => {
+    const signer = createLocalSigner(generateSecretKeyHex());
+    const a = rec(A, U1).key, b = rec(B, U2).key;
+    const event = await signer.signEvent(buildInsightTemplate({ relation: 'conflicts', from: a, to: b, subject: 'Pest' }, 100));
+    const base = { held: {}, trustedPubkeys: new Set() };
+    assert.equal(decideIncoming(event, { ...base, pendingCount: 49 }).action, 'review');
+    assert.deepEqual(decideIncoming(event, { ...base, pendingCount: 50 }), { action: 'drop', reason: 'queue-full' });
 });

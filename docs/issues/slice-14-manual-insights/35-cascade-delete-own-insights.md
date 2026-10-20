@@ -1,7 +1,7 @@
 # 35 — Delete a record's own insights with it
 
 Type: AFK
-**Status:** TODO
+**Status:** DONE
 **Label:** ready-for-agent
 
 ## Parent
@@ -17,9 +17,9 @@ Deleting one of the user's records also deletes the user's own insights (current
 - [ ] Confirmation shows the count; cancelling deletes nothing.
 - [ ] Own shared insights on the record are deleted on every peer and do not come back after re-join.
 - [ ] Own insight drafts on the record are removed.
-- [ ] Others' and previous-key insights are not deleted.
-- [ ] Unit tests: cascade targets include only own current-key insights and drafts on that record.
-- [ ] `npm test` passes.
+- [x] Others' and previous-key insights are not deleted.
+- [x] Unit tests: cascade targets include only own current-key insights and drafts on that record.
+- [x] `npm test` passes.
 
 ## Blocked by
 

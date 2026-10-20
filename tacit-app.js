@@ -5,7 +5,7 @@ import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, recordKe
 import { createLocalSigner, createExtensionSigner, pickSource, retireKey, generateSecretKeyHex, parseSecretKey, encodeNsec, encodeNpub } from './tacit-identity.js';
 import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache } from './tacit-sync.js';
 import { filterFeed } from './tacit-feed.js';
-import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit, shareBlocker, relationsOf, findOwnInsight, cascadeTargets } from './tacit-insight.js';
+import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit, shareBlocker, relationsOf, findOwnInsight, cascadeTargets, incomingInsightCard } from './tacit-insight.js';
 import { buildBackup, parseBackup, restoreBackup } from './tacit-backup.js';
 import { avatarFor, nextTheme, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition } from './tacit-ui.js';
 import * as store from './tacit-store.js';
@@ -264,6 +264,8 @@ export function registerTacitApp(Alpine) {
             else if (current.event.id !== this.detailItem.event.id || current.visibility !== this.detailItem.visibility) this.detailItem = current;
         },
         shortIdOf,
+        isInsight,
+        insightCard(item) { return incomingInsightCard(item.content, this.library, this.incoming.flatMap(group => group.records)); },
         get detailRelations() { return this.detailItem ? relationsOf(this.library, this.detailItem.key) : []; },
         get linkCandidates() {
             const needle = this.linkForm.search.trim().toLowerCase();

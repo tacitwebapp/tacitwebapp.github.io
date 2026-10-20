@@ -70,3 +70,9 @@ export const cascadeTargets = (library, drafts, pubkey, recordKey) => {
         drafts: drafts.filter(draft => draft.kind === 'insight-draft' && onRecord(draft.content)),
     };
 };
+
+export function incomingInsightCard(content, library, pending) {
+    const previewOf = key => (library.find(item => item.key === key) ?? pending.find(item => item.id === key))?.content.information_chunks ?? null;
+    const end = key => ({ shortId: shortIdOf(key), preview: previewOf(key) });
+    return { label: RELATIONS[content.relation]?.label ?? content.relation, directed: !!RELATIONS[content.relation]?.directed, rationale: content.rationale ?? '', from: end(content.from), to: end(content.to) };
+}
