@@ -20,7 +20,7 @@ const shortKey = pubkey => `${encodeNpub(pubkey).slice(0, 12)}…${pubkey.slice(
 
 export function registerTacitApp(Alpine) {
     Alpine.data('tacitApp', () => ({
-        mainTabs: [{ id: 'feed', label: 'Feed' }, { id: 'extract', label: 'Extract' }, { id: 'import', label: 'Import & Review' }, { id: 'subjects', label: 'Subjects' }, { id: 'identity', label: 'Identity' }],
+        mainTabs: [{ id: 'feed', label: 'Feed', icon: 'list' }, { id: 'extract', label: 'Extract', icon: 'sparkles' }, { id: 'import', label: 'Import & Review', icon: 'inbox' }, { id: 'subjects', label: 'Subjects', icon: 'folder' }, { id: 'identity', label: 'Identity', icon: 'key' }],
         activeTab: 'feed', inputTypeLabels: TacitInputTypeLabels, selectedInputType: 'txt', selectedSlug: '', specialty: '',
         settings: { relays: [], subjects: [] }, newSubject: '', subjectError: '',
         pubkey: '', previousKeys: [], signer: null, extensionAvailable: false, switchAck: false, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
@@ -97,6 +97,7 @@ export function registerTacitApp(Alpine) {
         formatDate(seconds) { return new Date(seconds * 1000).toLocaleString(); },
         shortKey,
         authorLabel(pubkey) { return pubkey === this.pubkey ? 'you' : this.previousKeys.includes(pubkey) ? 'by previous key' : this.trust.find(entry => entry.pubkey === pubkey)?.nickname || shortKey(pubkey); },
+        get themeIcon() { return { light: 'sun', dark: 'moon' }[this.theme] || 'monitor'; },
         get themeLabel() { return { light: 'Light', dark: 'Dark' }[this.theme] || 'System'; },
         cycleTheme() {
             this.theme = nextTheme(this.theme) || '';

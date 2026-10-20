@@ -15,11 +15,11 @@
         <header class="app-header">
             <h1 class="app-name">Tacit</h1>
             <nav class="tabbar" aria-label="Main navigation">
-                <template x-for="tab in mainTabs" :key="tab.id"><button :data-tab="tab.id" @click="activeTab = tab.id" :aria-current="activeTab === tab.id ? 'page' : null" class="tab" x-text="tab.label"></button></template>
+                <template x-for="tab in mainTabs" :key="tab.id"><button :data-tab="tab.id" :data-icon="tab.icon" @click="activeTab = tab.id" :aria-current="activeTab === tab.id ? 'page' : null" class="tab" x-text="tab.label"></button></template>
             </nav>
             <div class="app-tools">
-                <button type="button" id="theme-toggle" class="tool" @click="cycleTheme()" :aria-label="`Colour scheme: ${themeLabel}. Activate to change.`" x-text="themeLabel"></button>
-                <button type="button" id="shortcuts-button" class="tool" @click="openShortcuts($el)" aria-haspopup="dialog" aria-label="Keyboard shortcuts">?</button>
+                <button type="button" id="theme-toggle" class="tool" :data-icon="themeIcon" @click="cycleTheme()" :aria-label="`Colour scheme: ${themeLabel}. Activate to change.`" x-text="themeLabel"></button>
+                <button type="button" id="shortcuts-button" data-icon="keyboard" class="tool" @click="openShortcuts($el)" aria-haspopup="dialog" aria-label="Keyboard shortcuts"></button>
             </div>
         </header>
         <main class="page">
@@ -44,8 +44,8 @@
                     <span class="text-muted" aria-hidden="true">&rsaquo;</span>
                 </button></template>
             </div>
-            <div id="library-empty" x-show="library.length === 0" class="group"><div class="empty-state"><p class="empty-title">No records yet</p><p class="empty-text">Tacit helps you capture, curate and exchange practical knowledge. Start by extracting some.</p><button type="button" class="btn-primary" @click="activeTab = 'extract'">Go to Extract</button></div></div>
-            <div id="feed-empty" x-show="library.length > 0 && feedItems.length === 0" class="group"><div class="empty-state"><p class="empty-title">Nothing matches</p><p class="empty-text">No records match these filters.</p><button type="button" class="btn-secondary" @click="clearFilters()">Clear filters</button></div></div>
+            <div id="library-empty" x-show="library.length === 0" class="group"><div class="empty-state"><p class="empty-title">No records yet</p><p class="empty-text">Tacit helps you capture, curate and exchange practical knowledge. Start by extracting some.</p><button data-icon="sparkles" type="button" class="btn-primary" @click="activeTab = 'extract'">Go to Extract</button></div></div>
+            <div id="feed-empty" x-show="library.length > 0 && feedItems.length === 0" class="group"><div class="empty-state"><p class="empty-title">Nothing matches</p><p class="empty-text">No records match these filters.</p><button data-icon="x" type="button" class="btn-secondary" @click="clearFilters()">Clear filters</button></div></div>
 
             <dialog id="record-detail" @close="detailClosed()" @click="$event.target === $el && closeDetail()" x-effect="syncDetail()" aria-label="Record detail" class="m-0 mt-auto max-h-[85vh] w-full max-w-[720px] overflow-y-auto rounded-card border border-line bg-surface p-0 text-ink backdrop:bg-ink/40 desk:m-auto">
                 <template x-if="detailItem"><div class="flex flex-col gap-4 p-5">
@@ -54,10 +54,10 @@
                     <div x-show="detailItem.content.actionable_workflows" class="border-l-2 border-accent pl-3 text-sm text-muted"><strong class="text-ink">Action:</strong> <span class="whitespace-pre-wrap break-words" x-text="detailItem.content.actionable_workflows"></span></div>
                     <ul x-show="detailItem.warnings && detailItem.warnings.length" class="rounded-ctl bg-warn-soft p-3 text-sm text-warn"><template x-for="warning in detailItem.warnings || []"><li x-text="warning"></li></template></ul>
                     <div class="flex flex-wrap items-center gap-2">
-                        <template x-if="detailItem.visibility === 'local' && detailItem.event.pubkey === pubkey"><button type="button" class="btn-success" @click="shareRecord(detailItem)">Share</button></template>
-                        <template x-if="detailItem.event.pubkey === pubkey"><span class="flex flex-wrap gap-2"><button type="button" class="edit-record btn-secondary" @click="editRecord(detailItem)">Edit</button><button type="button" class="delete-record btn-danger" @click="deleteRecord(detailItem); closeDetail()">Delete</button></span></template>
-                        <template x-if="!selfKeys.has(detailItem.event.pubkey)"><span class="flex flex-wrap gap-2"><button type="button" class="hide-record btn-secondary" @click="hideRecord(detailItem); closeDetail()">Hide</button><button type="button" x-show="statusOf(detailItem.event.pubkey) !== 'trusted'" class="trust-author btn-secondary" @click="trustAuthor(detailItem.event.pubkey)">Trust author</button><button type="button" class="block-author btn-danger" @click="blockAuthor(detailItem.event.pubkey); closeDetail()">Block author</button></span></template>
-                        <button type="button" class="btn-secondary ml-auto" @click="closeDetail()">Close</button>
+                        <template x-if="detailItem.visibility === 'local' && detailItem.event.pubkey === pubkey"><button data-icon="share" type="button" class="btn-success" @click="shareRecord(detailItem)">Share</button></template>
+                        <template x-if="detailItem.event.pubkey === pubkey"><span class="flex flex-wrap gap-2"><button data-icon="pencil" type="button" class="edit-record btn-secondary" @click="editRecord(detailItem)">Edit</button><button data-icon="trash" type="button" class="delete-record btn-danger" @click="deleteRecord(detailItem); closeDetail()">Delete</button></span></template>
+                        <template x-if="!selfKeys.has(detailItem.event.pubkey)"><span class="flex flex-wrap gap-2"><button data-icon="eye-off" type="button" class="hide-record btn-secondary" @click="hideRecord(detailItem); closeDetail()">Hide</button><button data-icon="shield-check" type="button" x-show="statusOf(detailItem.event.pubkey) !== 'trusted'" class="trust-author btn-secondary" @click="trustAuthor(detailItem.event.pubkey)">Trust author</button><button data-icon="ban" type="button" class="block-author btn-danger" @click="blockAuthor(detailItem.event.pubkey); closeDetail()">Block author</button></span></template>
+                        <button data-icon="x" type="button" class="btn-secondary ml-auto" @click="closeDetail()">Close</button>
                     </div>
                 </div></template>
             </dialog>
@@ -65,7 +65,7 @@
 
         <section id="tab-extract" x-show="activeTab === 'extract'" style="display: none;">
             <h2 class="large-title">Extract</h2>
-            <div class="group mb-4" x-show="settings.subjects.length === 0"><div class="empty-state"><p class="empty-title">No subjects yet</p><p class="empty-text">A subject groups related knowledge. Create one to start extracting and importing.</p><button type="button" class="btn-primary" @click="focusNewSubject()">Create subject</button></div></div>
+            <div class="group mb-4" x-show="settings.subjects.length === 0"><div class="empty-state"><p class="empty-title">No subjects yet</p><p class="empty-text">A subject groups related knowledge. Create one to start extracting and importing.</p><button data-icon="plus" type="button" class="btn-primary" @click="focusNewSubject()">Create subject</button></div></div>
             <div class="group">
                 <div class="row"><label for="input-type" class="field-label mb-0 w-28 shrink-0">Input type</label><select id="input-type" x-model="selectedInputType" class="field"><template x-for="(label, value) in inputTypeLabels" :key="value"><option :value="value" x-text="label"></option></template></select></div>
                 <div class="row"><label for="subject-select" class="field-label mb-0 w-28 shrink-0">Subject</label><select id="subject-select" x-model="selectedSlug" class="field"><option value="">Select a subject</option><template x-for="subject in subjectOptions" :key="subject.slug"><option :value="subject.slug" x-text="subject.label"></option></template></select></div>
@@ -73,12 +73,12 @@
             </div>
             <h3 class="group-title">New subject</h3>
             <div class="group">
-                <div class="row"><input id="new-subject" type="text" x-model="newSubject" @keyup.enter="createSubject" placeholder="Create a subject" aria-label="New subject name" class="field"><button id="create-subject" @click="createSubject" class="btn-primary shrink-0">Create subject</button></div>
+                <div class="row"><input id="new-subject" type="text" x-model="newSubject" @keyup.enter="createSubject" placeholder="Create a subject" aria-label="New subject name" class="field"><button data-icon="plus" id="create-subject" @click="createSubject" class="btn-primary shrink-0">Create subject</button></div>
             </div>
             <p class="group-note text-danger" x-show="subjectError" x-text="subjectError"></p>
             <h3 class="group-title">Prompt</h3>
             <div class="group">
-                <div class="row"><button id="copy-prompt" @click="copy(dynamicPrompt, 'Prompt')" class="btn-secondary">Copy prompt</button></div>
+                <div class="row"><button data-icon="copy" id="copy-prompt" @click="copy(dynamicPrompt, 'Prompt')" class="btn-secondary">Copy prompt</button></div>
                 <div class="row"><div class="w-full whitespace-pre-wrap break-words rounded-ctl bg-surface2 p-3 font-mono text-sm text-ink" x-text="dynamicPrompt"></div></div>
             </div>
         </section>
@@ -93,7 +93,7 @@
             <div class="group">
                 <div class="row"><input id="import-file" type="file" @change="importFile" :disabled="!selectedSubject" accept=".json,.csv,application/json,text/csv" aria-label="Import file" class="field flex items-center py-1.5 text-muted file:mr-3 file:min-h-[36px] file:rounded-ctl file:border-0 file:bg-accent-soft file:px-3 file:text-sm file:font-semibold file:text-accent disabled:opacity-50"></div>
                 <div class="row"><textarea id="import-paste" x-model="pasteText" rows="5" placeholder="Or paste JSON or CSV here" aria-label="Pasted JSON or CSV" class="field font-mono"></textarea></div>
-                <div class="row"><button id="import-paste-button" @click="importPasted" :disabled="!selectedSubject || !pasteText.trim()" class="btn-primary">Import pasted text</button></div>
+                <div class="row"><button data-icon="download" id="import-paste-button" @click="importPasted" :disabled="!selectedSubject || !pasteText.trim()" class="btn-primary">Import pasted text</button></div>
             </div>
             <p class="group-note text-warn" x-show="!selectedSubject">Select a subject to enable import.</p>
             <div id="import-summary" x-show="importSummary" class="group mt-4 bg-accent-soft">
@@ -112,22 +112,22 @@
                     <p x-show="draft.content.actionable_workflows" class="break-words text-sm text-muted" x-text="draft.content.actionable_workflows"></p>
                     <ul><template x-for="warning in draft.warnings"><li class="text-xs text-warn" x-text="warning"></li></template></ul>
                     <div class="mt-1 flex flex-wrap gap-2">
-                        <button class="store-draft btn-secondary" @click="storeDraft(draft)">Store locally</button>
-                        <button class="share-draft btn-success" @click="shareDraft(draft)">Share</button>
-                        <button class="btn-secondary" @click="editDraft(draft)">Edit</button>
-                        <button class="btn-danger" @click="discardDraft(draft.id)">Discard</button>
+                        <button data-icon="save" class="store-draft btn-secondary" @click="storeDraft(draft)">Store locally</button>
+                        <button data-icon="share" class="share-draft btn-success" @click="shareDraft(draft)">Share</button>
+                        <button data-icon="pencil" class="btn-secondary" @click="editDraft(draft)">Edit</button>
+                        <button data-icon="trash" class="btn-danger" @click="discardDraft(draft.id)">Discard</button>
                     </div>
                 </article></template>
             </div>
             <template x-for="group in incoming" :key="group.pubkey"><div class="incoming-group">
                 <h3 class="group-title flex items-center gap-2 break-words normal-case"><span class="avatar" aria-hidden="true" :style="avatarStyle(group.pubkey)" :class="{ 'avatar-neutral': avatarOf(group.pubkey).neutral }" x-text="avatarOf(group.pubkey).initial"></span><span x-text="`${authorLabel(group.pubkey)} (${group.records.length})`"></span></h3>
                 <div class="group">
-                    <div class="row flex-wrap"><button class="accept-all btn-success" @click="acceptGroup(group)">Accept all</button><button class="discard-all btn-danger" @click="discardGroup(group)">Discard all</button><button class="trust-author btn-secondary" @click="trustAuthor(group.pubkey)">Trust author</button><button class="block-author btn-danger" @click="blockAuthor(group.pubkey)">Block author</button></div>
+                    <div class="row flex-wrap"><button data-icon="check" class="accept-all btn-success" @click="acceptGroup(group)">Accept all</button><button data-icon="trash" class="discard-all btn-danger" @click="discardGroup(group)">Discard all</button><button data-icon="shield-check" class="trust-author btn-secondary" @click="trustAuthor(group.pubkey)">Trust author</button><button data-icon="ban" class="block-author btn-danger" @click="blockAuthor(group.pubkey)">Block author</button></div>
                     <template x-for="item in group.records" :key="item.id"><article class="incoming row flex-col items-stretch gap-1">
                         <span class="flex items-center gap-2 text-xs font-semibold text-accent"><span class="avatar" aria-hidden="true" :style="avatarStyle(item.event.pubkey)" :class="{ 'avatar-neutral': avatarOf(item.event.pubkey).neutral }" x-text="avatarOf(item.event.pubkey).initial"></span><span x-text="item.content.subject"></span></span>
                         <p class="break-words text-sm font-medium" x-text="item.content.information_chunks"></p>
                         <p x-show="item.content.actionable_workflows" class="break-words text-sm text-muted" x-text="item.content.actionable_workflows"></p>
-                        <div class="mt-1 flex flex-wrap gap-2"><button class="accept-incoming btn-success" @click="acceptIncoming(item)">Accept</button><button class="btn-danger" @click="discardIncoming(item)">Discard</button></div>
+                        <div class="mt-1 flex flex-wrap gap-2"><button data-icon="check" class="accept-incoming btn-success" @click="acceptIncoming(item)">Accept</button><button data-icon="trash" class="btn-danger" @click="discardIncoming(item)">Discard</button></div>
                     </article></template>
                 </div>
             </div></template>
@@ -136,17 +136,17 @@
         <section id="tab-subjects" x-show="activeTab === 'subjects'" style="display: none;">
             <h2 class="large-title">Subjects</h2>
             <div class="group">
-                <div class="row flex-wrap"><input id="new-subject-tab" type="text" x-model="newSubject" @keyup.enter="createSubject" placeholder="Create a subject" aria-label="New subject name" class="field min-w-0 flex-1 basis-48"><button @click="createSubject" class="btn-primary whitespace-nowrap">Create subject</button></div>
+                <div class="row flex-wrap"><input id="new-subject-tab" type="text" x-model="newSubject" @keyup.enter="createSubject" placeholder="Create a subject" aria-label="New subject name" class="field min-w-0 flex-1 basis-48"><button data-icon="plus" @click="createSubject" class="btn-primary whitespace-nowrap">Create subject</button></div>
             </div>
             <p class="group-note text-danger" x-show="subjectError" x-text="subjectError"></p>
             <h3 class="group-title">Your subjects</h3>
             <div class="group">
-                <template x-for="subject in settings.subjects" :key="subject.slug"><div class="subject-row row flex-wrap justify-between"><span class="min-w-0 break-words"><span class="font-medium" x-text="subject.label"></span> <span class="text-xs text-muted" x-text="subject.slug"></span> <span class="private-badge rounded-full bg-warn-soft px-2 py-0.5 text-xs font-semibold text-warn" x-show="subject.password || subject.needsPassword">Private</span></span><div class="flex min-w-0 flex-wrap items-center gap-3"><span class="flex items-center gap-1.5"><input type="password" class="subject-password field w-48 max-w-full" placeholder="Password (optional)" aria-label="Subject password" autocomplete="off" :value="subject.password || ''" @change="setPassword(subject, $event.target.value)"><button type="button" class="help" aria-label="About subject passwords" data-tip="Optional. Only peers with the same password can connect, and the subject is never listed in Discover. The password stays on this device and is left out of backups.">?</button></span><span class="flex items-center gap-1.5"><label class="flex min-h-[44px] items-center gap-2 text-sm"><input type="checkbox" class="h-5 w-5 accent-accent" :checked="subject.subscribed" @change="toggleSubscribe(subject)"> Subscribed</label><button type="button" class="help" aria-label="About subscribing" data-tip="Joins this subject's live room, so you send and receive shared records. Unchecked, nothing syncs. Without a password, the subject is also listed in Discover for other peers.">?</button></span><button type="button" class="btn-secondary" x-show="subject.subscribed" @click="refreshData(subject)" aria-label="Refresh data for this subject">Refresh data</button></div></div></template>
-                <div x-show="settings.subjects.length === 0" class="row"><div class="empty-state"><p class="empty-title">No subjects yet</p><p class="empty-text">A subject groups related knowledge. Create one to start extracting and importing.</p><button type="button" class="btn-primary" @click="focusNewSubject()">Create subject</button></div></div>
+                <template x-for="subject in settings.subjects" :key="subject.slug"><div class="subject-row row flex-wrap justify-between"><span class="min-w-0 break-words"><span class="font-medium" x-text="subject.label"></span> <span class="text-xs text-muted" x-text="subject.slug"></span> <span class="private-badge rounded-full bg-warn-soft px-2 py-0.5 text-xs font-semibold text-warn" x-show="subject.password || subject.needsPassword">Private</span></span><div class="flex min-w-0 flex-wrap items-center gap-3"><span class="flex items-center gap-1.5"><input type="password" class="subject-password field w-48 max-w-full" placeholder="Password (optional)" aria-label="Subject password" autocomplete="off" :value="subject.password || ''" @change="setPassword(subject, $event.target.value)"><button type="button" class="help" aria-label="About subject passwords" data-tip="Optional. Only peers with the same password can connect, and the subject is never listed in Discover. The password stays on this device and is left out of backups.">?</button></span><span class="flex items-center gap-1.5"><label class="flex min-h-[44px] items-center gap-2 text-sm"><input type="checkbox" class="h-5 w-5 accent-accent" :checked="subject.subscribed" @change="toggleSubscribe(subject)"> Subscribed</label><button type="button" class="help" aria-label="About subscribing" data-tip="Joins this subject's live room, so you send and receive shared records. Unchecked, nothing syncs. Without a password, the subject is also listed in Discover for other peers.">?</button></span><button data-icon="refresh" type="button" class="btn-secondary" x-show="subject.subscribed" @click="refreshData(subject)" aria-label="Refresh data for this subject">Refresh data</button></div></div></template>
+                <div x-show="settings.subjects.length === 0" class="row"><div class="empty-state"><p class="empty-title">No subjects yet</p><p class="empty-text">A subject groups related knowledge. Create one to start extracting and importing.</p><button data-icon="plus" type="button" class="btn-primary" @click="focusNewSubject()">Create subject</button></div></div>
             </div>
-            <div class="flex items-center justify-between"><h3 class="group-title">Discover</h3><button type="button" class="btn-secondary mt-4" @click="refreshSubjects()">Refresh subjects</button></div>
+            <div class="mb-1.5 mt-6 flex items-center justify-between"><h3 class="group-title !m-0">Discover</h3><button type="button" class="tool -my-2" data-icon="refresh" @click="refreshSubjects()" aria-label="Refresh subjects" title="Refresh subjects"></button></div>
             <div id="discover" class="group">
-                <template x-for="row in discover" :key="row.slug"><div class="discover-row row justify-between"><span class="min-w-0 break-words"><span class="font-medium" x-text="row.label"></span> <span class="text-xs text-muted" x-text="`${row.peers === 0 ? 'saved' : `${row.peers} ${row.peers === 1 ? 'peer' : 'peers'}`}, ${row.sharedCount} shared`"></span></span><span x-show="hasSubject(row.slug)" class="text-xs text-muted">Added</span><button x-show="!hasSubject(row.slug)" class="discover-subscribe btn-primary" @click="subscribeDiscovered(row)">Subscribe</button></div></template>
+                <template x-for="row in discover" :key="row.slug"><div class="discover-row row justify-between"><span class="min-w-0 break-words"><span class="font-medium" x-text="row.label"></span> <span class="text-xs text-muted" x-text="`${row.peers === 0 ? 'saved' : `${row.peers} ${row.peers === 1 ? 'peer' : 'peers'}`}, ${row.sharedCount} shared`"></span></span><span x-show="hasSubject(row.slug)" class="text-xs text-muted">Added</span><button data-icon="bell" x-show="!hasSubject(row.slug)" class="discover-subscribe btn-primary" @click="subscribeDiscovered(row)">Subscribe</button></div></template>
                 <div x-show="discover.length === 0" class="row"><div class="empty-state"><p class="empty-title">No public subjects found</p><p class="empty-text">Public subjects appear here when other peers announce them.</p></div></div>
             </div>
             <h3 class="group-title">Sync log</h3>
@@ -166,8 +166,8 @@
                 <template x-if="extensionActive"><p class="row text-sm text-muted">Disabled while the extension is active. The extension manages your key.</p></template>
                 <p class="row bg-warn-soft text-sm text-warn">Anyone with this key can sign records as you. Never share it.</p>
                 <label class="row min-h-[44px] text-sm"><input id="export-ack" type="checkbox" class="h-5 w-5 shrink-0 accent-accent" :disabled="extensionActive" x-model="exportAck"> I understand</label>
-                <div class="row"><button id="reveal-secret" @click="revealSecret" :disabled="extensionActive || !exportAck" class="btn-secondary">Reveal key</button></div>
-                <div x-show="secretRevealed" class="row flex-col items-stretch text-sm"><p class="break-all">Hex: <code id="secret-hex" class="font-mono text-xs" x-text="secretHex"></code></p><p class="break-all">nsec: <code id="secret-nsec" class="font-mono text-xs" x-text="secretNsec"></code></p><div class="flex flex-wrap items-center gap-2"><button @click="copy(secretHex, 'Secret key')" class="btn-secondary">Copy hex</button> <button @click="hideSecret" class="btn-secondary">Hide</button></div></div>
+                <div class="row"><button data-icon="eye" id="reveal-secret" @click="revealSecret" :disabled="extensionActive || !exportAck" class="btn-secondary">Reveal key</button></div>
+                <div x-show="secretRevealed" class="row flex-col items-stretch text-sm"><p class="break-all">Hex: <code id="secret-hex" class="font-mono text-xs" x-text="secretHex"></code></p><p class="break-all">nsec: <code id="secret-nsec" class="font-mono text-xs" x-text="secretNsec"></code></p><div class="flex flex-wrap items-center gap-2"><button data-icon="copy" @click="copy(secretHex, 'Secret key')" class="btn-secondary">Copy hex</button> <button data-icon="eye-off" @click="hideSecret" class="btn-secondary">Hide</button></div></div>
             </div>
 
             <h3 class="group-title">Import identity</h3>
@@ -175,7 +175,7 @@
                 <template x-if="extensionActive"><p class="row text-sm text-muted">Disabled while the extension is active.</p></template>
                 <div class="row"><input id="import-key" type="text" :disabled="extensionActive" x-model="importKeyText" placeholder="hex or nsec1..." aria-label="Private key to import" class="field font-mono"></div>
                 <label class="row min-h-[44px] text-sm"><input id="import-ack" type="checkbox" class="h-5 w-5 shrink-0 accent-accent" :disabled="extensionActive" x-model="importAck"> I have exported my current key</label>
-                <div class="row"><button id="import-identity" @click="importIdentity" :disabled="extensionActive || !importAck" class="btn-danger">Import identity</button></div>
+                <div class="row"><button data-icon="upload" id="import-identity" @click="importIdentity" :disabled="extensionActive || !importAck" class="btn-danger">Import identity</button></div>
                 <p id="identity-message" class="row text-sm empty:hidden" x-text="identityMessage"></p>
             </div>
 
@@ -184,21 +184,21 @@
                 <div class="group">
                     <p class="row bg-warn-soft text-sm text-warn">Switching changes your identity. Records signed by your current key stay, but become read-only and are labelled "by previous key". If you use a local key, export it first.</p>
                     <label class="row min-h-[44px] text-sm"><input id="switch-ack" type="checkbox" class="h-5 w-5 shrink-0 accent-accent" x-model="switchAck"> I understand</label>
-                    <div class="row"><button id="switch-signer" @click="switchSigner(extensionActive ? 'local' : 'extension')" :disabled="!switchAck" class="btn-danger" x-text="extensionActive ? 'Switch to local key' : 'Switch to extension'"></button></div>
+                    <div class="row"><button id="switch-signer" data-icon="repeat" @click="switchSigner(extensionActive ? 'local' : 'extension')" :disabled="!switchAck" class="btn-danger" x-text="extensionActive ? 'Switch to local key' : 'Switch to extension'"></button></div>
                 </div>
             </div>
 
             <h3 class="group-title">Backup</h3>
             <div class="group">
                 <p class="row text-sm text-muted">Your records, deletions, trust list and subjects. It does not include your private key or subject passwords.</p>
-                <div class="row"><button id="export-backup" @click="exportBackup" class="btn-secondary">Export backup</button></div>
+                <div class="row"><button data-icon="download" id="export-backup" @click="exportBackup" class="btn-secondary">Export backup</button></div>
                 <div class="row"><input id="import-backup" type="file" accept=".json,application/json" @change="importBackup" class="block w-full min-w-0 text-sm text-muted file:mr-4 file:min-h-[44px] file:cursor-pointer file:rounded-ctl file:border-0 file:bg-accent-soft file:px-4 file:text-sm file:font-semibold file:text-accent"></div>
                 <p id="backup-summary" class="row text-sm empty:hidden" x-text="backupSummary"></p>
             </div>
 
             <h3 class="group-title">Trusted and blocked authors</h3>
             <div id="trust-list" class="group">
-                <template x-for="entry in trust" :key="entry.pubkey"><div class="trust-row row flex-wrap justify-between"><span class="flex min-w-0 items-center gap-2"><span class="avatar" aria-hidden="true" :style="avatarStyle(entry.pubkey)" :class="{ 'avatar-neutral': avatarOf(entry.pubkey).neutral }" x-text="avatarOf(entry.pubkey).initial"></span><span class="min-w-0 break-all font-mono text-xs" x-text="shortKey(entry.pubkey)"></span></span><span class="flex min-w-0 flex-wrap items-center gap-2"><input type="text" class="trust-nickname field w-40 max-w-full" placeholder="Nickname" aria-label="Nickname" :value="entry.nickname || ''" @change="setNickname(entry, $event.target.value)"><select class="trust-status field w-auto" aria-label="Status" :value="entry.status" @change="setStatus(entry, $event.target.value)"><option value="trusted">Trusted</option><option value="blocked">Blocked</option></select><button class="trust-remove btn-danger" @click="removeTrust(entry.pubkey)">Remove</button></span></div></template>
+                <template x-for="entry in trust" :key="entry.pubkey"><div class="trust-row row flex-wrap justify-between"><span class="flex min-w-0 items-center gap-2"><span class="avatar" aria-hidden="true" :style="avatarStyle(entry.pubkey)" :class="{ 'avatar-neutral': avatarOf(entry.pubkey).neutral }" x-text="avatarOf(entry.pubkey).initial"></span><span class="min-w-0 break-all font-mono text-xs" x-text="shortKey(entry.pubkey)"></span></span><span class="flex min-w-0 flex-wrap items-center gap-2"><input type="text" class="trust-nickname field w-40 max-w-full" placeholder="Nickname" aria-label="Nickname" :value="entry.nickname || ''" @change="setNickname(entry, $event.target.value)"><select class="trust-status field w-auto" aria-label="Status" :value="entry.status" @change="setStatus(entry, $event.target.value)"><option value="trusted">Trusted</option><option value="blocked">Blocked</option></select><button data-icon="x" class="trust-remove btn-danger" @click="removeTrust(entry.pubkey)">Remove</button></span></div></template>
                 <div x-show="trust.length === 0" class="row"><div class="empty-state"><p class="empty-title">No trusted or blocked authors</p><p class="empty-text">Open a record in the Feed and choose Trust author or Block author.</p></div></div>
             </div>
 
@@ -223,7 +223,7 @@
                     <dt><kbd class="kbd">?</kbd></dt><dd>Show this list</dd>
                     <dt><kbd class="kbd">Esc</kbd></dt><dd>Close a dialog</dd>
                 </dl>
-                <button type="button" class="btn-secondary self-end" @click="$root.querySelector('#shortcut-list').close()">Close</button>
+                <button data-icon="x" type="button" class="btn-secondary self-end" @click="$root.querySelector('#shortcut-list').close()">Close</button>
             </div>
         </dialog>
     </div>
