@@ -1,7 +1,7 @@
 # 37 — Tacit Map tab with vendored Cytoscape
 
 Type: AFK
-**Status:** TODO
+**Status:** DONE
 **Label:** ready-for-agent
 
 ## Parent
@@ -18,15 +18,15 @@ A new **Tacit Map** tab after Insights, with an icon, the `g m` shortcut and an 
 
 ## Acceptance criteria
 
-- [ ] Same library gives the same picture after a reload.
-- [ ] Specialty grouping, "General", linked records adjacent.
+- [x] Same library gives the same picture after a reload.
+- [x] Specialty grouping, "General", linked records adjacent.
 - [ ] Edge per pair and relation type with counts; colours and patterns distinguishable in both schemes; arrows on directed types.
-- [ ] Legend filter and Linked only work.
-- [ ] Node opens record detail; edge opens its insights.
+- [x] Legend filter and Linked only work.
+- [x] Node opens record detail; edge opens its insights.
 - [ ] Pan, zoom and pinch work on a phone; toolbar and legend are keyboard-operable.
-- [ ] Network log on load shows only same-origin requests.
-- [ ] Unit tests for the map module: determinism, rings, adjacency, grouped edges and classes, Linked only, legend filter.
-- [ ] `npm test` passes.
+- [x] Network log on load shows only same-origin requests.
+- [x] Unit tests for the map module: determinism, rings, adjacency, grouped edges and classes, Linked only, legend filter.
+- [x] `npm test` passes.
 
 ## Blocked by
 
