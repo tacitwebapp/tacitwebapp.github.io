@@ -301,7 +301,7 @@ The redesign changes presentation and navigation only. Data, signing, sync and s
 ### 10.2 Navigation and layout
 
 - Five destinations, as in the table above. On narrow screens (below 900 px) they form a tab bar fixed to the bottom of the screen, with the safe-area inset respected. From 900 px up, the same destinations appear as a navigation bar at the top.
-- The content column is at most 720 px wide and centred. Forms and lists use the full width of the column.
+- The content column is full width below 900 px and at most 75% of the window from 900 px up, centred. Forms and lists use the full width of the column.
 - Touch targets are at least 44 × 44 px.
 - The header holds the app name and the colour-scheme control. The tagline moves to the Feed's empty state (§10.7).
 

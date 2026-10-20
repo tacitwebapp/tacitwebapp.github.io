@@ -96,7 +96,7 @@
     .tabbar { @apply fixed inset-x-0 bottom-0 z-30 flex border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] desk:static desk:z-auto desk:ml-4 desk:border-0 desk:bg-transparent desk:pb-0; }
     .tab { @apply flex min-h-[56px] min-w-[44px] flex-1 items-center justify-center px-1 text-center text-xs font-semibold text-muted desk:min-h-[44px] desk:flex-none desk:rounded-ctl desk:px-4 desk:text-sm; }
     .tab[aria-current='page'] { @apply text-accent desk:bg-accent-soft; }
-    .page { @apply mx-auto w-full max-w-[720px] px-4 pb-28 pt-2 desk:pb-12; }
+    .page { @apply mx-auto w-full max-w-full desk:max-w-[75%] px-4 pb-28 pt-2 desk:pb-12; }
     .large-title { @apply mb-4 mt-2 text-[2rem] font-bold leading-tight tracking-tight; }
     .group { @apply overflow-hidden rounded-card border border-line bg-surface; }
     .group-title { @apply mb-1.5 mt-6 px-1 text-xs font-semibold uppercase tracking-wide text-muted; }
