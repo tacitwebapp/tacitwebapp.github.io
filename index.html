@@ -6,17 +6,22 @@
     <title>Tacit Knowledge</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="vendor/tailwind.css">
+    <link rel="preload" href="vendor/DMSans-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
     <script type="module" src="tacit-main.js"></script>
 </head>
-<body class="bg-gray-100 text-gray-800 font-sans antialiased">
-    <div x-data="tacitApp()" x-init="initApp()" class="max-w-5xl mx-auto p-6">
-        <header class="mb-6"><h1 class="text-3xl font-bold text-blue-600">Tacit</h1><p class="text-sm text-gray-500 mt-1">Capture, curate, and exchange practical knowledge.</p></header>
-        <nav class="flex flex-wrap gap-2 border-b border-gray-300 mb-6" aria-label="Main navigation">
-            <template x-for="tab in mainTabs" :key="tab.id"><button :data-tab="tab.id" @click="activeTab = tab.id" :class="activeTab === tab.id ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'" class="px-4 py-2 rounded-t font-semibold transition-colors" x-text="tab.label"></button></template>
-        </nav>
+<body>
+    <div x-data="tacitApp()" x-init="initApp()">
+        <header class="app-header">
+            <h1 class="app-name">Tacit</h1>
+            <nav class="tabbar" aria-label="Main navigation">
+                <template x-for="tab in mainTabs" :key="tab.id"><button :data-tab="tab.id" @click="activeTab = tab.id" :aria-current="activeTab === tab.id ? 'page' : null" class="tab" x-text="tab.label"></button></template>
+            </nav>
+            <div class="app-tools"></div>
+        </header>
+        <main class="page">
 
-        <section id="tab-feed" x-show="activeTab === 'feed'" class="bg-white p-6 rounded shadow">
-            <div class="flex justify-between items-start gap-4 mb-5"><h2 class="text-xl font-bold">Feed</h2><span class="text-sm bg-blue-50 text-blue-700 rounded px-3 py-1" x-text="feedItems.length === library.length ? `${library.length} records` : `${feedItems.length} of ${library.length} records`"></span></div>
+        <section id="tab-feed" x-show="activeTab === 'feed'" class="group p-6">
+            <div class="flex justify-between items-start gap-4 mb-5"><h2 class="large-title !mb-0">Feed</h2><span class="text-sm bg-blue-50 text-blue-700 rounded px-3 py-1" x-text="feedItems.length === library.length ? `${library.length} records` : `${feedItems.length} of ${library.length} records`"></span></div>
             <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4">
                 <select id="feed-subject" x-model="feedFilters.subject" aria-label="Filter by subject" class="px-3 py-2 border rounded w-full"><option value="">All subjects</option><template x-for="[slug, label] in feedSubjects" :key="slug"><option :value="slug" x-text="label"></option></template></select>
                 <select id="feed-author" x-model="feedFilters.author" aria-label="Filter by author" class="px-3 py-2 border rounded w-full"><option value="">All authors</option><option value="mine">Mine</option><option value="trusted">Trusted</option><option value="others">Others</option></select>
@@ -40,8 +45,8 @@
             </div>
         </section>
 
-        <section id="tab-extract" x-show="activeTab === 'extract'" class="bg-white p-6 rounded shadow" style="display: none;">
-            <h2 class="text-xl font-bold mb-4">Extract</h2>
+        <section id="tab-extract" x-show="activeTab === 'extract'" class="group p-6" style="display: none;">
+            <h2 class="large-title">Extract</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
                 <div><label for="input-type" class="block text-sm font-medium mb-1">Input type</label><select id="input-type" x-model="selectedInputType" class="px-3 py-2 border rounded w-full"><template x-for="(label, value) in inputTypeLabels" :key="value"><option :value="value" x-text="label"></option></template></select></div>
                 <div><label for="subject-select" class="block text-sm font-medium mb-1">Subject</label><select id="subject-select" x-model="selectedSlug" class="px-3 py-2 border rounded w-full"><option value="">Select a subject</option><template x-for="subject in settings.subjects" :key="subject.slug"><option :value="subject.slug" x-text="subject.label"></option></template></select></div>
@@ -52,8 +57,8 @@
             <div class="bg-gray-800 text-green-400 p-4 rounded font-mono text-sm whitespace-pre-wrap" x-text="dynamicPrompt"></div>
         </section>
 
-        <section id="tab-import" x-show="activeTab === 'import'" class="bg-white p-6 rounded shadow" style="display: none;">
-            <h2 class="text-xl font-bold mb-2">Import</h2>
+        <section id="tab-import" x-show="activeTab === 'import'" class="group p-6" style="display: none;">
+            <h2 class="large-title">Import &amp; Review</h2>
             <label for="import-subject" class="block text-sm font-medium mb-1">Subject</label>
             <select id="import-subject" x-model="selectedSlug" class="px-3 py-2 border rounded w-full md:w-1/2 mb-4"><option value="">Select a subject</option><template x-for="subject in settings.subjects" :key="subject.slug"><option :value="subject.slug" x-text="subject.label"></option></template></select>
             <input id="import-file" type="file" @change="importFile" :disabled="!selectedSubject" accept=".json,.csv,application/json,text/csv" class="block w-full text-sm text-gray-500 mb-3 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700">
@@ -94,8 +99,8 @@
             </div>
         </section>
 
-        <section id="tab-subjects" x-show="activeTab === 'subjects'" class="bg-white p-6 rounded shadow" style="display: none;">
-            <h2 class="text-xl font-bold mb-4">Subjects</h2>
+        <section id="tab-subjects" x-show="activeTab === 'subjects'" class="group p-6" style="display: none;">
+            <h2 class="large-title">Subjects</h2>
             <div class="flex gap-2 mb-2"><input type="text" x-model="newSubject" @keyup.enter="createSubject" placeholder="Create a subject" class="px-3 py-2 border rounded w-full"><button @click="createSubject" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 whitespace-nowrap">Create subject</button></div>
             <p class="text-sm text-red-700 mb-3" x-show="subjectError" x-text="subjectError"></p>
             <div class="space-y-2 mb-5">
@@ -111,8 +116,8 @@
             <div id="sync-log" class="p-3 bg-gray-900 text-green-400 font-mono text-xs rounded h-40 overflow-y-auto"><template x-for="(log, index) in syncLogs" :key="index"><div x-text="log"></div></template></div>
         </section>
 
-        <section id="tab-identity" x-show="activeTab === 'identity'" class="bg-white p-6 rounded shadow" style="display: none;">
-            <h2 class="text-xl font-bold mb-4">Identity</h2>
+        <section id="tab-identity" x-show="activeTab === 'identity'" class="group p-6" style="display: none;">
+            <h2 class="large-title">Identity</h2>
             <p class="text-sm">Signer: <strong id="signer-source" x-text="signerLabel"></strong></p>
             <p class="text-sm break-all">Public key: <span id="npub" x-text="npub"></span></p>
             <p class="text-sm break-all mb-4">Hex: <span id="pubkey-hex" x-text="pubkey.slice(0, 12)"></span>…</p>
@@ -154,6 +159,7 @@
             <ul class="text-sm"><template x-for="key in previousKeys" :key="key"><li class="break-all" x-text="`${key}`"></li></template></ul>
             <p x-show="previousKeys.length === 0" class="text-gray-500 italic text-sm">None.</p>
         </section>
+        </main>
     </div>
 </body>
 </html>

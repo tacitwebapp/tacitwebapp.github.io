@@ -15,3 +15,6 @@ Each slice is a vertical, independently testable increment. Every slice folder h
 | [09 backup restore](slice-09-backup-restore/) | 16 | 04, 07 |
 | [10 extension signer](slice-10-extension-signer/) | 08 | 01 |
 | [11 e2e verification](slice-11-e2e-verification/) | 17 | 01-10 |
+| [12 interface redesign](slice-12-ui-redesign/) | 18-28 (parent spec 00) | 01-10 |
+
+Unscheduled work: [backlog](backlog/).

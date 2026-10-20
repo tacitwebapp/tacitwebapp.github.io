@@ -2,5 +2,11 @@
   "name": "tacit",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node --test tests/*.test.js" }
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "build:css": "tailwindcss -c tailwind.config.js -i tacit.src.css -o vendor/tailwind.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.17"
+  }
 }
