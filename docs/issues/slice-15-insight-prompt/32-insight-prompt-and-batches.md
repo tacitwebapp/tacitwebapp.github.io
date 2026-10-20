@@ -1,7 +1,7 @@
 # 32 — Record selection, insight prompt, prompt limit and batches
 
 Type: AFK
-**Status:** TODO
+**Status:** DONE
 **Label:** ready-for-agent
 
 ## Parent
@@ -19,14 +19,14 @@ A **prompt limit** field (default 30, minimum 4, maximum 200, even only) is stor
 ## Acceptance criteria
 
 - [ ] Record list shows every library record of the subject and follows the Feed filters; Select all selects only the filtered records.
-- [ ] With N ≤ k there is one prompt; above, P = m(m−1)/2 with m = ⌈2N/k⌉, and no prompt holds more than k records.
-- [ ] Every pair of selected records appears in at least one prompt.
-- [ ] Record blocks have no author name or key.
-- [ ] Skip list has only own current-key pairs where both records are in that prompt; other authors' insights never appear.
+- [x] With N ≤ k there is one prompt; above, P = m(m−1)/2 with m = ⌈2N/k⌉, and no prompt holds more than k records.
+- [x] Every pair of selected records appears in at least one prompt.
+- [x] Record blocks have no author name or key.
+- [x] Skip list has only own current-key pairs where both records are in that prompt; other authors' insights never appear.
 - [ ] Limit is validated, saved and survives a reload.
 - [ ] Copy shows a toast and a copied tick on the card.
-- [ ] Unit tests: coverage of every pair for several N and k, prompt count, size cap, record block contents, skip list, limit validation.
-- [ ] `npm test` passes.
+- [x] Unit tests: coverage of every pair for several N and k, prompt count, size cap, record block contents, skip list, limit validation.
+- [x] `npm test` passes.
 
 ## Blocked by
 
