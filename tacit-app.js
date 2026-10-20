@@ -196,6 +196,7 @@ export function registerTacitApp(Alpine) {
                 await this.activateSigner('local');
             }
             this.selectedSlug = this.settings.subjects[0]?.slug || '';
+            this.$watch('selectedSlug', () => { this.mapLinkedOnlyChoice = null; });
             await this.reload();
             try { directory = connectDirectory(this); } catch (error) { this.logSync(`Could not join directory: ${error.message}`); }
             this.settings.subjects.filter(subject => subject.subscribed).forEach(subject => this.joinSubject(subject.slug));
