@@ -14,6 +14,7 @@ import * as store from './tacit-store.js';
 const rooms = {};
 let rankCache = null;
 const shortIdOfItem = item => shortIdOf(item.key);
+const blankLink = () => ({ open: false, insight: null, relation: 'conflicts', search: '', otherKey: '', direction: 'forward', rationale: '' });
 let detailOpener = null;
 let shortcutOpener = null;
 let keyState = { pendingG: null };
@@ -30,7 +31,7 @@ export function registerTacitApp(Alpine) {
         pubkey: '', previousKeys: [], signer: null, extensionAvailable: false, switchAck: false, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
         importKeyText: '', importAck: false, identityMessage: '', backupSummary: '', theme: localStorage.getItem('tacit.theme') || '', toasts: [],
         pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], authorNames: {}, directoryPeers: {}, subjectCache: {}, ready: false,
-        feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null, linkForm: null, relations: RELATIONS,
+        feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null, linkForm: blankLink(), relations: RELATIONS,
         authorOptions: [{ value: '', label: 'All' }, { value: 'mine', label: 'Mine' }, { value: 'trusted', label: 'Trusted' }, { value: 'others', label: 'Others' }],
         get subjectOptions() { return [...this.settings.subjects, ...this.discover.filter(row => !this.hasSubject(row.slug))]; },
         get selectedSubject() { return this.subjectOptions.find(subject => subject.slug === this.selectedSlug); },
@@ -54,6 +55,7 @@ export function registerTacitApp(Alpine) {
         tabRecord(side) { return this.subjectRecords.find(item => item.key === this.tabLink[side]); },
         comboLabel(side) { const record = this.tabRecord(side); return record ? `${shortIdOf(record.key)} ${record.content.information_chunks ?? ''}` : ''; },
         similarRows(target) {
+            if (!target) return [];
             if (!(rankCache?.library === this.library && rankCache.key === target.key)) {
                 const pool = this.records.filter(item => item.subjectSlug === target.subjectSlug);
                 rankCache = { library: this.library, key: target.key, rows: rankBySimilarity(target, pool, pool) };
@@ -327,7 +329,7 @@ export function registerTacitApp(Alpine) {
         },
         detailClosed() {
             const opener = detailOpener;
-            detailOpener = null; this.detailItem = null; this.linkForm = null;
+            detailOpener = null; this.detailItem = null; this.closeLink();
             if (opener?.isConnected) opener.focus();
         },
         syncDetail() {
@@ -349,10 +351,11 @@ export function registerTacitApp(Alpine) {
         linkTopN: LINK_TOP_N,
         get linkCandidates() { return candidatesFor(this.similarRows(this.detailItem), this.linkForm.search, LINK_TOP_N, shortIdOfItem); },
         get linkOther() { return this.library.find(item => item.key === this.linkForm.otherKey); },
-        openLink() { this.linkForm = { insight: null, relation: 'conflicts', search: '', otherKey: '', direction: 'forward', rationale: '' }; },
+        openLink() { this.linkForm = { ...blankLink(), open: true }; },
+        closeLink() { this.linkForm = blankLink(); },
         editLink(insight) {
             const { relation, from, to, rationale } = insight.content;
-            this.linkForm = { insight, relation, search: '', otherKey: from === this.detailItem.key ? to : from, direction: from === this.detailItem.key ? 'forward' : 'reverse', rationale };
+            this.linkForm = { open: true, insight, relation, search: '', otherKey: from === this.detailItem.key ? to : from, direction: from === this.detailItem.key ? 'forward' : 'reverse', rationale };
         },
         pickLinkOther(item) {
             const own = findOwnInsight(this.library, this.pubkey, this.detailItem.key, item.key);
@@ -370,7 +373,7 @@ export function registerTacitApp(Alpine) {
             const { content, ...base } = form.insight ?? { key: recordKey(event), visibility: choice, subjectSlug: record.subjectSlug };
             const saved = { ...base, event, receivedAt: Date.now() };
             await store.put('library', saved); await this.reload();
-            this.linkForm = null;
+            this.closeLink();
             if (saved.visibility === 'shared') this.publish(saved);
             this.toast(form.insight ? 'Insight edited' : 'Insight stored');
         },

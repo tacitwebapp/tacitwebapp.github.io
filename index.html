@@ -64,8 +64,8 @@
                         <button data-icon="plus" type="button" class="link-record btn-secondary" @click="openLink()">Link…</button>
                         <button data-icon="x" type="button" class="btn-secondary ml-auto" @click="closeDetail()">Close</button>
                     </div>
-                    <form x-show="linkForm" @submit.prevent class="link-form flex flex-col gap-3 rounded-ctl border border-line p-3">
-                        <template x-if="linkForm"><div class="flex flex-col gap-3">
+                    <form x-show="linkForm.open" @submit.prevent class="link-form flex flex-col gap-3 rounded-ctl border border-line p-3">
+                        <template x-if="linkForm.open"><div class="flex flex-col gap-3">
                             <p class="text-sm font-semibold text-ink" x-text="linkForm.insight ? 'Edit insight' : 'Link this record to another'"></p>
                             <label class="text-sm font-medium">Relation<select x-model="linkForm.relation" aria-label="Relation" class="link-relation field"><template x-for="(info, name) in relations" :key="name"><option :value="name" x-text="info.label" :selected="name === linkForm.relation"></option></template></select></label>
                             <label x-show="relations[linkForm.relation].directed" class="text-sm font-medium">Direction<select x-model="linkForm.direction" aria-label="Direction" class="link-direction field"><option value="forward" :selected="linkForm.direction === 'forward'" x-text="`This record ${relations[linkForm.relation].label} the other`"></option><option value="reverse" :selected="linkForm.direction === 'reverse'" x-text="`The other ${relations[linkForm.relation].label} this record`"></option></select></label>
@@ -75,12 +75,12 @@
                                 <p x-show="!linkForm.search.trim() && similarRows(detailItem).length > linkTopN" class="link-hint text-xs text-muted" x-text="`Top ${linkTopN} similar — search to find others`"></p>
                                 <p x-show="linkCandidates.length === 0" class="text-sm text-muted">No other record of this subject matches.</p>
                             </div></template>
-                            <template x-if="linkForm.otherKey && linkOther"><div class="flex items-center gap-2 text-sm"><span class="font-mono text-xs text-muted" x-text="shortIdOf(linkOther.key)"></span><span class="line-clamp-2 min-w-0 flex-1 break-words" x-text="linkOther.content.information_chunks"></span><button type="button" x-show="!linkForm.insight" class="btn-secondary" @click="linkForm.otherKey = ''">Change</button></div></template>
+                            <template x-if="linkForm.otherKey && linkOther"><div class="flex items-center gap-2 text-sm"><span class="font-mono text-xs text-muted" x-text="linkOther ? shortIdOf(linkOther.key) : ''"></span><span class="line-clamp-2 min-w-0 flex-1 break-words" x-text="linkOther?.content.information_chunks"></span><button type="button" x-show="!linkForm.insight" class="btn-secondary" @click="linkForm.otherKey = ''">Change</button></div></template>
                             <label class="text-sm font-medium">Rationale (optional)<textarea x-model="linkForm.rationale" rows="2" aria-label="Rationale" class="link-rationale field"></textarea></label>
                             <div class="flex flex-wrap gap-2">
                                 <template x-if="!linkForm.insight"><span class="flex flex-wrap gap-2"><button data-icon="save" type="button" class="link-store btn-secondary" :disabled="!linkForm.otherKey" @click="saveLink('local')">Store</button><button data-icon="share" type="button" class="link-share btn-success" :disabled="!linkForm.otherKey" @click="saveLink('shared')">Share</button></span></template>
                                 <template x-if="linkForm.insight"><button data-icon="save" type="button" class="link-save btn-primary" @click="saveLink()">Save</button></template>
-                                <button data-icon="x" type="button" class="btn-secondary" @click="linkForm = null">Cancel</button>
+                                <button data-icon="x" type="button" class="btn-secondary" @click="closeLink()">Cancel</button>
                             </div>
                         </div></template>
                     </form>
