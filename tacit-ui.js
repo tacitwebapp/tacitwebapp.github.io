@@ -51,7 +51,7 @@ export function expireToasts(queue, now) {
 }
 
 const SEQUENCE_MS = 1500;
-const GO_TARGETS = { f: 'feed', e: 'extract', r: 'import', n: 'insights', s: 'subjects', i: 'identity' };
+const GO_TARGETS = { f: 'feed', e: 'extract', r: 'import', n: 'insights', m: 'map', s: 'subjects', i: 'identity' };
 
 export function resolveShortcut(state, key, now) {
     if (key.editable || key.ctrl || key.meta || key.alt) return { action: null, state: { pendingG: null } };

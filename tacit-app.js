@@ -9,10 +9,45 @@ import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit
 import { rankBySimilarity, candidatesFor, LINK_TOP_N } from './tacit-similarity.js';
 import { buildBackup, parseBackup, restoreBackup } from './tacit-backup.js';
 import { avatarFor, nextTheme, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition } from './tacit-ui.js';
+import { buildMap, buildStyle, linkedOnlyByDefault, RELATION_STYLE } from './tacit-map.js';
+import cytoscape from './vendor/cytoscape.esm.js';
 import * as store from './tacit-store.js';
 
 const rooms = {};
 let rankCache = null;
+let cy = null;
+let mapNodeIds = '';
+let mapUnwatch = null;
+let edgeOpener = null;
+const MAP_TOKENS = { ink: 'ink', muted: 'muted', surface: 'surface', line: 'line', accent: 'accent', accentInk: 'accent-ink', accentSoft: 'accent-soft', danger: 'danger', success: 'success', warn: 'warn' };
+const tokenColor = token => `rgb(${getComputedStyle(document.documentElement).getPropertyValue(`--c-${token}`).trim().split(/\s+/).join(', ')})`;
+const mapColors = () => Object.fromEntries(Object.entries(MAP_TOKENS).map(([name, token]) => [name, tokenColor(token)]));
+
+function destroyMap() {
+    mapUnwatch?.(); mapUnwatch = null;
+    cy?.destroy(); cy = null; mapNodeIds = '';
+}
+
+function drawMap(app, elements) {
+    const container = document.getElementById('map-canvas');
+    if (!container || app.activeTab !== 'map') return;
+    const nodeIds = elements.filter(el => el.group === 'nodes').map(el => el.data.id).join('|');
+    if (!cy) {
+        cy = cytoscape({ container, elements, style: buildStyle(mapColors()), layout: { name: 'preset' }, autoungrabify: true, boxSelectionEnabled: false, minZoom: 0.05, maxZoom: 3 });
+        cy.on('tap', 'node.record', event => app.openMapRecord(event.target.id(), container));
+        cy.on('tap', 'edge', event => app.openEdgeSheet(event.target.data('keys'), container));
+        const restyle = () => cy?.style(buildStyle(mapColors()));
+        const media = matchMedia('(prefers-color-scheme: dark)'), observer = new MutationObserver(restyle);
+        media.addEventListener('change', restyle);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        mapUnwatch = () => { media.removeEventListener('change', restyle); observer.disconnect(); };
+        cy.fit(undefined, 30);
+    } else {
+        cy.batch(() => { cy.elements().remove(); cy.add(elements); });
+        if (nodeIds !== mapNodeIds) cy.fit(undefined, 30);
+    }
+    mapNodeIds = nodeIds;
+}
 const shortIdOfItem = item => shortIdOf(item.key);
 const blankLink = () => ({ open: false, insight: null, relation: 'conflicts', search: '', otherKey: '', direction: 'forward', rationale: '' });
 let detailOpener = null;
@@ -25,7 +60,7 @@ const shortKey = pubkey => `${encodeNpub(pubkey).slice(0, 12)}…${pubkey.slice(
 
 export function registerTacitApp(Alpine) {
     Alpine.data('tacitApp', () => ({
-        mainTabs: [{ id: 'feed', label: 'Feed', icon: 'list' }, { id: 'extract', label: 'Extract', icon: 'sparkles' }, { id: 'import', label: 'Import & Review', icon: 'inbox' }, { id: 'insights', label: 'Insights', icon: 'link' }, { id: 'subjects', label: 'Subjects', icon: 'folder' }, { id: 'identity', label: 'Identity', icon: 'key' }],
+        mainTabs: [{ id: 'feed', label: 'Feed', icon: 'list' }, { id: 'extract', label: 'Extract', icon: 'sparkles' }, { id: 'import', label: 'Import & Review', icon: 'inbox' }, { id: 'insights', label: 'Insights', icon: 'link' }, { id: 'map', label: 'Tacit Map', icon: 'map' }, { id: 'subjects', label: 'Subjects', icon: 'folder' }, { id: 'identity', label: 'Identity', icon: 'key' }],
         activeTab: 'feed', inputTypeLabels: TacitInputTypeLabels, selectedInputType: 'txt', selectedSlug: '', specialty: '',
         settings: { relays: [], subjects: [] }, newSubject: '', subjectError: '',
         pubkey: '', previousKeys: [], signer: null, extensionAvailable: false, switchAck: false, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
@@ -52,6 +87,44 @@ export function registerTacitApp(Alpine) {
             const trustedKeys = new Set(this.trust.filter(entry => entry.status === 'trusted').map(entry => entry.pubkey));
             return groupInsights(this.library, { subject: this.selectedSlug, ...this.insightFilters }, { selfKeys: this.selfKeys, trustedKeys });
         },
+        mapRelations: Object.keys(RELATIONS), mapLinkedOnlyChoice: null, edgeSheet: null, relationStyle: RELATION_STYLE,
+        get mapLinkedOnly() { return this.mapLinkedOnlyChoice ?? linkedOnlyByDefault(this.subjectRecords.length); },
+        get mapElements() {
+            const groups = groupInsights(this.library, { subject: this.selectedSlug });
+            return buildMap(this.subjectRecords, groups, { subjectLabel: this.selectedSubject?.label ?? '', relations: this.mapRelations, linkedOnly: this.mapLinkedOnly }).elements;
+        },
+        toggleMapRelation(name) { this.mapRelations = this.mapRelations.includes(name) ? this.mapRelations.filter(entry => entry !== name) : [...this.mapRelations, name]; },
+        syncMap() {
+            const elements = this.activeTab === 'map' && this.subjectRecords.length ? this.mapElements : null;
+            if (!elements) destroyMap(); else this.$nextTick(() => drawMap(this, elements));
+        },
+        mapZoom(factor) { cy?.zoom({ level: cy.zoom() * factor, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } }); },
+        mapFit() { cy?.fit(undefined, 30); },
+        mapKey(event) {
+            if (event.ctrlKey || event.metaKey || event.altKey) return;
+            const action = { '+': () => this.mapZoom(1.25), '=': () => this.mapZoom(1.25), '-': () => this.mapZoom(0.8), '0': () => this.mapFit() }[event.key];
+            if (action) { event.preventDefault(); action(); }
+        },
+        openMapRecord(key, el) { const item = this.library.find(entry => entry.key === key); if (item) this.openDetail(item, el); },
+        get edgeItems() { return this.edgeSheet ? this.library.filter(item => this.edgeSheet.includes(item.key)) : []; },
+        get edgeCard() { return this.edgeItems.length ? incomingInsightCard(this.edgeItems[0].content, this.library, []) : null; },
+        async openEdgeSheet(keys, el) {
+            edgeOpener = el; this.edgeSheet = keys;
+            await this.$nextTick();
+            const dialog = document.getElementById('map-edge-sheet');
+            if (this.edgeItems.length && !dialog.open) dialog.showModal();
+        },
+        closeEdgeSheet() {
+            const dialog = document.getElementById('map-edge-sheet');
+            if (dialog?.open) dialog.close(); else this.edgeSheetClosed();
+        },
+        edgeSheetClosed() {
+            const opener = edgeOpener;
+            edgeOpener = null; this.edgeSheet = null;
+            if (opener?.isConnected) opener.focus();
+        },
+        syncEdgeSheet() { if (this.edgeSheet && !this.edgeItems.length) this.closeEdgeSheet(); },
+        editEdgeInsight(insight) { this.closeEdgeSheet(); this.activeTab = 'insights'; this.editTabLink(insight); },
         tabRecord(side) { return this.subjectRecords.find(item => item.key === this.tabLink[side]); },
         comboLabel(side) { const record = this.tabRecord(side); return record ? `${shortIdOf(record.key)} ${record.content.information_chunks ?? ''}` : ''; },
         similarRows(target) {
@@ -125,6 +198,7 @@ export function registerTacitApp(Alpine) {
                 await this.activateSigner('local');
             }
             this.selectedSlug = this.settings.subjects[0]?.slug || '';
+            this.$watch('selectedSlug', () => { this.mapLinkedOnlyChoice = null; });
             await this.reload();
             try { directory = connectDirectory(this); } catch (error) { this.logSync(`Could not join directory: ${error.message}`); }
             this.settings.subjects.filter(subject => subject.subscribed).forEach(subject => this.joinSubject(subject.slug));
