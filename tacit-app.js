@@ -9,6 +9,7 @@ import { buildBackup, parseBackup, restoreBackup } from './tacit-backup.js';
 import * as store from './tacit-store.js';
 
 const rooms = {};
+let detailOpener = null;
 let directory;
 const readJson = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch (_) { return fallback; } };
 const parseContent = event => { try { return JSON.parse(event.content); } catch (_) { return null; } };
@@ -22,7 +23,8 @@ export function registerTacitApp(Alpine) {
         pubkey: '', previousKeys: [], signer: null, extensionAvailable: false, switchAck: false, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
         importKeyText: '', importAck: false, identityMessage: '', copied: '', backupSummary: '',
         pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], directoryPeers: {}, ready: false,
-        feedFilters: { subject: '', author: '', visibility: '', search: '' },
+        feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null,
+        authorOptions: [{ value: '', label: 'All' }, { value: 'mine', label: 'Mine' }, { value: 'trusted', label: 'Trusted' }, { value: 'others', label: 'Others' }],
         get selectedSubject() { return this.settings.subjects.find(subject => subject.slug === this.selectedSlug); },
         get dynamicPrompt() { return buildTacitPrompt({ inputType: this.selectedInputType, subjectCategory: this.selectedSubject?.label || '' }); },
         get discover() { return groupDiscover(this.directoryPeers); },
@@ -163,6 +165,28 @@ export function registerTacitApp(Alpine) {
             await store.put('library', { ...record, visibility: 'shared' });
             await store.remove('pending', draft.id); await this.reload();
             this.publish(record);
+        },
+        clearFilters() { this.feedFilters = { subject: '', author: '', visibility: '', search: '' }; },
+        async openDetail(item, el) {
+            detailOpener = el; this.detailItem = item;
+            await this.$nextTick();
+            const dialog = document.getElementById('record-detail');
+            if (this.detailItem && !dialog.open) dialog.showModal();
+        },
+        closeDetail() {
+            const dialog = document.getElementById('record-detail');
+            if (dialog?.open) dialog.close(); else this.detailClosed();
+        },
+        detailClosed() {
+            const opener = detailOpener;
+            detailOpener = null; this.detailItem = null;
+            if (opener?.isConnected) opener.focus();
+        },
+        syncDetail() {
+            if (!this.detailItem) return;
+            const current = this.library.find(entry => entry.key === this.detailItem.key);
+            if (!current) this.closeDetail();
+            else if (current.event.id !== this.detailItem.event.id || current.visibility !== this.detailItem.visibility) this.detailItem = current;
         },
         async shareRecord(item) {
             const { content, ...record } = item;
