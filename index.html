@@ -50,58 +50,6 @@
             </div>
             <div id="library-empty" x-show="records.length === 0" class="group"><div class="empty-state"><p class="empty-title">No records yet</p><p class="empty-text">Tacit helps you capture, curate and exchange practical knowledge. Start by extracting some.</p><button data-icon="sparkles" type="button" class="btn-primary" @click="activeTab = 'extract'">Go to Extract</button></div></div>
             <div id="feed-empty" x-show="records.length > 0 && feedItems.length === 0" class="group"><div class="empty-state"><p class="empty-title">Nothing matches</p><p class="empty-text">No records match these filters.</p><button data-icon="x" type="button" class="btn-secondary" @click="clearFilters()">Clear filters</button></div></div>
-
-            <dialog id="record-detail" @close="detailClosed()" @click="$event.target === $el && closeDetail()" x-effect="syncDetail()" aria-label="Record detail" class="m-0 mt-auto max-h-[85vh] w-full max-w-[720px] overflow-y-auto rounded-card border border-line bg-surface p-0 text-ink backdrop:bg-ink/40 desk:m-auto">
-                <template x-if="detailItem"><div class="flex flex-col gap-4 p-5">
-                    <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted"><span class="avatar" aria-hidden="true" :style="avatarStyle(detailItem.event.pubkey)" :class="{ 'avatar-neutral': avatarOf(detailItem.event.pubkey).neutral }" x-text="avatarOf(detailItem.event.pubkey).initial"></span><span class="font-semibold uppercase tracking-wide text-accent" x-text="detailItem.content.subject"></span><span x-show="detailItem.content.specialty" x-text="detailItem.content.specialty"></span><span x-text="authorLabel(detailItem.event.pubkey)"></span><span class="rounded-ctl bg-success-soft px-1.5 font-semibold text-success">verified</span><span class="record-short-id font-mono" x-text="shortIdOf(detailItem.key)"></span><span x-text="detailItem.visibility"></span><span x-text="formatDate(detailItem.event.created_at)"></span></div>
-                    <p class="whitespace-pre-wrap break-words text-base text-ink" x-text="detailItem.content.information_chunks"></p>
-                    <div x-show="detailItem.content.actionable_workflows" class="border-l-2 border-accent pl-3 text-sm text-muted"><strong class="text-ink">Action:</strong> <span class="whitespace-pre-wrap break-words" x-text="detailItem.content.actionable_workflows"></span></div>
-                    <ul x-show="detailItem.warnings && detailItem.warnings.length" class="rounded-ctl bg-warn-soft p-3 text-sm text-warn"><template x-for="warning in detailItem.warnings || []"><li x-text="warning"></li></template></ul>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <template x-if="detailItem.visibility === 'local' && detailItem.event.pubkey === pubkey"><button data-icon="share" type="button" class="btn-success" @click="shareRecord(detailItem)">Share</button></template>
-                        <template x-if="detailItem.event.pubkey === pubkey"><span class="flex flex-wrap gap-2"><button data-icon="pencil" type="button" class="edit-record btn-secondary" @click="editRecord(detailItem)">Edit</button><button data-icon="trash" type="button" class="delete-record btn-danger" @click="deleteRecord(detailItem).then(deleted => deleted && closeDetail())">Delete</button></span></template>
-                        <template x-if="!selfKeys.has(detailItem.event.pubkey)"><span class="flex flex-wrap gap-2"><button data-icon="eye-off" type="button" class="hide-record btn-secondary" @click="hideRecord(detailItem); closeDetail()">Hide</button><button data-icon="shield-check" type="button" x-show="statusOf(detailItem.event.pubkey) !== 'trusted'" class="trust-author btn-secondary" @click="trustAuthor(detailItem.event.pubkey)">Trust author</button><button data-icon="ban" type="button" class="block-author btn-danger" @click="blockAuthor(detailItem.event.pubkey); closeDetail()">Block author</button></span></template>
-                        <button data-icon="plus" type="button" class="link-record btn-secondary" @click="openLink()">Link…</button>
-                        <button data-icon="x" type="button" class="btn-secondary ml-auto" @click="closeDetail()">Close</button>
-                    </div>
-                    <form x-show="linkForm" @submit.prevent class="link-form flex flex-col gap-3 rounded-ctl border border-line p-3">
-                        <template x-if="linkForm"><div class="flex flex-col gap-3">
-                            <p class="text-sm font-semibold text-ink" x-text="linkForm.insight ? 'Edit insight' : 'Link this record to another'"></p>
-                            <label class="text-sm font-medium">Relation<select x-model="linkForm.relation" aria-label="Relation" class="link-relation field"><template x-for="(info, name) in relations" :key="name"><option :value="name" x-text="info.label" :selected="name === linkForm.relation"></option></template></select></label>
-                            <label x-show="relations[linkForm.relation].directed" class="text-sm font-medium">Direction<select x-model="linkForm.direction" aria-label="Direction" class="link-direction field"><option value="forward" :selected="linkForm.direction === 'forward'" x-text="`This record ${relations[linkForm.relation].label} the other`"></option><option value="reverse" :selected="linkForm.direction === 'reverse'" x-text="`The other ${relations[linkForm.relation].label} this record`"></option></select></label>
-                            <template x-if="!linkForm.otherKey"><div class="flex flex-col gap-2">
-                                <input type="search" x-model="linkForm.search" placeholder="Find the other record by text or ID" aria-label="Find the other record" class="link-search field">
-                                <template x-for="candidate in linkCandidates" :key="candidate.item.key"><button type="button" class="link-candidate row" @click="pickLinkOther(candidate.item)"><span class="font-mono text-xs text-muted" x-text="shortIdOf(candidate.item.key)"></span><span class="line-clamp-2 min-w-0 flex-1 break-words text-sm" x-text="candidate.item.content.information_chunks"></span><span class="link-score text-xs text-muted" x-text="`${Math.round(candidate.score * 100)}%`"></span></button></template>
-                                <p x-show="!linkForm.search.trim() && similarRows(detailItem).length > linkTopN" class="link-hint text-xs text-muted" x-text="`Top ${linkTopN} similar — search to find others`"></p>
-                                <p x-show="linkCandidates.length === 0" class="text-sm text-muted">No other record of this subject matches.</p>
-                            </div></template>
-                            <template x-if="linkForm.otherKey && linkOther"><div class="flex items-center gap-2 text-sm"><span class="font-mono text-xs text-muted" x-text="shortIdOf(linkOther.key)"></span><span class="line-clamp-2 min-w-0 flex-1 break-words" x-text="linkOther.content.information_chunks"></span><button type="button" x-show="!linkForm.insight" class="btn-secondary" @click="linkForm.otherKey = ''">Change</button></div></template>
-                            <label class="text-sm font-medium">Rationale (optional)<textarea x-model="linkForm.rationale" rows="2" aria-label="Rationale" class="link-rationale field"></textarea></label>
-                            <div class="flex flex-wrap gap-2">
-                                <template x-if="!linkForm.insight"><span class="flex flex-wrap gap-2"><button data-icon="save" type="button" class="link-store btn-secondary" :disabled="!linkForm.otherKey" @click="saveLink('local')">Store</button><button data-icon="share" type="button" class="link-share btn-success" :disabled="!linkForm.otherKey" @click="saveLink('shared')">Share</button></span></template>
-                                <template x-if="linkForm.insight"><button data-icon="save" type="button" class="link-save btn-primary" @click="saveLink()">Save</button></template>
-                                <button data-icon="x" type="button" class="btn-secondary" @click="linkForm = null">Cancel</button>
-                            </div>
-                        </div></template>
-                    </form>
-                    <section class="relations flex flex-col gap-3" aria-label="Relations" x-show="detailRelations.length">
-                        <h3 class="text-sm font-semibold uppercase tracking-wide text-muted">Relations</h3>
-                        <template x-for="group in detailRelations" :key="group.relation"><div class="relation-group flex flex-col gap-2">
-                            <p class="text-sm font-semibold text-ink" x-text="`${group.relation.replace('_', ' ')} ×${group.items.length}`"></p>
-                            <template x-for="entry in group.items" :key="entry.insight.key"><div class="relation-item flex flex-col gap-1 rounded-ctl bg-surface2 p-3 text-sm">
-                                <div class="flex flex-wrap items-center gap-x-2 text-xs text-muted"><span class="font-mono" x-text="shortIdOf(entry.other.key)"></span><span x-text="authorLabel(entry.insight.event.pubkey)"></span><span x-text="entry.insight.visibility"></span><span x-show="directionText(entry)" x-text="directionText(entry)"></span></div>
-                                <p class="line-clamp-2 break-words" x-text="entry.other.content.information_chunks"></p>
-                                <p x-show="entry.insight.content.rationale" class="whitespace-pre-wrap break-words text-muted" x-text="entry.insight.content.rationale"></p>
-                                <div class="flex flex-wrap gap-2">
-                                    <template x-if="entry.insight.event.pubkey === pubkey"><span class="flex flex-wrap gap-2"><button data-icon="pencil" type="button" class="edit-insight btn-secondary" @click="editLink(entry.insight)">Edit</button><button data-icon="trash" type="button" class="delete-insight btn-danger" @click="deleteRecord(entry.insight)">Delete</button></span></template>
-                                    <button data-icon="share" type="button" x-show="entry.insight.visibility === 'local' && entry.insight.event.pubkey === pubkey" class="share-insight btn-success" @click="shareRecord(entry.insight)">Share</button>
-                                    <button data-icon="eye-off" type="button" x-show="!selfKeys.has(entry.insight.event.pubkey)" class="hide-insight btn-secondary" @click="hideRecord(entry.insight)">Hide</button>
-                                </div>
-                            </div></template>
-                        </div></template>
-                    </section>
-                </div></template>
-            </dialog>
         </section>
 
         <section id="tab-extract" x-show="activeTab === 'extract'" style="display: none;">
@@ -272,6 +220,27 @@
             </div></template>
         </section>
 
+        <section id="tab-map" x-show="activeTab === 'map'" x-effect="syncMap()" style="display: none;">
+            <h2 class="large-title">Tacit Map</h2>
+            <h3 class="group-title">Subject</h3>
+            <div class="group">
+                <div class="row"><label for="map-subject" class="field-label mb-0 w-28 shrink-0">Subject</label><select id="map-subject" x-model="selectedSlug" @change="mapLinkedOnlyChoice = null" class="field"><option value="">Select a subject</option><template x-for="subject in subjectOptions" :key="subject.slug"><option :value="subject.slug" x-text="subject.label"></option></template></select></div>
+            </div>
+            <div id="map-empty" x-show="subjectRecords.length === 0" class="group mt-4"><div class="empty-state"><p class="empty-title">No records to map</p><p class="empty-text">The map draws one subject's records and the insights between them. Extract and import records for this subject first.</p><button data-icon="sparkles" type="button" class="btn-primary" @click="activeTab = 'extract'">Go to Extract</button></div></div>
+            <div x-show="subjectRecords.length > 0" class="mt-4 flex flex-col gap-3">
+                <div id="map-toolbar" role="toolbar" aria-label="Map controls" class="flex flex-wrap gap-2">
+                    <button data-icon="plus" type="button" id="map-zoom-in" class="btn-secondary" @click="mapZoom(1.25)">Zoom in</button>
+                    <button data-icon="minus" type="button" id="map-zoom-out" class="btn-secondary" @click="mapZoom(0.8)">Zoom out</button>
+                    <button data-icon="maximize" type="button" id="map-fit" class="btn-secondary" @click="mapFit()">Fit</button>
+                    <button type="button" id="map-linked-only" class="btn-secondary" :class="{ 'bg-accent-soft text-accent': mapLinkedOnly }" :aria-pressed="mapLinkedOnly ? 'true' : 'false'" @click="mapLinkedOnlyChoice = !mapLinkedOnly">Linked only</button>
+                </div>
+                <div id="map-legend" role="group" aria-label="Relation types" class="flex flex-wrap gap-2">
+                    <template x-for="(info, name) in relations" :key="name"><button type="button" :data-relation="name" class="map-legend-item flex min-h-[44px] items-center gap-2 rounded-ctl border border-line px-3 text-sm" :class="mapRelations.includes(name) ? 'bg-surface text-ink' : 'bg-surface2 text-muted line-through'" :aria-pressed="mapRelations.includes(name) ? 'true' : 'false'" @click="toggleMapRelation(name)"><span class="inline-block w-8 border-t-[3px]" :class="relationStyle[name].swatch" aria-hidden="true"></span><span x-text="name.replace('_', ' ')"></span><span x-show="info.directed" aria-hidden="true">&rarr;</span></button></template>
+                </div>
+                <div id="map-canvas" tabindex="0" role="img" aria-label="Tacit Map. The same content is listed in the Insights tab and in each record's Relations. Plus, minus and 0 zoom and fit." @keydown="mapKey($event)" class="group h-[65vh] min-h-[360px] w-full touch-none"></div>
+            </div>
+        </section>
+
         <section id="tab-subjects" x-show="activeTab === 'subjects'" style="display: none;">
             <h2 class="large-title">Subjects</h2>
             <div class="group">
@@ -346,6 +315,73 @@
             <ul class="group"><template x-for="key in previousKeys" :key="key"><li class="row break-all font-mono text-xs" x-text="`${key}`"></li></template><li x-show="previousKeys.length === 0" class="row text-sm italic text-muted">None.</li></ul>
         </section>
         </main>
+        <dialog id="record-detail" @close="detailClosed()" @click="$event.target === $el && closeDetail()" x-effect="syncDetail()" aria-label="Record detail" class="m-0 mt-auto max-h-[85vh] w-full max-w-[720px] overflow-y-auto rounded-card border border-line bg-surface p-0 text-ink backdrop:bg-ink/40 desk:m-auto">
+            <template x-if="detailItem"><div class="flex flex-col gap-4 p-5">
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted"><span class="avatar" aria-hidden="true" :style="avatarStyle(detailItem.event.pubkey)" :class="{ 'avatar-neutral': avatarOf(detailItem.event.pubkey).neutral }" x-text="avatarOf(detailItem.event.pubkey).initial"></span><span class="font-semibold uppercase tracking-wide text-accent" x-text="detailItem.content.subject"></span><span x-show="detailItem.content.specialty" x-text="detailItem.content.specialty"></span><span x-text="authorLabel(detailItem.event.pubkey)"></span><span class="rounded-ctl bg-success-soft px-1.5 font-semibold text-success">verified</span><span class="record-short-id font-mono" x-text="shortIdOf(detailItem.key)"></span><span x-text="detailItem.visibility"></span><span x-text="formatDate(detailItem.event.created_at)"></span></div>
+                <p class="whitespace-pre-wrap break-words text-base text-ink" x-text="detailItem.content.information_chunks"></p>
+                <div x-show="detailItem.content.actionable_workflows" class="border-l-2 border-accent pl-3 text-sm text-muted"><strong class="text-ink">Action:</strong> <span class="whitespace-pre-wrap break-words" x-text="detailItem.content.actionable_workflows"></span></div>
+                <ul x-show="detailItem.warnings && detailItem.warnings.length" class="rounded-ctl bg-warn-soft p-3 text-sm text-warn"><template x-for="warning in detailItem.warnings || []"><li x-text="warning"></li></template></ul>
+                <div class="flex flex-wrap items-center gap-2">
+                    <template x-if="detailItem.visibility === 'local' && detailItem.event.pubkey === pubkey"><button data-icon="share" type="button" class="btn-success" @click="shareRecord(detailItem)">Share</button></template>
+                    <template x-if="detailItem.event.pubkey === pubkey"><span class="flex flex-wrap gap-2"><button data-icon="pencil" type="button" class="edit-record btn-secondary" @click="editRecord(detailItem)">Edit</button><button data-icon="trash" type="button" class="delete-record btn-danger" @click="deleteRecord(detailItem).then(deleted => deleted && closeDetail())">Delete</button></span></template>
+                    <template x-if="!selfKeys.has(detailItem.event.pubkey)"><span class="flex flex-wrap gap-2"><button data-icon="eye-off" type="button" class="hide-record btn-secondary" @click="hideRecord(detailItem); closeDetail()">Hide</button><button data-icon="shield-check" type="button" x-show="statusOf(detailItem.event.pubkey) !== 'trusted'" class="trust-author btn-secondary" @click="trustAuthor(detailItem.event.pubkey)">Trust author</button><button data-icon="ban" type="button" class="block-author btn-danger" @click="blockAuthor(detailItem.event.pubkey); closeDetail()">Block author</button></span></template>
+                    <button data-icon="plus" type="button" class="link-record btn-secondary" @click="openLink()">Link…</button>
+                    <button data-icon="x" type="button" class="btn-secondary ml-auto" @click="closeDetail()">Close</button>
+                </div>
+                <form x-show="linkForm" @submit.prevent class="link-form flex flex-col gap-3 rounded-ctl border border-line p-3">
+                    <template x-if="linkForm"><div class="flex flex-col gap-3">
+                        <p class="text-sm font-semibold text-ink" x-text="linkForm.insight ? 'Edit insight' : 'Link this record to another'"></p>
+                        <label class="text-sm font-medium">Relation<select x-model="linkForm.relation" aria-label="Relation" class="link-relation field"><template x-for="(info, name) in relations" :key="name"><option :value="name" x-text="info.label" :selected="name === linkForm.relation"></option></template></select></label>
+                        <label x-show="relations[linkForm.relation].directed" class="text-sm font-medium">Direction<select x-model="linkForm.direction" aria-label="Direction" class="link-direction field"><option value="forward" :selected="linkForm.direction === 'forward'" x-text="`This record ${relations[linkForm.relation].label} the other`"></option><option value="reverse" :selected="linkForm.direction === 'reverse'" x-text="`The other ${relations[linkForm.relation].label} this record`"></option></select></label>
+                        <template x-if="!linkForm.otherKey"><div class="flex flex-col gap-2">
+                            <input type="search" x-model="linkForm.search" placeholder="Find the other record by text or ID" aria-label="Find the other record" class="link-search field">
+                            <template x-for="candidate in linkCandidates" :key="candidate.item.key"><button type="button" class="link-candidate row" @click="pickLinkOther(candidate.item)"><span class="font-mono text-xs text-muted" x-text="shortIdOf(candidate.item.key)"></span><span class="line-clamp-2 min-w-0 flex-1 break-words text-sm" x-text="candidate.item.content.information_chunks"></span><span class="link-score text-xs text-muted" x-text="`${Math.round(candidate.score * 100)}%`"></span></button></template>
+                            <p x-show="!linkForm.search.trim() && similarRows(detailItem).length > linkTopN" class="link-hint text-xs text-muted" x-text="`Top ${linkTopN} similar — search to find others`"></p>
+                            <p x-show="linkCandidates.length === 0" class="text-sm text-muted">No other record of this subject matches.</p>
+                        </div></template>
+                        <template x-if="linkForm.otherKey && linkOther"><div class="flex items-center gap-2 text-sm"><span class="font-mono text-xs text-muted" x-text="shortIdOf(linkOther.key)"></span><span class="line-clamp-2 min-w-0 flex-1 break-words" x-text="linkOther.content.information_chunks"></span><button type="button" x-show="!linkForm.insight" class="btn-secondary" @click="linkForm.otherKey = ''">Change</button></div></template>
+                        <label class="text-sm font-medium">Rationale (optional)<textarea x-model="linkForm.rationale" rows="2" aria-label="Rationale" class="link-rationale field"></textarea></label>
+                        <div class="flex flex-wrap gap-2">
+                            <template x-if="!linkForm.insight"><span class="flex flex-wrap gap-2"><button data-icon="save" type="button" class="link-store btn-secondary" :disabled="!linkForm.otherKey" @click="saveLink('local')">Store</button><button data-icon="share" type="button" class="link-share btn-success" :disabled="!linkForm.otherKey" @click="saveLink('shared')">Share</button></span></template>
+                            <template x-if="linkForm.insight"><button data-icon="save" type="button" class="link-save btn-primary" @click="saveLink()">Save</button></template>
+                            <button data-icon="x" type="button" class="btn-secondary" @click="linkForm = null">Cancel</button>
+                        </div>
+                    </div></template>
+                </form>
+                <section class="relations flex flex-col gap-3" aria-label="Relations" x-show="detailRelations.length">
+                    <h3 class="text-sm font-semibold uppercase tracking-wide text-muted">Relations</h3>
+                    <template x-for="group in detailRelations" :key="group.relation"><div class="relation-group flex flex-col gap-2">
+                        <p class="text-sm font-semibold text-ink" x-text="`${group.relation.replace('_', ' ')} ×${group.items.length}`"></p>
+                        <template x-for="entry in group.items" :key="entry.insight.key"><div class="relation-item flex flex-col gap-1 rounded-ctl bg-surface2 p-3 text-sm">
+                            <div class="flex flex-wrap items-center gap-x-2 text-xs text-muted"><span class="font-mono" x-text="shortIdOf(entry.other.key)"></span><span x-text="authorLabel(entry.insight.event.pubkey)"></span><span x-text="entry.insight.visibility"></span><span x-show="directionText(entry)" x-text="directionText(entry)"></span></div>
+                            <p class="line-clamp-2 break-words" x-text="entry.other.content.information_chunks"></p>
+                            <p x-show="entry.insight.content.rationale" class="whitespace-pre-wrap break-words text-muted" x-text="entry.insight.content.rationale"></p>
+                            <div class="flex flex-wrap gap-2">
+                                <template x-if="entry.insight.event.pubkey === pubkey"><span class="flex flex-wrap gap-2"><button data-icon="pencil" type="button" class="edit-insight btn-secondary" @click="editLink(entry.insight)">Edit</button><button data-icon="trash" type="button" class="delete-insight btn-danger" @click="deleteRecord(entry.insight)">Delete</button></span></template>
+                                <button data-icon="share" type="button" x-show="entry.insight.visibility === 'local' && entry.insight.event.pubkey === pubkey" class="share-insight btn-success" @click="shareRecord(entry.insight)">Share</button>
+                                <button data-icon="eye-off" type="button" x-show="!selfKeys.has(entry.insight.event.pubkey)" class="hide-insight btn-secondary" @click="hideRecord(entry.insight)">Hide</button>
+                            </div>
+                        </div></template>
+                    </div></template>
+                </section>
+            </div></template>
+        </dialog>
+        <dialog id="map-edge-sheet" @close="edgeSheetClosed()" @click="$event.target === $el && closeEdgeSheet()" x-effect="syncEdgeSheet()" aria-label="Insights on this edge" class="m-0 mt-auto max-h-[85vh] w-full max-w-[720px] overflow-y-auto rounded-card border border-line bg-surface p-0 text-ink backdrop:bg-ink/40 desk:m-auto">
+            <template x-if="edgeCard"><div class="flex flex-col gap-4 p-5">
+                <p class="text-sm font-semibold text-ink" x-text="`${edgeCard.label} (${edgeItems.length})`"></p>
+                <template x-for="end in [edgeCard.from, edgeCard.to]" :key="end.shortId"><div class="flex flex-col rounded-ctl bg-surface2 p-3 text-sm"><span class="font-mono text-xs text-muted" x-text="end.shortId"></span><p class="line-clamp-2 break-words" x-text="end.preview"></p></div></template>
+                <template x-for="insight in edgeItems" :key="insight.key"><div class="edge-insight flex flex-col gap-1 rounded-ctl bg-surface2 p-3 text-sm">
+                    <div class="flex flex-wrap items-center gap-x-2 text-xs text-muted"><span class="avatar" aria-hidden="true" :style="avatarStyle(insight.event.pubkey)" :class="{ 'avatar-neutral': avatarOf(insight.event.pubkey).neutral }" x-text="avatarOf(insight.event.pubkey).initial"></span><span x-text="authorLabel(insight.event.pubkey)"></span><span x-text="insight.visibility"></span><span x-show="relations[insight.content.relation].directed" x-text="`${shortIdOf(insight.content.from)} → ${shortIdOf(insight.content.to)}`"></span></div>
+                    <p x-show="insight.content.rationale" class="whitespace-pre-wrap break-words text-muted" x-text="insight.content.rationale"></p>
+                    <div class="flex flex-wrap gap-2">
+                        <template x-if="insight.event.pubkey === pubkey"><span class="flex flex-wrap gap-2"><button data-icon="pencil" type="button" class="edit-insight btn-secondary" @click="editEdgeInsight(insight)">Edit</button><button data-icon="trash" type="button" class="delete-insight btn-danger" @click="deleteRecord(insight)">Delete</button></span></template>
+                        <button data-icon="share" type="button" x-show="insight.visibility === 'local' && insight.event.pubkey === pubkey" class="share-insight btn-success" @click="shareRecord(insight)">Share</button>
+                        <button data-icon="eye-off" type="button" x-show="!selfKeys.has(insight.event.pubkey)" class="hide-insight btn-secondary" @click="hideRecord(insight)">Hide</button>
+                    </div>
+                </div></template>
+                <button data-icon="x" type="button" class="btn-secondary self-end" @click="closeEdgeSheet()">Close</button>
+            </div></template>
+        </dialog>
         <div id="help-tip" role="tooltip" class="help-tip" hidden></div>
         <div class="toasts" aria-label="Notifications">
             <template x-for="t in toasts" :key="t.id"><div :role="t.failure ? 'alert' : 'status'" class="toast" :class="{ 'toast-failure': t.failure }"><span class="min-w-0 flex-1 break-words" x-text="t.text"></span><button type="button" class="toast-close" aria-label="Dismiss notification" @click="dismissToast(t.id)">&times;</button></div></template>
@@ -359,6 +395,7 @@
                     <dt><kbd class="kbd">g</kbd> <kbd class="kbd">e</kbd></dt><dd>Go to Extract</dd>
                     <dt><kbd class="kbd">g</kbd> <kbd class="kbd">r</kbd></dt><dd>Go to Import &amp; Review</dd>
                     <dt><kbd class="kbd">g</kbd> <kbd class="kbd">n</kbd></dt><dd>Go to Insights</dd>
+                    <dt><kbd class="kbd">g</kbd> <kbd class="kbd">m</kbd></dt><dd>Go to Tacit Map</dd>
                     <dt><kbd class="kbd">g</kbd> <kbd class="kbd">s</kbd></dt><dd>Go to Subjects</dd>
                     <dt><kbd class="kbd">g</kbd> <kbd class="kbd">i</kbd></dt><dd>Go to Identity</dd>
                     <dt><kbd class="kbd">?</kbd></dt><dd>Show this list</dd>

@@ -136,7 +136,7 @@ test('unbound keys do nothing', () => {
 test('g starts a sequence and each second key navigates', () => {
     const started = resolveShortcut(idle, press('g'), 1000);
     assert.deepEqual(started, { action: null, state: { pendingG: 1000 } });
-    const targets = { f: 'feed', e: 'extract', r: 'import', n: 'insights', s: 'subjects', i: 'identity' };
+    const targets = { f: 'feed', e: 'extract', r: 'import', n: 'insights', m: 'map', s: 'subjects', i: 'identity' };
     for (const [k, t] of Object.entries(targets)) {
         assert.deepEqual(resolveShortcut(started.state, press(k), 1500), { action: `go:${t}`, state: idle });
     }
