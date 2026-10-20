@@ -56,3 +56,8 @@ test('file and paste give same drafts', () => {
     const json = '[{"information_chunks":"x","actionable_workflows":"y"}]';
     assert.deepEqual(buildDrafts(parseText(json, 'a.json'), subject), buildDrafts(parseText(json), subject));
 });
+
+test('buildDrafts keeps an imported specialty', () => {
+    const { drafts } = buildDrafts([{ information_chunks: 'a', specialty: 'Kitchen Garden' }], subject);
+    assert.equal(drafts[0].content.specialty, 'Kitchen Garden');
+});

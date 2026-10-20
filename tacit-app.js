@@ -21,7 +21,7 @@ const shortKey = pubkey => `${encodeNpub(pubkey).slice(0, 12)}…${pubkey.slice(
 export function registerTacitApp(Alpine) {
     Alpine.data('tacitApp', () => ({
         mainTabs: [{ id: 'feed', label: 'Feed' }, { id: 'extract', label: 'Extract' }, { id: 'import', label: 'Import & Review' }, { id: 'subjects', label: 'Subjects' }, { id: 'identity', label: 'Identity' }],
-        activeTab: 'feed', inputTypeLabels: TacitInputTypeLabels, selectedInputType: 'txt', selectedSlug: '',
+        activeTab: 'feed', inputTypeLabels: TacitInputTypeLabels, selectedInputType: 'txt', selectedSlug: '', specialty: '',
         settings: { relays: [], subjects: [] }, newSubject: '', subjectError: '',
         pubkey: '', previousKeys: [], signer: null, extensionAvailable: false, switchAck: false, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
         importKeyText: '', importAck: false, identityMessage: '', backupSummary: '', theme: localStorage.getItem('tacit.theme') || '', toasts: [],
@@ -29,7 +29,7 @@ export function registerTacitApp(Alpine) {
         feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null,
         authorOptions: [{ value: '', label: 'All' }, { value: 'mine', label: 'Mine' }, { value: 'trusted', label: 'Trusted' }, { value: 'others', label: 'Others' }],
         get selectedSubject() { return this.settings.subjects.find(subject => subject.slug === this.selectedSlug); },
-        get dynamicPrompt() { return buildTacitPrompt({ inputType: this.selectedInputType, subjectCategory: this.selectedSubject?.label || '' }); },
+        get dynamicPrompt() { return buildTacitPrompt({ inputType: this.selectedInputType, subjectCategory: this.selectedSubject?.label || '', specialty: this.specialty }); },
         get discover() { return groupDiscover(this.directoryPeers); },
         get extensionActive() { return this.signer?.source === 'extension'; },
         get signerLabel() { return this.extensionActive ? 'extension' : 'local key'; },

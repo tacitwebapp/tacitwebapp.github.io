@@ -28,6 +28,10 @@ _Avoid_: Category, tag, topic, channel
 A subject's name as the user typed it, with its original casing.
 _Avoid_: Subject name, title
 
+**Specialty**:
+An optional narrower focus inside a subject, such as "Kitchen Garden" under "Gardening". It is added to the extraction prompt and kept on the record, but never affects the room.
+_Avoid_: Sub-subject, subcategory
+
 **Subject slug**:
 A subject's normalised identity. Two labels with the same slug are the same subject.
 _Avoid_: Subject key, room name

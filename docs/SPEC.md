@@ -118,7 +118,7 @@ signer = {
 ## 6. Capture
 
 ### 6.1 Extract tab
-- Input type and subject dropdowns, plus "Create subject". The prompt is built by `buildTacitPrompt({ inputType, subjectCategory })` (existing behaviour), with a **Copy** button.
+- Input type and subject dropdowns, plus "Create subject". The prompt is built by `buildTacitPrompt({ inputType, subjectCategory, specialty })`, with a **Copy** button. An optional **Specialty** text field (for example "Kitchen Garden" under the subject "Gardening") is passed as `specialty`; the prompt then asks the LLM to restrict extraction to it and emit a `specialty` key per record, which is kept in the record content and shown in the Feed. Specialty never affects the room: routing is by subject only.
 - The selected subject becomes the default subject in the Import panel.
 
 ### 6.2 Import
@@ -144,6 +144,7 @@ signer = {
   "subject": "Pest Control",
   "information_chunks": "…required…",
   "actionable_workflows": "…optional…",
+  "specialty": "…optional, narrows the subject; never affects routing…",
   "...": "other fields kept as they are"
 }
 ```

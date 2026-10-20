@@ -88,13 +88,19 @@ export const TacitInputTypeLabels = {
     image: 'Image'
 };
 
-export const buildTacitPrompt = ({ inputType, subjectCategory }) => {
+export const buildTacitPrompt = ({ inputType, subjectCategory, specialty }) => {
     const inputLabel = TacitInputTypeLabels[inputType] || 'Not selected';
     const parsingInstructions = TacitInputParsingInstructions[inputType] || 'Select an input type to receive parsing instructions.';
     const subject = subjectCategory || 'Not selected';
+    const specialtyLabel = specialty?.trim();
+    const subjectRule = `*   Use \`${subject}\` as the subject category for every extracted record. Do not create a different subject category.`;
+    const rule = specialtyLabel
+        ? `${subjectRule}\n*   Set the \`specialty\` of every extracted record to \`${specialtyLabel}\`, and extract only knowledge that falls within this specialty of the subject. Ignore knowledge outside it.`
+        : subjectRule;
     return TacitPrompt
-        .replace(/\*\*Input Type:\*\*.*/, `**Input Type:** ${inputLabel}`)
-        .replace(/\*\*Input Parsing Instructions:\*\*.*/, `**Input Parsing Instructions:** ${parsingInstructions}`)
-        .replace('### **Role & Objective**', `**Subject Category (Channel):** ${subject}\n\n### **Role & Objective**`)
-        .replace('*   Keep the tags broad enough to group related knowledge but specific enough to be useful.', `*   Use \`${subject}\` as the subject category for every extracted record. Do not create a different subject category.`);
+        .replace(/\*\*Input Type:\*\*.*/, () => `**Input Type:** ${inputLabel}`)
+        .replace(/\*\*Input Parsing Instructions:\*\*.*/, () => `**Input Parsing Instructions:** ${parsingInstructions}`)
+        .replace('### **Role & Objective**', () => `**Subject Category (Channel):** ${subject}\n${specialtyLabel ? `**Specialty:** ${specialtyLabel}\n` : ''}\n### **Role & Objective**`)
+        .replace('*   Keep the tags broad enough to group related knowledge but specific enough to be useful.', () => rule)
+        .replace(/^( *)"subject": .*$/m, (line, indent) => (specialtyLabel ? `${line}\n${indent}"specialty": ${JSON.stringify(`String (Set to \`${specialtyLabel}\`)`)},` : line));
 };

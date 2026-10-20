@@ -22,3 +22,18 @@ test('prompt builder embeds input type and subject', () => {
     assert.match(prompt, /Text file \(\.txt\)/);
     assert.match(prompt, /`Pest Control`/);
 });
+
+test('prompt builder adds optional specialty', () => {
+    const plain = buildTacitPrompt({ inputType: 'txt', subjectCategory: 'Gardening' });
+    assert.doesNotMatch(plain, /specialty/i);
+    const prompt = buildTacitPrompt({ inputType: 'txt', subjectCategory: 'Gardening', specialty: ' Kitchen Garden ' });
+    assert.match(prompt, /\*\*Specialty:\*\* Kitchen Garden/);
+    assert.match(prompt, /"specialty": "String \(Set to `Kitchen Garden`\)"/);
+    assert.match(prompt, /Set the `specialty` of every extracted record to `Kitchen Garden`/);
+});
+
+test('prompt builder keeps replacement patterns in specialty literal', () => {
+    const prompt = buildTacitPrompt({ inputType: 'txt', subjectCategory: 'Gardening', specialty: 'A "b" $& $\' x' });
+    assert.match(prompt, /\*\*Specialty:\*\* A "b" \$& \$' x\n\n### \*\*Role & Objective\*\*/);
+    assert.match(prompt, /"specialty": "String \(Set to `A \\"b\\" \$& \$' x`\)",/);
+});
