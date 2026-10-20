@@ -1,6 +1,7 @@
 # 12 — Private subjects (room password)
 
 Type: AFK
+**Status:** DONE
 
 ## What to build
 
@@ -10,9 +11,9 @@ Reference: SPEC §8.2, §9.1, §12.
 
 ## Acceptance criteria
 
-- [ ] Two profiles with the same subject and password exchange records.
-- [ ] A third profile with no password, or a different one, does not connect and receives nothing.
-- [ ] Changing the password re-joins the room with the new password.
+- [x] Two profiles with the same subject and password exchange records.
+- [x] A third profile with no password, or a different one, does not connect and receives nothing.
+- [x] Changing the password re-joins the room with the new password.
 
 ## Blocked by
 
