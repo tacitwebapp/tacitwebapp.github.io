@@ -170,6 +170,15 @@ export function registerTacitApp(Alpine) {
         },
         leaveSubject(slug) { rooms[slug]?.room.leave(); delete rooms[slug]; this.logSync(`Left ${slug}.`); this.announce(); },
         announce(peerId) { directory?.action.send(announcementFor(this.settings.subjects, this.library), peerId ? { target: peerId } : undefined); },
+        refreshSubjects() {
+            if (!directory) { this.toast('Not connected to the directory', true); return; }
+            directory.request.send(true); this.toast('Asked peers for their subjects');
+        },
+        refreshData(subject) {
+            const room = rooms[subject.slug];
+            if (!room) { this.toast(`Not connected to ${subject.label}`, true); return; }
+            room.pull.send(true); this.logSync(`Asked peers for ${subject.slug} records.`); this.toast(`Asked peers for ${subject.label} records`);
+        },
         receiveAnnouncement(entries, peerId) { this.directoryPeers = { ...this.directoryPeers, [peerId]: validAnnouncements(entries) }; },
         dropAnnouncements(peerId) { const { [peerId]: _, ...rest } = this.directoryPeers; this.directoryPeers = rest; },
         hasSubject(slug) { return this.settings.subjects.some(subject => subject.slug === slug); },

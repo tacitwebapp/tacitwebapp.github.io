@@ -65,19 +65,23 @@ export function connectRoom(app, slug, password) {
     const room = joinRoom(roomConfig(app.settings.relays, password), roomId(slug));
     const action = room.makeAction('syncTacit');
     action.onMessage = (events, { peerId }) => app.receiveFromPeer(events, slug, peerId);
+    const pull = room.makeAction('pullTacit');
+    pull.onMessage = (_, { peerId }) => app.sendShared(slug, peerId);
     room.onPeerJoin = peerId => {
         app.logSync(`Peer ${peerId.slice(0, 6)} joined ${slug}.`);
         app.sendShared(slug, peerId);
     };
     room.onPeerLeave = peerId => app.logSync(`Peer ${peerId.slice(0, 6)} left ${slug}.`);
-    return { room, action };
+    return { room, action, pull };
 }
 
 export function connectDirectory(app) {
     const room = joinRoom(roomConfig(app.settings.relays), DIRECTORY_ROOM);
     const action = room.makeAction('announce');
     action.onMessage = (entries, { peerId }) => app.receiveAnnouncement(entries, peerId);
+    const request = room.makeAction('request');
+    request.onMessage = (_, { peerId }) => app.announce(peerId);
     room.onPeerJoin = peerId => app.announce(peerId);
     room.onPeerLeave = peerId => app.dropAnnouncements(peerId);
-    return { room, action };
+    return { room, action, request };
 }
