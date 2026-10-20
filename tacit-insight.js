@@ -40,8 +40,9 @@ export const buildInsightTemplate = ({ subject, ...fields }, now = Math.floor(Da
 export const buildInsightEdit = (event, changes, now = Math.floor(Date.now() / 1000), authorName = '') =>
     buildEditTemplate(event, insightContent({ source: 'manual', ...JSON.parse(event.content), ...changes }), now, authorName);
 
-const isValidInsight = content => isInsight(content) && Object.hasOwn(RELATIONS, content.relation)
-    && typeof content.from === 'string' && typeof content.to === 'string' && content.from !== content.to;
+export const isWellFormedInsight = (content, key) => isInsight(content) && Object.hasOwn(RELATIONS, content.relation)
+    && typeof content.from === 'string' && typeof content.to === 'string' && content.from !== content.to
+    && dOf(key) === insightD(content.from, content.to);
 
 export function shareBlocker(content, library) {
     const unshared = [content.from, content.to].find(key => library.find(item => item.key === key)?.visibility !== 'shared');
@@ -49,8 +50,9 @@ export function shareBlocker(content, library) {
 }
 
 export function visibleInsights(library) {
-    const records = new Set(library.filter(item => !isInsight(item.content)).map(item => item.key));
-    return library.filter(item => isValidInsight(item.content) && records.has(item.content.from) && records.has(item.content.to));
+    const records = new Map(library.filter(item => !isInsight(item.content)).map(item => [item.key, item]));
+    const inSubject = (key, item) => records.get(key)?.subjectSlug === item.subjectSlug;
+    return library.filter(item => isWellFormedInsight(item.content, item.key) && inSubject(item.content.from, item) && inSubject(item.content.to, item));
 }
 
 export function relationsOf(library, key) {

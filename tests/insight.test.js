@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { shortIdOf, resolveShortId, buildInsightTemplate, buildInsightEdit, insightD, shareBlocker, visibleInsights, relationsOf, findOwnInsight, groupInsights, cascadeTargets, incomingInsightCard, feedBadges } from '../tacit-insight.js';
+import { shortIdOf, resolveShortId, buildInsightTemplate, buildInsightEdit, insightD, shareBlocker, visibleInsights, relationsOf, findOwnInsight, groupInsights, cascadeTargets, incomingInsightCard, feedBadges, isWellFormedInsight } from '../tacit-insight.js';
 import { filterFeed } from '../tacit-feed.js';
 import { announcementFor, decideIncoming } from '../tacit-sync.js';
 import { buildDrafts, existingRecords } from '../tacit-import.js';
@@ -71,6 +71,28 @@ test('insights with invalid content are never visible', () => {
     const one = rec(A, U1), two = rec(B, U2);
     const bad = [insightItem(A, one.key, two.key, { relation: 'loves' }), insightItem(A, one.key, one.key), insightItem(A, one.key, two.key, { type: 'other' })];
     assert.deepEqual(visibleInsights([one, two, ...bad.slice(0, 2)]), []);
+});
+
+test('an insight whose d is not the deterministic link id for its records is never visible', () => {
+    const one = rec(A, U1), two = rec(B, U2), three = rec(B, U3);
+    const forged = { ...insightItem(A, one.key, two.key), key: `${A}:tacit-link-${U1}-${U3}` };
+    assert.deepEqual(visibleInsights([one, two, three, forged]), []);
+});
+
+test('an insight is not visible unless both records are in the insight subject', () => {
+    const one = rec(A, U1), two = rec(B, U2, { subjectSlug: 'other' });
+    const cross = insightItem(A, one.key, two.key);
+    assert.deepEqual(visibleInsights([one, two, cross]), []);
+    assert.deepEqual(visibleInsights([one, { ...two, subjectSlug: 'pest' }, cross]).length, 1);
+});
+
+test('well-formed insight check rejects missing endpoints and a mismatched d', () => {
+    const a = rec(A, U1).key, b = rec(B, U2).key, d = insightD(a, b);
+    const good = { schemaVersion: 1, type: 'insight', relation: 'conflicts', from: a, to: b };
+    assert.equal(isWellFormedInsight(good, `${A}:${d}`), true);
+    assert.equal(isWellFormedInsight({ ...good, from: undefined }, `${A}:${d}`), false);
+    assert.equal(isWellFormedInsight({ ...good, to: 7 }, `${A}:${d}`), false);
+    assert.equal(isWellFormedInsight(good, `${A}:tacit-link-${U1}-${U3}`), false);
 });
 
 test('relationsOf groups a record\'s visible insights by relation type with the other record', () => {

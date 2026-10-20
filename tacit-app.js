@@ -5,7 +5,7 @@ import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, recordKe
 import { createLocalSigner, createExtensionSigner, pickSource, retireKey, generateSecretKeyHex, parseSecretKey, encodeNsec, encodeNpub } from './tacit-identity.js';
 import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache } from './tacit-sync.js';
 import { filterFeed } from './tacit-feed.js';
-import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit, shareBlocker, relationsOf, findOwnInsight, groupInsights, cascadeTargets, incomingInsightCard, feedBadges } from './tacit-insight.js';
+import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit, shareBlocker, relationsOf, findOwnInsight, groupInsights, cascadeTargets, incomingInsightCard, feedBadges, isWellFormedInsight } from './tacit-insight.js';
 import { buildBackup, parseBackup, restoreBackup } from './tacit-backup.js';
 import { avatarFor, nextTheme, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition } from './tacit-ui.js';
 import * as store from './tacit-store.js';
@@ -120,7 +120,7 @@ export function registerTacitApp(Alpine) {
             const pending = await store.getAll('pending');
             this.drafts = pending.filter(item => item.kind === 'draft').sort((a, b) => a.createdAt - b.createdAt);
             const groups = {};
-            pending.filter(item => item.kind === 'incoming').forEach(item => { const content = parseContent(item.event); if (content) (groups[item.pubkey] ??= []).push({ ...item, content }); });
+            pending.filter(item => item.kind === 'incoming').forEach(item => { const content = parseContent(item.event); if (content && (!isInsight(content) || isWellFormedInsight(content, item.id))) (groups[item.pubkey] ??= []).push({ ...item, content }); });
             this.incoming = Object.entries(groups).map(([pubkey, records]) => ({ pubkey, records }));
             this.trust = await store.getAll('trust');
             this.hiddenKeys = (await store.getAll('hidden')).map(item => item.key);
@@ -354,20 +354,23 @@ export function registerTacitApp(Alpine) {
             if (edited.visibility === 'shared') this.publish(edited);
             this.toast('Record edited');
         },
-        async deleteRecord(item) {
-            if (!isInsight(item.content)) {
-                const { insights, drafts } = cascadeTargets(this.library, await store.getAll('pending'), this.pubkey, item.key);
-                if (insights.length && !confirm(`Delete this record? This also deletes ${insights.length} of your insights.`)) return false;
-                for (const draft of drafts) await store.remove('pending', draft.id);
-                for (const insight of insights) await this.deleteRecord(insight);
-            }
+        async removeItem(item) {
             if (item.visibility === 'shared') {
                 const event = await this.signer.signEvent(buildDeletionTemplate(item.event));
                 await store.put('tombstones', { key: item.key, created_at: event.created_at, event });
-                await store.remove('library', item.key); await this.reload();
+                await store.remove('library', item.key);
                 this.publish({ subjectSlug: item.subjectSlug, event });
-            } else { await store.remove('library', item.key); await this.reload(); }
-            this.toast(`${isInsight(item.content) ? 'Insight' : 'Record'} deleted`);
+            } else await store.remove('library', item.key);
+        },
+        async deleteRecord(item) {
+            const targets = isInsight(item.content) ? { insights: [], drafts: [] } : cascadeTargets(this.library, await store.getAll('pending'), this.pubkey, item.key);
+            if (targets.insights.length && !confirm(`Delete this record? This also deletes ${targets.insights.length} of your insights.`)) return false;
+            try {
+                await this.removeItem(item);
+                for (const draft of targets.drafts) await store.remove('pending', draft.id);
+                for (const insight of targets.insights) await this.removeItem(insight);
+            } finally { await this.reload(); }
+            this.toast(targets.insights.length ? `Record deleted with ${targets.insights.length} of your insights` : `${isInsight(item.content) ? 'Insight' : 'Record'} deleted`);
             return true;
         },
         publish(record) {
