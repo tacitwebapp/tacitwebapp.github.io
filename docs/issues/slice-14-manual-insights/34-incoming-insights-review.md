@@ -14,8 +14,8 @@ Incoming insights from unknown authors already reach the review queue through th
 
 ## Acceptance criteria
 
-- [ ] An unknown author's shared insight shows as an insight card under that author, not as a record card.
-- [ ] Accept moves it into the library as shared and relays it; it shows once both records are held.
+- [x] An unknown author's shared insight shows as an insight card under that author, not as a record card.
+- [x] Accept moves it into the library as shared and relays it; it shows once both records are held.
 - [ ] Trust author moves their pending insights into the library; Block author removes them and refuses new ones.
 - [x] Insights count toward the author's 50-item cap.
 - [ ] A record missing from the library shows the "not in your library" line.

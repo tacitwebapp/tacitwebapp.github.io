@@ -209,7 +209,7 @@
                 <div x-show="subjectInsightCount > 0">
                     <div class="group mb-4">
                         <div class="row"><label for="insight-filter-relation" class="field-label mb-0 w-28 shrink-0">Relation</label><select id="insight-filter-relation" x-model="insightFilters.relation" class="field"><option value="">All</option><template x-for="(info, name) in relations" :key="name"><option :value="name" x-text="info.label"></option></template></select></div>
-                        <div class="row"><label for="insight-filter-author" class="field-label mb-0 w-28 shrink-0">Author</label><select id="insight-filter-author" x-model="insightFilters.author" class="field"><template x-for="option in authorOptions" :key="option.value"><option :value="option.value" x-text="option.label"></option></template></select></div>
+                        <div class="row"><label for="insight-filter-author" class="field-label mb-0 w-28 shrink-0">Author</label><select id="insight-filter-author" x-model="insightFilters.author" class="field"><option value="">All</option><template x-for="option in authorOptions.slice(1)" :key="option.value"><option :value="option.value" x-text="option.label"></option></template></select></div>
                     </div>
                     <div id="insights-no-match" x-show="insightGroups.length === 0" class="group"><div class="empty-state"><p class="empty-title">No insights match</p><p class="empty-text">Change the relation or author filter to see more.</p></div></div>
                     <div class="group" x-show="insightGroups.length > 0">

@@ -18,12 +18,12 @@ Insights are stored in `library` and sync as kind-30078 events with no pipeline 
 
 ## Acceptance criteria
 
-- [ ] Link… from the record detail creates an insight with `source: 'manual'`, stored local or shared.
-- [ ] Share is refused with "Share record t:xxxx first" when either record is local.
+- [x] Link… from the record detail creates an insight with `source: 'manual'`, stored local or shared.
+- [x] Share is refused with "Share record t:xxxx first" when either record is local.
 - [x] A second link by the same author on the same pair edits the first; `d` is the same.
 - [ ] The Relations section shows only visible insights. An insight whose other record is missing, hidden or tombstoned is not shown.
 - [ ] Edit (relation, direction, rationale), Delete and Hide work as §7.6, and Delete and Edit are offered only for the current key.
-- [ ] A shared insight reaches a peer in the subject room and a peer who joins later.
+- [x] A shared insight reaches a peer in the subject room and a peer who joins later.
 - [x] Insights do not appear in the Feed, are not counted in `sharedCount`, and do not affect the record import duplicate check.
 - [x] Unit tests: short ID and resolution (no match, ambiguous), template and `d`, sorted symmetric pairs, edit keeps `d`, shared-needs-shared, visible filter, `decideIncoming` on insight events, `filterFeed`, `buildDrafts` and `announcementFor` leave insights out.
 - [x] `npm test` passes.

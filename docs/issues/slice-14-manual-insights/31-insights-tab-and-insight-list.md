@@ -15,8 +15,8 @@ A new **Insights** tab after Import & Review, with an icon, the `g n` shortcut a
 ## Acceptance criteria
 
 - [ ] Tab order is Feed, Extract, Import & Review, Insights, …; `g n` opens it and does nothing while typing.
-- [ ] Link form creates the same insight as Link… in the record detail, with the same rules.
-- [ ] Insight list groups by pair and relation with counts, expands to authors and rationales, and filters work.
+- [x] Link form creates the same insight as Link… in the record detail, with the same rules.
+- [x] Insight list groups by pair and relation with counts, expands to authors and rationales, and filters work.
 - [ ] Empty states: fewer than 2 records (Go to Extract); records but no visible insights.
 - [x] Unit tests: grouping by pair and relation with counts; shortcut resolver handles `g n`.
 - [x] `npm test` passes.

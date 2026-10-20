@@ -14,8 +14,8 @@ Deleting one of the user's records also deletes the user's own insights (current
 
 ## Acceptance criteria
 
-- [ ] Confirmation shows the count; cancelling deletes nothing.
-- [ ] Own shared insights on the record are deleted on every peer and do not come back after re-join.
+- [x] Confirmation shows the count; cancelling deletes nothing.
+- [x] Own shared insights on the record are deleted on every peer and do not come back after re-join.
 - [ ] Own insight drafts on the record are removed.
 - [x] Others' and previous-key insights are not deleted.
 - [x] Unit tests: cascade targets include only own current-key insights and drafts on that record.
