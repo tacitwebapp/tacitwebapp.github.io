@@ -1,7 +1,7 @@
 # 31 — Insights tab: link form and insight list
 
 Type: AFK
-**Status:** TODO
+**Status:** DONE
 **Label:** ready-for-agent
 
 ## Parent
@@ -18,8 +18,8 @@ A new **Insights** tab after Import & Review, with an icon, the `g n` shortcut a
 - [ ] Link form creates the same insight as Link… in the record detail, with the same rules.
 - [ ] Insight list groups by pair and relation with counts, expands to authors and rationales, and filters work.
 - [ ] Empty states: fewer than 2 records (Go to Extract); records but no visible insights.
-- [ ] Unit tests: grouping by pair and relation with counts; shortcut resolver handles `g n`.
-- [ ] `npm test` passes.
+- [x] Unit tests: grouping by pair and relation with counts; shortcut resolver handles `g n`.
+- [x] `npm test` passes.
 
 ## Blocked by
 
