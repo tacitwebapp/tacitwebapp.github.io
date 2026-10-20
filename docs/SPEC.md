@@ -211,7 +211,7 @@ Per decision Q18, events are **not** checked for subject/room match, timestamp s
 | Accept (incoming) | Unknown author's record | Library as `shared` (Q12: always relay) → send to *R* |
 | Discard (incoming) | Unknown author's record | Remove from queue. Not hidden; it may come back on re-sync. |
 | Accept all / Discard all | Author group in the queue | The same action, in bulk |
-| Trust author / Block author | Review card, feed card, Identity tab | §7.5 |
+| Trust author / Block author | Review card, record detail, Identity tab | §7.5 |
 | Share (library) | Own `local` record | Becomes `shared` → send to *R* |
 | Edit | Own record (current key) | Re-sign with the same `d` and a newer `created_at`. If shared, send. |
 | Delete | Own record (current key) | Sign a kind-5 event → remove → tombstone. If the record was shared, send the deletion. |
@@ -422,7 +422,7 @@ Each empty list shows a short title, one sentence on what goes here, and one but
 - Import (file and paste, JSON and CSV) with validation and warnings
 - Review queue, store/share/discard, the receive pipeline (§7.3 steps 1–2 and 4–9), trust and block from cards
 - IndexedDB storage
-- Feed with card details
+- Feed with record details
 - Unit tests
 
 **Phase 2: lifecycle and discovery**

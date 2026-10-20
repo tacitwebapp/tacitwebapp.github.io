@@ -6,10 +6,13 @@ import { createLocalSigner, createExtensionSigner, pickSource, retireKey, genera
 import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover } from './tacit-sync.js';
 import { filterFeed } from './tacit-feed.js';
 import { buildBackup, parseBackup, restoreBackup } from './tacit-backup.js';
+import { avatarFor, nextTheme, addToast, dismissToast, expireToasts, resolveShortcut } from './tacit-ui.js';
 import * as store from './tacit-store.js';
 
 const rooms = {};
 let detailOpener = null;
+let shortcutOpener = null;
+let keyState = { pendingG: null };
 let directory;
 const readJson = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch (_) { return fallback; } };
 const parseContent = event => { try { return JSON.parse(event.content); } catch (_) { return null; } };
@@ -21,7 +24,7 @@ export function registerTacitApp(Alpine) {
         activeTab: 'feed', inputTypeLabels: TacitInputTypeLabels, selectedInputType: 'txt', selectedSlug: '',
         settings: { relays: [], subjects: [] }, newSubject: '', subjectError: '',
         pubkey: '', previousKeys: [], signer: null, extensionAvailable: false, switchAck: false, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
-        importKeyText: '', importAck: false, identityMessage: '', copied: '', backupSummary: '',
+        importKeyText: '', importAck: false, identityMessage: '', backupSummary: '', theme: localStorage.getItem('tacit.theme') || '', toasts: [],
         pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], directoryPeers: {}, ready: false,
         feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null,
         authorOptions: [{ value: '', label: 'All' }, { value: 'mine', label: 'Mine' }, { value: 'trusted', label: 'Trusted' }, { value: 'others', label: 'Others' }],
@@ -46,6 +49,8 @@ export function registerTacitApp(Alpine) {
             await this.reload();
             try { directory = connectDirectory(this); } catch (error) { this.logSync(`Could not join directory: ${error.message}`); }
             this.settings.subjects.filter(subject => subject.subscribed).forEach(subject => this.joinSubject(subject.slug));
+            window.addEventListener('keydown', event => this.onKey(event));
+            setInterval(() => { const live = expireToasts(this.toasts, Date.now()); if (live.length !== this.toasts.length) this.toasts = live; }, 500);
             this.ready = true;
         },
         localSecret() {
@@ -89,13 +94,37 @@ export function registerTacitApp(Alpine) {
         formatDate(seconds) { return new Date(seconds * 1000).toLocaleString(); },
         shortKey,
         authorLabel(pubkey) { return pubkey === this.pubkey ? 'you' : this.previousKeys.includes(pubkey) ? 'by previous key' : this.trust.find(entry => entry.pubkey === pubkey)?.nickname || shortKey(pubkey); },
+        get themeLabel() { return { light: 'Light', dark: 'Dark' }[this.theme] || 'System'; },
+        cycleTheme() {
+            this.theme = nextTheme(this.theme) || '';
+            try { if (this.theme) localStorage.setItem('tacit.theme', this.theme); else localStorage.removeItem('tacit.theme'); } catch (_) {}
+            if (this.theme) document.documentElement.dataset.theme = this.theme; else delete document.documentElement.dataset.theme;
+        },
+        toast(text, failure = false) { this.toasts = addToast(this.toasts, { text, failure }, Date.now()); },
+        dismissToast(id) { this.toasts = dismissToast(this.toasts, id); },
+        avatarOf(pubkey) { return avatarFor(pubkey, this.authorLabel(pubkey)); },
+        avatarStyle(pubkey) { return `--hue: ${this.avatarOf(pubkey).hue}`; },
+        focusNewSubject() { document.getElementById(this.activeTab === 'extract' ? 'new-subject' : 'new-subject-tab')?.focus(); },
+        openShortcuts(el) { shortcutOpener = el; document.getElementById('shortcut-list').showModal(); },
+        shortcutsClosed() { shortcutOpener?.focus(); shortcutOpener = null; },
+        onKey(event) {
+            const target = event.target;
+            const editable = !!target?.closest?.('input, textarea, select, [contenteditable=""], [contenteditable="true"]');
+            const result = resolveShortcut(keyState, { key: event.key, ctrl: event.ctrlKey, meta: event.metaKey, alt: event.altKey, editable }, Date.now());
+            keyState = result.state;
+            if (!result.action || result.action === 'close' || document.querySelector('dialog[open]')) return;
+            event.preventDefault();
+            if (result.action === 'help') this.openShortcuts(document.getElementById('shortcuts-button'));
+            else if (result.action === 'search') { this.activeTab = 'feed'; this.$nextTick(() => document.getElementById('feed-search').focus()); }
+            else if (result.action.startsWith('go:')) this.activeTab = result.action.slice(3);
+        },
         async copy(text, label) {
             try { await navigator.clipboard.writeText(text); } catch (_) {
                 const area = document.createElement('textarea'); area.value = text; document.body.appendChild(area); area.select();
                 const copied = document.execCommand('copy'); area.remove();
-                if (!copied) { this.copied = 'copy failed'; return; }
+                if (!copied) { this.toast('Copy failed', true); return; }
             }
-            this.copied = label; setTimeout(() => { this.copied = ''; }, 1500);
+            this.toast(`${label} copied`);
         },
 
         createSubject() {
@@ -150,7 +179,7 @@ export function registerTacitApp(Alpine) {
         async discardDraft(id) { await store.remove('pending', id); await this.reload(); },
         async editDraft(draft) {
             const text = prompt('Information chunk', draft.content.information_chunks);
-            if (text?.trim()) { draft.content.information_chunks = text.trim(); await store.put('pending', JSON.parse(JSON.stringify(draft))); await this.reload(); }
+            if (text?.trim()) { draft.content.information_chunks = text.trim(); await store.put('pending', JSON.parse(JSON.stringify(draft))); await this.reload(); this.toast('Draft edited'); }
         },
         async signDraft(draft) {
             const event = await this.signer.signEvent(buildRecordTemplate(draft.content));
@@ -158,7 +187,7 @@ export function registerTacitApp(Alpine) {
         },
         async storeDraft(draft) {
             await store.put('library', { ...await this.signDraft(draft), visibility: 'local' });
-            await store.remove('pending', draft.id); await this.reload(); this.activeTab = 'feed';
+            await store.remove('pending', draft.id); await this.reload(); this.activeTab = 'feed'; this.toast('Draft stored');
         },
         async shareDraft(draft) {
             const record = await this.signDraft(draft);
@@ -201,6 +230,7 @@ export function registerTacitApp(Alpine) {
             const edited = { ...record, event, receivedAt: Date.now() };
             await store.put('library', edited); await this.reload();
             if (edited.visibility === 'shared') this.publish(edited);
+            this.toast('Record edited');
         },
         async deleteRecord(item) {
             if (item.visibility === 'shared') {
@@ -209,14 +239,16 @@ export function registerTacitApp(Alpine) {
                 await store.remove('library', item.key); await this.reload();
                 this.publish({ subjectSlug: item.subjectSlug, event });
             } else { await store.remove('library', item.key); await this.reload(); }
+            this.toast('Record deleted');
         },
         publish(record) {
             const subject = this.settings.subjects.find(item => item.slug === record.subjectSlug);
-            if (subject?.needsPassword && !subject.password) { this.logSync(`Not shared: ${record.subjectSlug} is private, enter its password first.`); return; }
+            if (subject?.needsPassword && !subject.password) { this.logSync(`Not shared: ${record.subjectSlug} is private, enter its password first.`); this.toast(`Not shared: ${record.subjectSlug} is private. Enter its password first.`, true); return; }
             if (subject && !subject.subscribed) { subject.subscribed = true; this.saveSettings(); }
             this.joinSubject(record.subjectSlug);
             rooms[record.subjectSlug]?.action.send([record.event]);
             this.logSync(`Shared record to ${record.subjectSlug}.`);
+            this.toast('Shared');
         },
         sendShared(slug, peerId) {
             const events = [
@@ -251,7 +283,7 @@ export function registerTacitApp(Alpine) {
         async acceptIncoming(item) {
             const record = { key: item.id, event: item.event, visibility: 'shared', subjectSlug: item.subjectSlug, receivedFrom: item.receivedFrom, receivedAt: item.receivedAt };
             await store.put('library', record); await store.remove('pending', item.id); await this.reload();
-            this.publish(record);
+            this.publish(record); this.toast('Accepted');
         },
         async discardIncoming(item) { await store.remove('pending', item.id); await this.reload(); },
         async acceptGroup(group) { for (const item of group.records) await this.acceptIncoming(item); },
@@ -264,15 +296,18 @@ export function registerTacitApp(Alpine) {
             const group = this.incoming.find(entry => entry.pubkey === pubkey);
             await this.reload();
             for (const item of group?.records || []) await this.acceptIncoming(item);
+            this.toast('Author trusted');
         },
         async blockAuthor(pubkey) {
             await store.put('trust', { ...this.trust.find(entry => entry.pubkey === pubkey), pubkey, status: 'blocked' });
             for (const item of this.library.filter(entry => entry.event.pubkey === pubkey)) await store.remove('library', item.key);
             for (const item of (await store.getAll('pending')).filter(entry => entry.pubkey === pubkey)) await store.remove('pending', item.id);
             await this.reload();
+            this.toast('Author blocked');
         },
         async hideRecord(item) {
             await store.put('hidden', { key: item.key, hiddenAt: Date.now() }); await store.remove('library', item.key); await this.reload();
+            this.toast('Record hidden');
         },
 
         exportBackup() {
@@ -282,6 +317,7 @@ export function registerTacitApp(Alpine) {
             link.download = `tacit-backup-${backup.exportedAt.slice(0, 10)}.json`;
             link.click(); URL.revokeObjectURL(link.href);
             this.backupSummary = `Exported ${backup.records.length} records.`;
+            this.toast('Backup exported');
         },
         async importBackup(event) {
             const file = event.target.files[0]; if (!file) return;

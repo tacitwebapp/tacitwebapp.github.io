@@ -1,7 +1,7 @@
 # 24 — Restyle Extract and Import & Review
 
 Type: AFK
-**Status:** TODO
+**Status:** DONE
 **Label:** ready-for-agent
 
 ## Parent
@@ -14,13 +14,13 @@ The Extract and Import & Review tabs move to the grouped-list style using the th
 
 ## Acceptance criteria
 
-- [ ] Both tabs use token colours and component classes; no default-palette colour class (such as `gray-*`, `blue-*`, `green-*`, `red-*`, `amber-*`) remains in their markup.
-- [ ] `npm run build:css` was run and `vendor/tailwind.css` is committed in sync.
-- [ ] All existing ids, class hooks and behaviour are unchanged (create subject, copy prompt, import by file and paste, store, share, edit, discard, accept, accept all, discard all, trust, block).
-- [ ] The import button stays disabled until a subject is selected, and says so.
-- [ ] Touch targets are at least 44 px and focus is visible.
-- [ ] No horizontal scrolling at 390 px or 1280 px in either scheme.
-- [ ] `npm test` passes.
+- [x] Both tabs use token colours and component classes; no default-palette colour class (such as `gray-*`, `blue-*`, `green-*`, `red-*`, `amber-*`) remains in their markup.
+- [x] `npm run build:css` was run and `vendor/tailwind.css` is committed in sync.
+- [x] All existing ids, class hooks and behaviour are unchanged (create subject, copy prompt, import by file and paste, store, share, edit, discard, accept, accept all, discard all, trust, block).
+- [x] The import button stays disabled until a subject is selected, and says so.
+- [x] Touch targets are at least 44 px and focus is visible.
+- [x] No horizontal scrolling at 390 px or 1280 px in either scheme.
+- [x] `npm test` passes.
 
 ## Blocked by
 

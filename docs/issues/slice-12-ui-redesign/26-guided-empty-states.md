@@ -1,7 +1,7 @@
 # 26 — Guided empty states
 
 Type: AFK
-**Status:** TODO
+**Status:** DONE
 **Label:** ready-for-agent
 
 ## Parent
@@ -14,11 +14,11 @@ One empty-state component (title, one sentence, optional button), used for each 
 
 ## Acceptance criteria
 
-- [ ] On a fresh profile every state in the §10.7 table that applies shows its title, sentence and button.
-- [ ] Each button does what its label says.
-- [ ] Existing empty-state ids (such as `#feed-empty`) are kept.
-- [ ] States disappear as soon as the list has content.
-- [ ] `npm test` passes.
+- [x] On a fresh profile every state in the §10.7 table that applies shows its title, sentence and button.
+- [x] Each button does what its label says.
+- [x] Existing empty-state ids (such as `#feed-empty`) are kept.
+- [x] States disappear as soon as the list has content.
+- [x] `npm test` passes.
 
 ## Blocked by
 

@@ -1,7 +1,7 @@
 # 21 — Author avatars
 
 Type: AFK
-**Status:** TODO
+**Status:** DONE
 **Label:** ready-for-agent
 
 ## Parent
@@ -14,12 +14,12 @@ Each author gets a round avatar with an initial on a background colour derived f
 
 ## Acceptance criteria
 
-- [ ] The same key gives the same avatar on every screen and after a reload.
-- [ ] Unit tests: deterministic; hue always in 0..359; a sample set of different keys gives different hues; nickname sets the initial; missing or malformed key gives a neutral result.
-- [ ] Avatars show in all five places above.
-- [ ] The initial meets 4.5:1 contrast in light and dark.
-- [ ] The avatar is `aria-hidden` and the author label is present as text next to it.
-- [ ] `npm test` passes.
+- [x] The same key gives the same avatar on every screen and after a reload.
+- [x] Unit tests: deterministic; hue always in 0..359; a sample set of different keys gives different hues; nickname sets the initial; missing or malformed key gives a neutral result.
+- [x] Avatars show in all five places above.
+- [x] The initial meets 4.5:1 contrast in light and dark.
+- [x] The avatar is `aria-hidden` and the author label is present as text next to it.
+- [x] `npm test` passes.
 
 ## Blocked by
 

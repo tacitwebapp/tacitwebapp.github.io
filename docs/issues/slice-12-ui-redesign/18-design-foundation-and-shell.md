@@ -16,18 +16,18 @@ The page gets a header with the app name, and its five destinations become a bot
 
 ## Acceptance criteria
 
-- [ ] `npm run build:css` regenerates `vendor/tailwind.css` from the committed config and source, and the committed output matches a fresh build.
-- [ ] `vendor/VERSIONS.md` records the build command and the dev dependency version, replacing the old scratch-directory command.
-- [ ] Light and dark token sets both exist and the Tailwind theme uses them. Emulating the system light and dark setting switches the app with no stored preference.
-- [ ] Existing utility classes in unmigrated markup still render as before.
-- [ ] DM Sans loads from the same origin with a system-font fallback. `vendor/VERSIONS.md` records its version, source and SHA-256, and the licence text is committed next to the file.
-- [ ] No request on load goes to a third-party host.
-- [ ] Below 900 px the five destinations show as a bottom tab bar that respects the safe-area inset. From 900 px up they show as a top bar. The selected tab is exposed to assistive technology.
-- [ ] Tab switching still works, and each tab keeps its `data-tab` attribute and section id.
-- [ ] Every tab opens with a large title.
-- [ ] The content column is at most 720 px and centred. No horizontal scrolling at 390 px or 1280 px.
-- [ ] Interactive elements in the shell have a visible focus ring and are at least 44 × 44 px.
-- [ ] `npm test` passes and no existing element id was removed.
+- [x] `npm run build:css` regenerates `vendor/tailwind.css` from the committed config and source, and the committed output matches a fresh build.
+- [x] `vendor/VERSIONS.md` records the build command and the dev dependency version, replacing the old scratch-directory command.
+- [x] Light and dark token sets both exist and the Tailwind theme uses them. Emulating the system light and dark setting switches the app with no stored preference.
+- [x] Existing utility classes in unmigrated markup still render as before.
+- [x] DM Sans loads from the same origin with a system-font fallback. `vendor/VERSIONS.md` records its version, source and SHA-256, and the licence text is committed next to the file.
+- [x] No request on load goes to a third-party host.
+- [x] Below 900 px the five destinations show as a bottom tab bar that respects the safe-area inset. From 900 px up they show as a top bar. The selected tab is exposed to assistive technology.
+- [x] Tab switching still works, and each tab keeps its `data-tab` attribute and section id.
+- [x] Every tab opens with a large title.
+- [x] The content column is at most 720 px and centred. No horizontal scrolling at 390 px or 1280 px.
+- [x] Interactive elements in the shell have a visible focus ring and are at least 44 × 44 px.
+- [x] `npm test` passes and no existing element id was removed.
 
 ## Blocked by
 

@@ -1,7 +1,7 @@
 # 19 — Colour-scheme toggle
 
 Type: AFK
-**Status:** TODO
+**Status:** DONE
 **Label:** ready-for-agent
 
 ## Parent
@@ -14,11 +14,11 @@ A header control that cycles System, Light and Dark. The choice is stored in `lo
 
 ## Acceptance criteria
 
-- [ ] The header control cycles System, Light, Dark, and its accessible name states the current choice.
-- [ ] A stored `light` or `dark` overrides the system setting. Choosing System removes the key.
-- [ ] A reload with a stored choice paints in that scheme with no visible flash.
-- [ ] Unit tests: stored value beats system; absent follows system; cycle order is System, Light, Dark, System.
-- [ ] `npm test` passes.
+- [x] The header control cycles System, Light, Dark, and its accessible name states the current choice.
+- [x] A stored `light` or `dark` overrides the system setting. Choosing System removes the key.
+- [x] A reload with a stored choice paints in that scheme with no visible flash.
+- [x] Unit tests: stored value beats system; absent follows system; cycle order is System, Light, Dark, System.
+- [x] `npm test` passes.
 
 ## Blocked by
 

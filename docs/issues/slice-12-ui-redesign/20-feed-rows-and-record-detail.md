@@ -1,7 +1,7 @@
 # 20 — Feed rows and record detail
 
 Type: AFK
-**Status:** TODO
+**Status:** DONE
 **Label:** ready-for-agent
 
 ## Parent
@@ -14,16 +14,16 @@ The Feed becomes a grouped list of rows. A row shows the subject label, a two-li
 
 ## Acceptance criteria
 
-- [ ] Rows show the fields above, with the preview clamped to two lines.
-- [ ] Opening a row (click, tap, Enter or Space) shows the detail sheet. Close button, Esc and a tap outside all close it, and focus returns to the row that opened it.
-- [ ] The detail holds all applicable actions with their current class names. Delete and Hide close the sheet.
-- [ ] Record text is rendered with text bindings only, never as HTML.
-- [ ] The author filter is a segmented control with the selected state exposed. Its id replaces the old `feed-author` id on the control container, and the filter result is unchanged.
-- [ ] The subject and visibility selects and the search field keep their ids and behaviour.
-- [ ] A filter combination with no results shows `#feed-empty` with a Clear filters button that resets all four filters.
-- [ ] Every action in the detail can be reached and used by keyboard alone.
-- [ ] No horizontal scrolling at 390 px or 1280 px in either scheme.
-- [ ] `npm test` passes.
+- [x] Rows show the fields above, with the preview clamped to two lines.
+- [x] Opening a row (click, tap, Enter or Space) shows the detail sheet. Close button, Esc and a tap outside all close it, and focus returns to the row that opened it.
+- [x] The detail holds all applicable actions with their current class names. Delete and Hide close the sheet.
+- [x] Record text is rendered with text bindings only, never as HTML.
+- [x] The author filter is a segmented control with the selected state exposed. Its id replaces the old `feed-author` id on the control container, and the filter result is unchanged.
+- [x] The subject and visibility selects and the search field keep their ids and behaviour.
+- [x] A filter combination with no results shows `#feed-empty` with a Clear filters button that resets all four filters.
+- [x] Every action in the detail can be reached and used by keyboard alone.
+- [x] No horizontal scrolling at 390 px or 1280 px in either scheme.
+- [x] `npm test` passes.
 
 ## Blocked by
 

@@ -1,7 +1,7 @@
 # 22 — Toasts
 
 Type: AFK
-**Status:** TODO
+**Status:** DONE
 **Label:** ready-for-agent
 
 ## Parent
@@ -14,14 +14,14 @@ Short confirmations appear as toasts above the tab bar. The queue logic is a pur
 
 ## Acceptance criteria
 
-- [ ] Each action listed above shows a toast.
-- [ ] At most three toasts are visible. Repeating the same message does not stack.
-- [ ] Toasts disappear after 4 seconds (8 for failures) and can be dismissed earlier.
-- [ ] Success toasts use `role="status"`; failure toasts use `role="alert"`.
-- [ ] Toasts never cover the tab bar.
-- [ ] The four inline results above still show inline with their ids.
-- [ ] Unit tests: cap, merge, expiry, failure lifetime and flag, dismiss.
-- [ ] `npm test` passes.
+- [x] Each action listed above shows a toast.
+- [x] At most three toasts are visible. Repeating the same message does not stack.
+- [x] Toasts disappear after 4 seconds (8 for failures) and can be dismissed earlier.
+- [x] Success toasts use `role="status"`; failure toasts use `role="alert"`.
+- [x] Toasts never cover the tab bar.
+- [x] The four inline results above still show inline with their ids.
+- [x] Unit tests: cap, merge, expiry, failure lifetime and flag, dismiss.
+- [x] `npm test` passes.
 
 ## Blocked by
 

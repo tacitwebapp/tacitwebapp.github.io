@@ -1,7 +1,7 @@
 # 23 — Keyboard shortcuts
 
 Type: AFK
-**Status:** TODO
+**Status:** DONE
 **Label:** ready-for-agent
 
 ## Parent
@@ -14,12 +14,12 @@ Type: AFK
 
 ## Acceptance criteria
 
-- [ ] Each shortcut in the table works.
-- [ ] Nothing triggers while focus is in an input, textarea, select or editable element, or while Ctrl, Meta or Alt is held.
-- [ ] After `g`, a second key after 1.5 seconds, or any key outside `f e r s i`, cancels the sequence and does nothing.
-- [ ] The shortcut dialog opens from `?` and from the header button, moves focus in, and returns focus on close.
-- [ ] Unit tests: each shortcut; `g` sequence success and timeout; cancel by another key; editable target ignored; modifiers ignored.
-- [ ] `npm test` passes.
+- [x] Each shortcut in the table works.
+- [x] Nothing triggers while focus is in an input, textarea, select or editable element, or while Ctrl, Meta or Alt is held.
+- [x] After `g`, a second key after 1.5 seconds, or any key outside `f e r s i`, cancels the sequence and does nothing.
+- [x] The shortcut dialog opens from `?` and from the header button, moves focus in, and returns focus on close.
+- [x] Unit tests: each shortcut; `g` sequence success and timeout; cancel by another key; editable target ignored; modifiers ignored.
+- [x] `npm test` passes.
 
 ## Blocked by
 
