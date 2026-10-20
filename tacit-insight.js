@@ -61,6 +61,16 @@ export function relationsOf(library, key) {
         .filter(group => group.items.length);
 }
 
+export function feedBadges(library) {
+    const superseded = new Set(), conflicts = new Map();
+    const link = (key, other) => conflicts.set(key, (conflicts.get(key) ?? new Set()).add(other));
+    for (const { content } of visibleInsights(library)) {
+        if (content.relation === 'supersedes') superseded.add(content.to);
+        if (content.relation === 'conflicts') { link(content.from, content.to); link(content.to, content.from); }
+    }
+    return new Map([...new Set([...superseded, ...conflicts.keys()])].map(key => [key, { superseded: superseded.has(key), conflicts: conflicts.get(key)?.size ?? 0 }]));
+}
+
 export const findOwnInsight = (library, pubkey, keyA, keyB) => library.find(item => item.key === `${pubkey}:${insightD(keyA, keyB)}`);
 
 export const cascadeTargets = (library, drafts, pubkey, recordKey) => {

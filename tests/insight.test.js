@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { shortIdOf, resolveShortId, buildInsightTemplate, buildInsightEdit, insightD, shareBlocker, visibleInsights, relationsOf, findOwnInsight, cascadeTargets, incomingInsightCard } from '../tacit-insight.js';
+import { shortIdOf, resolveShortId, buildInsightTemplate, buildInsightEdit, insightD, shareBlocker, visibleInsights, relationsOf, findOwnInsight, cascadeTargets, incomingInsightCard, feedBadges } from '../tacit-insight.js';
 import { filterFeed } from '../tacit-feed.js';
 import { announcementFor, decideIncoming } from '../tacit-sync.js';
 import { buildDrafts, existingRecords } from '../tacit-import.js';
@@ -164,4 +164,35 @@ test('incoming insights from one author count toward the 50 item queue cap', asy
     const base = { held: {}, trustedPubkeys: new Set() };
     assert.equal(decideIncoming(event, { ...base, pendingCount: 49 }).action, 'review');
     assert.deepEqual(decideIncoming(event, { ...base, pendingCount: 50 }), { action: 'drop', reason: 'queue-full' });
+});
+
+test('a record that a visible insight says is superseded gets the Superseded badge', () => {
+    const old = rec(A, U1), fresh = rec(B, U2);
+    const link = insightItem(A, fresh.key, old.key, { relation: 'supersedes' });
+    const badges = feedBadges([old, fresh, link]);
+    assert.deepEqual(badges.get(old.key), { superseded: true, conflicts: 0 });
+    assert.equal(badges.has(fresh.key), false);
+});
+
+test('the superseded badge goes when the superseding record is gone', () => {
+    const old = rec(A, U1), fresh = rec(B, U2);
+    const link = insightItem(A, fresh.key, old.key, { relation: 'supersedes' });
+    assert.equal(feedBadges([old, link]).size, 0);
+});
+
+test('conflicts counts distinct records, so two authors flagging the same pair count once', () => {
+    const one = rec(A, U1), two = rec(B, U2), three = rec(B, U3);
+    const badges = feedBadges([one, two, three,
+        insightItem(A, one.key, two.key), insightItem(B, one.key, two.key),
+        insightItem(A, one.key, three.key)]);
+    assert.deepEqual(badges.get(one.key), { superseded: false, conflicts: 2 });
+    assert.deepEqual(badges.get(two.key), { superseded: false, conflicts: 1 });
+});
+
+test('badges ignore invisible insights and other relations', () => {
+    const one = rec(A, U1), two = rec(B, U2), three = rec(B, U3);
+    const badges = feedBadges([one, two,
+        insightItem(A, one.key, three.key),
+        insightItem(A, one.key, two.key, { relation: 'reinforces' })]);
+    assert.equal(badges.size, 0);
 });

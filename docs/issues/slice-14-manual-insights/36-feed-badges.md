@@ -1,7 +1,7 @@
 # 36 — Superseded and Conflicts badges in the Feed
 
 Type: AFK
-**Status:** TODO
+**Status:** DONE
 **Label:** ready-for-agent
 
 ## Parent
@@ -15,11 +15,11 @@ From visible insights in the library, compute per record: superseded (some visib
 ## Acceptance criteria
 
 - [ ] A superseded record is badged and faded; it stops being so when the insight is hidden, deleted or loses a record.
-- [ ] Conflicts (n) counts distinct records, so two authors flagging the same pair count once.
+- [x] Conflicts (n) counts distinct records, so two authors flagging the same pair count once.
 - [ ] Insights in review do not count.
 - [ ] Badges are readable in both schemes and announced as text.
-- [ ] Unit tests: superseded, conflict count over distinct records, invisible insights ignored.
-- [ ] `npm test` passes.
+- [x] Unit tests: superseded, conflict count over distinct records, invisible insights ignored.
+- [x] `npm test` passes.
 
 ## Blocked by
 
