@@ -146,7 +146,7 @@
             </div>
             <div class="flex items-center justify-between"><h3 class="group-title">Discover</h3><button type="button" class="btn-secondary mt-4" @click="refreshSubjects()">Refresh subjects</button></div>
             <div id="discover" class="group">
-                <template x-for="row in discover" :key="row.slug"><div class="discover-row row justify-between"><span class="min-w-0 break-words"><span class="font-medium" x-text="row.label"></span> <span class="text-xs text-muted" x-text="`${row.peers} ${row.peers === 1 ? 'peer' : 'peers'}, ${row.sharedCount} shared`"></span></span><span x-show="hasSubject(row.slug)" class="text-xs text-muted">Added</span><button x-show="!hasSubject(row.slug)" class="discover-subscribe btn-primary" @click="subscribeDiscovered(row)">Subscribe</button></div></template>
+                <template x-for="row in discover" :key="row.slug"><div class="discover-row row justify-between"><span class="min-w-0 break-words"><span class="font-medium" x-text="row.label"></span> <span class="text-xs text-muted" x-text="`${row.peers === 0 ? 'saved' : `${row.peers} ${row.peers === 1 ? 'peer' : 'peers'}`}, ${row.sharedCount} shared`"></span></span><span x-show="hasSubject(row.slug)" class="text-xs text-muted">Added</span><button x-show="!hasSubject(row.slug)" class="discover-subscribe btn-primary" @click="subscribeDiscovered(row)">Subscribe</button></div></template>
                 <div x-show="discover.length === 0" class="row"><div class="empty-state"><p class="empty-title">No public subjects found</p><p class="empty-text">Public subjects appear here when other peers announce them.</p></div></div>
             </div>
             <h3 class="group-title">Sync log</h3>

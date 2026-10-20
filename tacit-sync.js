@@ -6,6 +6,8 @@ export const APP_ID = 'com.tacit-sync.v1';
 export const roomId = slug => `subject:${slug}`;
 export const DIRECTORY_ROOM = 'directory';
 export const PENDING_CAP = 50;
+export const SUBJECT_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
+export const SUBJECT_CACHE_CAP = 200;
 
 const isJsonObject = text => { try { const value = JSON.parse(text); return value !== null && typeof value === 'object' && !Array.isArray(value); } catch (_) { return false; } };
 
@@ -31,17 +33,35 @@ export function decideIncoming(event, { held, pendingIncoming = {}, pendingCount
     return { action: 'review' };
 }
 
-export const announcementFor = (subjects, library) => subjects.filter(subject => subject.subscribed && !subject.password && !subject.needsPassword).map(subject => ({
-    label: subject.label, slug: subject.slug,
-    sharedCount: library.filter(item => item.visibility === 'shared' && item.subjectSlug === subject.slug).length,
-}));
+export function announcementFor(subjects, library, cache = {}) {
+    const own = subjects.filter(subject => subject.subscribed && !subject.password && !subject.needsPassword).map(subject => ({
+        label: subject.label, slug: subject.slug,
+        sharedCount: library.filter(item => item.visibility === 'shared' && item.subjectSlug === subject.slug).length,
+    }));
+    const taken = new Set(own.map(entry => entry.slug));
+    const relayed = Object.entries(cache).filter(([slug]) => !taken.has(slug))
+        .sort((a, b) => b[1].seenAt - a[1].seenAt)
+        .map(([slug, { label, sharedCount, seenAt }]) => ({ label, slug, sharedCount, seenAt }));
+    return [...own, ...relayed].slice(0, 100);
+}
+
+export function mergeSubjectCache(cache, entries, now) {
+    const merged = Object.create(null);
+    for (const [slug, entry] of Object.entries(cache)) if (now - entry.seenAt < SUBJECT_CACHE_TTL) merged[slug] = entry;
+    for (const entry of entries) {
+        const seenAt = Math.min(entry.seenAt ?? now, now);
+        if (now - seenAt >= SUBJECT_CACHE_TTL || seenAt <= (merged[entry.slug]?.seenAt ?? -Infinity)) continue;
+        merged[entry.slug] = { label: entry.label, sharedCount: entry.sharedCount, seenAt };
+    }
+    return Object.fromEntries(Object.entries(merged).sort((a, b) => b[1].seenAt - a[1].seenAt).slice(0, SUBJECT_CACHE_CAP));
+}
 
 export const validAnnouncements = entries => (Array.isArray(entries) ? entries : [])
     .filter(entry => typeof entry?.label === 'string' && entry.label.length <= 80 && entry.slug === slugify(entry.label))
     .slice(0, 100)
-    .map(({ label, slug, sharedCount }) => ({ label, slug, sharedCount: Number.isInteger(sharedCount) && sharedCount >= 0 ? sharedCount : 0 }));
+    .map(({ label, slug, sharedCount, seenAt }) => ({ label, slug, sharedCount: Number.isInteger(sharedCount) && sharedCount >= 0 ? sharedCount : 0, ...(Number.isFinite(seenAt) ? { seenAt } : {}) }));
 
-export function groupDiscover(byPeer) {
+export function groupDiscover(byPeer, cache = {}) {
     const groups = new Map();
     for (const entries of Object.values(byPeer)) for (const entry of entries) {
         const group = groups.get(entry.slug) ?? { slug: entry.slug, labels: new Map(), peers: 0, sharedCount: 0 };
@@ -49,9 +69,12 @@ export function groupDiscover(byPeer) {
         group.labels.set(entry.label, (group.labels.get(entry.label) ?? 0) + 1);
         group.peers++; group.sharedCount = Math.max(group.sharedCount, entry.sharedCount);
     }
-    return [...groups.values()]
+    const live = [...groups.values()]
         .map(({ labels, ...group }) => ({ ...group, label: [...labels].reduce((best, current) => current[1] > best[1] ? current : best)[0] }))
         .sort((a, b) => b.peers - a.peers);
+    const saved = Object.entries(cache).filter(([slug]) => !groups.has(slug)).sort((a, b) => b[1].seenAt - a[1].seenAt)
+        .map(([slug, { label, sharedCount }]) => ({ slug, label, peers: 0, sharedCount }));
+    return [...live, ...saved];
 }
 
 export function roomConfig(relays, password) {

@@ -274,7 +274,9 @@ There is no change from shared back to local. Delete is how an author withdraws 
 - Payload: `[{ label, slug, sharedCount }]` for the user's **subscribed, non-private** subjects. Unsigned, and treated as hints only.
 - Sent to each peer that joins the directory, and again to everyone when subscriptions change.
 - On receive: keep entries whose `label` is a string of at most 80 characters and whose `slug === slugify(label)`, at most 100 per peer. Keep them per peer id, and drop that peer's entries when it leaves.
-- Discover list (Subjects tab): grouped by slug. Shows the most common label, the number of announcing peers, and the largest `sharedCount`, sorted by peer count. Has a **Subscribe** button. Subjects the user already has are marked.
+- Subject cache: every valid entry received is also saved locally (`tacit.subjectCache`, keyed by slug with `label`, `sharedCount`, `seenAt`), so it survives the announcing peer leaving and a reload. `seenAt` is when the subject was last announced by a peer that subscribes to it; a relayed entry carries its original `seenAt` and never refreshes it. Entries older than 7 days are dropped, and at most 200 are kept (newest first).
+- Relay: announcements also list cached subjects not already in the user's own list, each with its `seenAt`, up to 100 entries in total. When a peer's announcement teaches the user a slug not yet in the cache, the user announces to everyone again.
+- Discover list (Subjects tab): grouped by slug. Shows the most common label, the number of announcing peers, and the largest `sharedCount`, sorted by peer count. Cached subjects with no announcing peer now are listed as `saved`. Has a **Subscribe** button. Subjects the user already has are marked.
 
 ### 9.5 Connection status
 - Reconnecting is left to Trystero. The Subjects tab shows each room's status (joined, peer count) and a sync log (the latest 50 lines).

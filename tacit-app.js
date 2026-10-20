@@ -3,7 +3,7 @@ import { addSubject, slugify } from './tacit-subject.js';
 import { parseText, buildDrafts } from './tacit-import.js';
 import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, recordKey } from './tacit-events.js';
 import { createLocalSigner, createExtensionSigner, pickSource, retireKey, generateSecretKeyHex, parseSecretKey, encodeNsec, encodeNpub } from './tacit-identity.js';
-import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover } from './tacit-sync.js';
+import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache } from './tacit-sync.js';
 import { filterFeed } from './tacit-feed.js';
 import { buildBackup, parseBackup, restoreBackup } from './tacit-backup.js';
 import { avatarFor, nextTheme, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition } from './tacit-ui.js';
@@ -25,13 +25,13 @@ export function registerTacitApp(Alpine) {
         settings: { relays: [], subjects: [] }, newSubject: '', subjectError: '',
         pubkey: '', previousKeys: [], signer: null, extensionAvailable: false, switchAck: false, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
         importKeyText: '', importAck: false, identityMessage: '', backupSummary: '', theme: localStorage.getItem('tacit.theme') || '', toasts: [],
-        pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], directoryPeers: {}, ready: false,
+        pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], directoryPeers: {}, subjectCache: {}, ready: false,
         feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null,
         authorOptions: [{ value: '', label: 'All' }, { value: 'mine', label: 'Mine' }, { value: 'trusted', label: 'Trusted' }, { value: 'others', label: 'Others' }],
         get subjectOptions() { return [...this.settings.subjects, ...this.discover.filter(row => !this.hasSubject(row.slug))]; },
         get selectedSubject() { return this.subjectOptions.find(subject => subject.slug === this.selectedSlug); },
         get dynamicPrompt() { return buildTacitPrompt({ inputType: this.selectedInputType, subjectCategory: this.selectedSubject?.label || '', specialty: this.specialty }); },
-        get discover() { return groupDiscover(this.directoryPeers); },
+        get discover() { return groupDiscover(this.directoryPeers, this.subjectCache); },
         get extensionActive() { return this.signer?.source === 'extension'; },
         get signerLabel() { return this.extensionActive ? 'extension' : 'local key'; },
         get npub() { return this.pubkey ? encodeNpub(this.pubkey) : ''; },
@@ -41,6 +41,7 @@ export function registerTacitApp(Alpine) {
         async initApp() {
             this.settings = { relays: [], subjects: [], ...readJson('tacit.settings', {}) };
             this.previousKeys = readJson('tacit.previousKeys', []);
+            this.subjectCache = mergeSubjectCache(readJson('tacit.subjectCache', {}), [], Date.now());
             this.extensionAvailable = !!window.nostr;
             try { await this.activateSigner(pickSource(window.nostr, this.settings.signerPreference)); } catch (error) {
                 this.identityMessage = `Extension unavailable, using local key: ${error.message}`;
@@ -169,7 +170,7 @@ export function registerTacitApp(Alpine) {
             if (subject.subscribed) this.joinSubject(subject.slug);
         },
         leaveSubject(slug) { rooms[slug]?.room.leave(); delete rooms[slug]; this.logSync(`Left ${slug}.`); this.announce(); },
-        announce(peerId) { directory?.action.send(announcementFor(this.settings.subjects, this.library), peerId ? { target: peerId } : undefined); },
+        announce(peerId) { directory?.action.send(announcementFor(this.settings.subjects, this.library, this.subjectCache), peerId ? { target: peerId } : undefined); },
         refreshSubjects() {
             if (!directory) { this.toast('Not connected to the directory', true); return; }
             directory.request.send(true); this.toast('Asked peers for their subjects');
@@ -179,7 +180,15 @@ export function registerTacitApp(Alpine) {
             if (!room) { this.toast(`Not connected to ${subject.label}`, true); return; }
             room.pull.send(true); this.logSync(`Asked peers for ${subject.slug} records.`); this.toast(`Asked peers for ${subject.label} records`);
         },
-        receiveAnnouncement(entries, peerId) { this.directoryPeers = { ...this.directoryPeers, [peerId]: validAnnouncements(entries) }; },
+        receiveAnnouncement(entries, peerId) {
+            const valid = validAnnouncements(entries);
+            this.directoryPeers = { ...this.directoryPeers, [peerId]: valid };
+            const merged = mergeSubjectCache(this.subjectCache, valid, Date.now());
+            const learned = Object.keys(merged).some(slug => !(slug in this.subjectCache));
+            this.subjectCache = merged;
+            try { localStorage.setItem('tacit.subjectCache', JSON.stringify(merged)); } catch (_) { /* storage full or blocked: cache stays in memory */ }
+            if (learned) this.announce();
+        },
         dropAnnouncements(peerId) { const { [peerId]: _, ...rest } = this.directoryPeers; this.directoryPeers = rest; },
         hasSubject(slug) { return this.settings.subjects.some(subject => subject.slug === slug); },
         subscribeDiscovered(row) {

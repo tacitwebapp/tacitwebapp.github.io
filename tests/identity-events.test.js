@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseSecretKey, encodeNsec, createLocalSigner, createExtensionSigner, pickSource, retireKey, generateSecretKeyHex } from '../tacit-identity.js';
 import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, isValidRecord, recordKey } from '../tacit-events.js';
-import { decideIncoming, PENDING_CAP, roomConfig, announcementFor, validAnnouncements, groupDiscover } from '../tacit-sync.js';
+import { decideIncoming, PENDING_CAP, roomConfig, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache, SUBJECT_CACHE_TTL } from '../tacit-sync.js';
 import { slugify } from '../tacit-subject.js';
 
 test('parseSecretKey accepts hex and nsec, rejects others', () => {
@@ -220,4 +220,28 @@ test('decideIncoming drops records whose content is not a JSON object', async ()
 test('announcementFor never announces a private subject awaiting its password', () => {
     const subjects = [{ label: 'Waiting', slug: 'waiting', subscribed: true, needsPassword: true }, { label: 'Open', slug: 'open', subscribed: true }];
     assert.deepEqual(announcementFor(subjects, []).map(entry => entry.slug), ['open']);
+});
+
+test('mergeSubjectCache saves new subjects, keeps the original seenAt, and expires old ones', () => {
+    const now = 10 * SUBJECT_CACHE_TTL;
+    const entry = (slug, seenAt) => ({ label: slug, slug, sharedCount: 1, ...(seenAt === undefined ? {} : { seenAt }) });
+    let cache = mergeSubjectCache({}, [entry('roofing'), entry('old', now - SUBJECT_CACHE_TTL), entry('future', now + 99)], now);
+    assert.deepEqual(Object.entries(cache).map(([slug, { seenAt }]) => [slug, seenAt]), [['roofing', now], ['future', now]]);
+    cache = mergeSubjectCache(cache, [entry('roofing', now - 5)], now + 1000);
+    assert.equal(cache.roofing.seenAt, now);
+    assert.deepEqual(Object.keys(mergeSubjectCache(cache, [], now + SUBJECT_CACHE_TTL)), []);
+    const many = Array.from({ length: 250 }, (_, i) => entry(`s${i}`, now - i));
+    assert.equal(Object.keys(mergeSubjectCache({}, many, now)).length, 200);
+});
+
+test('announcementFor relays cached subjects with their original seenAt, never duplicating own', () => {
+    const subjects = [{ label: 'Open', slug: 'open', subscribed: true }];
+    const cache = { open: { label: 'Open', sharedCount: 9, seenAt: 1 }, roofing: { label: 'Roofing', sharedCount: 4, seenAt: 7 } };
+    assert.deepEqual(announcementFor(subjects, [], cache), [{ label: 'Open', slug: 'open', sharedCount: 0 }, { label: 'Roofing', slug: 'roofing', sharedCount: 4, seenAt: 7 }]);
+});
+
+test('groupDiscover lists cached subjects with no live peer as saved rows', () => {
+    const cache = { roofing: { label: 'Roofing', sharedCount: 4, seenAt: 7 }, 'pest-control': { label: 'Pest Control', sharedCount: 1, seenAt: 9 } };
+    const rows = groupDiscover({ p1: [{ label: 'Pest Control', slug: 'pest-control', sharedCount: 2 }] }, cache);
+    assert.deepEqual(rows, [{ slug: 'pest-control', label: 'Pest Control', peers: 1, sharedCount: 2 }, { slug: 'roofing', label: 'Roofing', peers: 0, sharedCount: 4 }]);
 });
