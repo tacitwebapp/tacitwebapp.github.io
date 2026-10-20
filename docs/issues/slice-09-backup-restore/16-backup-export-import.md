@@ -1,6 +1,7 @@
 # 16 — Backup export and import
 
 Type: AFK
+**Status:** DONE
 
 ## What to build
 
@@ -10,11 +11,11 @@ Reference: SPEC §11.1.
 
 ## Acceptance criteria
 
-- [ ] Exporting from A and importing into a fresh profile restores the library with the same visibility, plus trust lists and subjects.
-- [ ] A backup with a changed event rejects that event and imports the rest.
-- [ ] The file contains no private key and no passwords.
-- [ ] Importing the same backup twice changes nothing the second time.
-- [ ] Unit tests: building and parsing the backup, and the merge rules.
+- [x] Exporting from A and importing into a fresh profile restores the library with the same visibility, plus trust lists and subjects.
+- [x] A backup with a changed event rejects that event and imports the rest.
+- [x] The file contains no private key and no passwords.
+- [x] Importing the same backup twice changes nothing the second time.
+- [x] Unit tests: building and parsing the backup, and the merge rules.
 
 ## Blocked by
 
