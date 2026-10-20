@@ -1,6 +1,7 @@
 # 09 — Edit your own record
 
 Type: AFK
+**Status:** DONE
 
 ## What to build
 
@@ -10,10 +11,10 @@ Reference: SPEC §7.4 (Edit), §7.3 step 7.
 
 ## Acceptance criteria
 
-- [ ] Editing a shared record updates it on a peer that is connected.
-- [ ] A peer that receives the old version after the new one keeps the new one.
-- [ ] There is no edit action on records by other authors or previous keys.
-- [ ] Unit tests: replacement by newer `created_at`, in either order.
+- [x] Editing a shared record updates it on a peer that is connected.
+- [x] A peer that receives the old version after the new one keeps the new one.
+- [x] There is no edit action on records by other authors or previous keys.
+- [x] Unit tests: replacement by newer `created_at`, in either order.
 
 ## Blocked by
 

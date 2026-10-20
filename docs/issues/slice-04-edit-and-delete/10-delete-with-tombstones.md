@@ -1,6 +1,7 @@
 # 10 — Delete your own record (tombstones)
 
 Type: AFK
+**Status:** DONE
 
 ## What to build
 
@@ -10,11 +11,11 @@ Reference: SPEC §7.2, §7.3 steps 3 and 6, §8.1 (`tombstones`), §9.3.
 
 ## Acceptance criteria
 
-- [ ] A deleted shared record disappears on a connected peer.
-- [ ] A peer that was offline during the deletion drops the record when it re-joins and receives the tombstone.
-- [ ] A peer that still holds the record and re-joins does not bring it back on the author's device.
-- [ ] A deletion signed by a different key is ignored.
-- [ ] Unit tests: deletion authorship check; tombstone blocks an older re-insert.
+- [x] A deleted shared record disappears on a connected peer.
+- [x] A peer that was offline during the deletion drops the record when it re-joins and receives the tombstone.
+- [x] A peer that still holds the record and re-joins does not bring it back on the author's device.
+- [x] A deletion signed by a different key is ignored.
+- [x] Unit tests: deletion authorship check; tombstone blocks an older re-insert.
 
 ## Blocked by
 
