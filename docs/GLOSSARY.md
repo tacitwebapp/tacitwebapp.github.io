@@ -92,6 +92,52 @@ _Avoid_: Remove, retract
 The remembered fact that an author deleted a record, so the record is not brought back by a later sync.
 _Avoid_: Deletion marker
 
+## Insights
+
+**Insight**:
+A signed claim by one author that two records in the same subject are related, with a relation type and a rationale. It is local or shared like a record, and only its author can edit or delete it.
+_Avoid_: Link (except for the act of creating one), relationship, edge (outside the map), connection
+
+**Relation type**:
+The kind of relation an insight states. One of seven: conflicts, supersedes, reinforces, refines, duplicates, alternative to, prerequisite of. Some are directed (A supersedes B), some are symmetric (A conflicts with B).
+_Avoid_: Link type, category, label
+
+**Rationale**:
+The insight's stated reason for the relation, in at most 500 characters.
+_Avoid_: Explanation, evidence, note
+
+**Short ID**:
+A record's short handle, `t:` plus the first 8 hex characters of the uuid in its `d` tag. Stable across edits. Used in the insight prompt, the insight JSON and the interface, never stored in an insight.
+_Avoid_: Alias, record number, reference
+
+**Insight prompt**:
+The instruction text a user copies into an outside LLM to find relations between selected records. A large selection is split into several insight prompts so that every pair of records appears in at least one.
+_Avoid_: Relation prompt, link prompt
+
+**Prompt limit**:
+The largest number of records one insight prompt may contain.
+_Avoid_: Batch size, cap
+
+**Insight draft**:
+An imported or LLM-proposed insight that has not been signed yet and waits in the Insights tab.
+_Avoid_: Pending link, suggestion
+
+**Disagreement**:
+An imported row that names a pair the user has already linked or drafted, but with a different relation or direction. It is listed after the import with an Accept button and creates nothing on its own.
+_Avoid_: Conflict (that is a relation type), clash
+
+**Visible insight**:
+An insight in the library whose two records are both in the library. Only visible insights are shown.
+_Avoid_: Active insight, valid insight
+
+**Superseded record**:
+A record that a visible insight says is superseded by another record. Shown faded in the Feed and on the map.
+_Avoid_: Outdated record, obsolete record
+
+**Tacit Map**:
+A radial picture of one subject: the subject in the centre, its specialties around it, its records on the outer ring, and visible insights as edges between records.
+_Avoid_: Graph, mind map (outside casual use), network view
+
 ## Identity and trust
 
 **Identity**:

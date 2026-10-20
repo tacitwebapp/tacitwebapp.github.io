@@ -17,5 +17,8 @@ Each slice is a vertical, independently testable increment. Every slice folder h
 | [11 e2e verification](slice-11-e2e-verification/) | 17 | 01-10 |
 | [12 interface redesign](slice-12-ui-redesign/) | 18-28 (parent spec 00) | 01-10 |
 | [13 specialty](slice-13-specialty/) | 29 | 01 |
+| [14 manual insights](slice-14-manual-insights/) | 30, 31, 34, 35, 36, 39 (parent spec 00) | 04, 07, 08, 12, 13 |
+| [15 insight prompt](slice-15-insight-prompt/) | 32, 33, 40 | 14 |
+| [16 tacit map](slice-16-tacit-map/) | 37, 38 | 14 |
 
 Unscheduled work: [backlog](backlog/).

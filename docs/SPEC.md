@@ -10,7 +10,8 @@ Tacit is a static, serverless browser app (GitHub Pages). A user:
 1. builds an **extraction prompt** for an **input type** and **subject**, and runs it in an outside LLM;
 2. **imports** the LLM output (JSON/CSV, as a file or pasted text) as **drafts**;
 3. reviews each draft, then either keeps it as a **local record** or publishes it as a **shared record**;
-4. exchanges shared records peer-to-peer with everyone who subscribes to the same **subject room**.
+4. exchanges shared records peer-to-peer with everyone who subscribes to the same **subject room**;
+5. relates records in a subject with **insights** (conflicts, supersedes and so on), either by hand or through an **insight prompt** run in an outside LLM, and sees them on the **Tacit Map** (§6.4, §7.6, §10.9, §10.10).
 
 Every record that is kept is a **signed record**: a Nostr event signed by the author's **identity**. A **peer** that **relays** a record cannot change it without breaking the signature. Incoming records from **trusted authors** go straight into the library; records from **unknown authors** go through the **review queue**.
 
@@ -28,7 +29,8 @@ The personal-vault use and the community-exchange use are equally important.
 - One consistent interface that works on phones and desktops, in light and dark, and can be used by keyboard alone (§10).
 
 ### Non-goals
-- Calling an LLM from inside the app. Extraction stays copy-paste.
+- Calling an LLM from inside the app, or running any model in the browser. Extraction and insight finding stay copy-paste.
+- Insights between records of different subjects.
 - Encrypting record contents. Shared means readable by every peer in the room.
 - Migrating data from the current app version (see §11).
 - Moderation beyond per-user trust and block lists.
@@ -69,6 +71,8 @@ Plain ES modules, no bundler. `index.html` loads `tacit-main.js` as `type="modul
 | `tacit-sync.js` | Trystero subject rooms and directory room | – |
 | `tacit-backup.js` | Backup export and import | builder and parser pure |
 | `tacit-ui.js` | Interface helpers: author avatar, keyboard shortcut resolver, toast queue, theme resolver (§10.4–10.6, §10.1) | yes |
+| `tacit-insight.js` | Insights: short IDs, insight prompt batches, JSON rows to insight drafts and disagreements, insight templates, visibility, grouping, feed badges, cascade on delete (§6.4, §7.6) | yes |
+| `tacit-map.js` | Tacit Map layout: positions and the Cytoscape element list for one subject (§10.10). Drawing is done by Cytoscape in `tacit-app.js` | yes |
 | `vendor/` | Pinned third-party builds, the bundled font, plus `VERSIONS.md` | – |
 | `tests/*.test.js` | Unit tests | – |
 
@@ -81,6 +85,7 @@ Plain ES modules, no bundler. `index.html` loads `tacit-main.js` as `type="modul
 | Alpine.js 3.x (exact patch) | UI reactivity | ESM build (`module.esm.js`) |
 | Trystero 0.26.0, nostr strategy | WebRTC P2P with Nostr relays for connection setup | Self-contained single-file ESM bundle (e.g. esm.sh `?bundle` output) |
 | nostr-tools 2.x (exact) | `finalizeEvent`, `verifyEvent`, `getPublicKey`, `generateSecretKey`, `nip19` | Self-contained ESM bundle |
+| Cytoscape.js 3.x (exact) | Draws the Tacit Map: nodes, edges, pan, zoom, touch | ESM build. Used with the `preset` layout only; positions come from `tacit-map.js`, so the drawing layer can be replaced without changing the layout. |
 | DM Sans (variable, Latin subset, WOFF2) | Typeface | Committed in `vendor/` and loaded with `@font-face` from the same origin (`font-display: swap`, system font fallback). SIL Open Font License; the licence text is committed next to the file. |
 
 Tailwind CSS 3.4.17 stays, as a dev-time tool only. `tailwindcss` is a pinned dev dependency, `npm run build:css` compiles `tacit.src.css` with `tailwind.config.js` into the committed `vendor/tailwind.css`, and `VERSIONS.md` records that command. There is no CSS build on deploy or at runtime.
@@ -148,6 +153,65 @@ signer = {
   "...": "other fields kept as they are"
 }
 ```
+
+### 6.4 Insights tab
+
+An **insight** relates two records of the same subject (§7.6). Insights are made in the Insights tab, by hand or through an **insight prompt** run in an outside LLM.
+
+**Selecting records**
+- A subject must be selected. The record list holds every library record of that subject, from any author and with either visibility. It is searched and filtered with the Feed rules (`filterFeed`: author group, visibility, text).
+- Each record shows its **short ID** (`t:` + the first 8 hex characters of the uuid in its `d` tag), a preview of its information chunk, and a checkbox. **Select all** selects the records the filters currently show. At least 2 records must be selected to build a prompt.
+
+**Insight prompt**
+- Each record in a prompt is one block. It holds the short ID, the date (`created_at` as `YYYY-MM-DD`), the specialty if set, the information chunk and the actionable workflow if set. The author is never included.
+  ```
+  [t:3f9a1c2e] 2026-03-14 · Specialty: Kitchen Garden
+  Information: <information_chunks>
+  Workflow: <actionable_workflows>
+  ```
+- The prompt defines the seven relation types and their directions (§7.6), asks only for pairs with a clear relation, and asks for `[]` when there are none.
+- **Skip list**: pairs among the prompt's records that the user (current key) has already linked, as an insight or an insight draft, are listed as `Already linked, do not output: t:aaa–t:bbb, …`. Pairs only, no relation types. Other authors' insights are never included.
+- **Prompt limit** *k*: `settings.insightPromptLimit`, set next to the counter in the tab. Default 30, minimum 4, maximum 200, even numbers only.
+- **Batches**: if the selection *N* ≤ *k*, there is one prompt. Otherwise the records are sorted by specialty, then by `created_at`, and split into *m* = ⌈2*N*/*k*⌉ groups of at most *k*/2. There is one prompt for each pair of groups, *m*(*m*−1)/2 prompts in total, so every pair of selected records appears in at least one prompt. The tab shows "N records → P prompts" before anything is copied.
+- Prompts are listed as cards ("Prompt 2 of 6 · groups 1+3") with a **Copy** button and a copied tick for the session.
+
+**Insight JSON** (what the LLM returns)
+
+```json
+[
+  {
+    "from": "t:3f9a1c2e",
+    "to": "t:7b20aa91",
+    "relation": "supersedes",
+    "rationale": "Both treat Parijat pests; t:3f9a1c2e replaces the chemical-first approach with manual removal and a 5-day recovery wait."
+  }
+]
+```
+
+- A directed relation reads "`from` *relation* `to`". For a symmetric relation the order does not matter.
+
+**Import** (file or paste, JSON only, one at a time)
+- Each short ID is resolved against the whole library. A row is **rejected**, with its reason in the import summary, when: an ID matches no record or more than one record; `from` and `to` are the same record; the two records are in different subjects; `relation` is not one of the seven types; `rationale` is missing or empty.
+- A rationale longer than 500 characters is cut to 500 and the draft carries the warning `rationale shortened`.
+- A `supersedes` row whose `from` record is older than its `to` record carries the warning `supersedes a newer record`.
+- **Import never changes an existing insight.** A row for a pair the user (current key) has already linked or drafted is not turned into a draft:
+  - same relation and direction → counted as a **duplicate**;
+  - different relation or direction → listed as a **disagreement**: the pair, the existing relation and the proposed relation and rationale. Each disagreement has an **Accept** button. On an insight draft, Accept replaces the draft's relation, direction and rationale. On a signed insight, Accept signs an edit (same `d`, same visibility) and sends it if the insight is shared.
+- Every other row becomes an **insight draft**, stored in `pending` (§8.1). Within one import, the first row for a pair wins and later rows for the same pair are treated as above.
+- The summary reads "N drafts, M disagreements, K rejected, J duplicates", with reasons. The disagreement list stays until the next import or until the tab is left.
+
+**Insight drafts**
+- Listed in the Insights tab, not in Import & Review. Each card shows the relation, its direction, both records (short ID and preview) and the rationale. The relation, direction and rationale can be edited before signing.
+- Actions: **Store**, **Share**, **Discard**, and **Store all**, **Share all**, **Discard all**. Share is not possible when either record is a `local` record (§7.6). Share all skips those drafts and reports how many it skipped.
+
+**Manual linking**
+- A form in the Insights tab: record A (searchable within the subject), relation type, record B, rationale (optional), then Store or Share.
+- A **Link…** action in the record detail (§10.3), where the open record is A.
+- A manual link to a pair the user has already linked opens that insight for editing instead of creating a new one.
+
+**Insight list**
+- Lists the subject's **visible insights** (§7.6), grouped by pair and relation type with a count ("conflicts ×2"). Expanding a group lists each insight with its author and rationale. Filters: relation type, author group.
+- Each insight has the actions of §7.6: Edit and Delete for the user's own (current key), Hide for others, Share for the user's own local insights.
 
 ## 7. Signed records and merge rules
 
@@ -229,14 +293,75 @@ There is no change from shared back to local. Delete is how an author withdraws 
 - **Block**: all library and pending records by the author are removed, and future events from them are dropped (§7.3 step 2).
 - The Identity tab lists, renames and removes entries.
 
+### 7.6 Insights
+
+**Relation types**
+
+| Type | Direction | Meaning |
+|---|---|---|
+| `conflicts` | A ↔ B | Same situation, incompatible advice or outcome |
+| `supersedes` | A → B | A replaces B's way of doing it; B is outdated |
+| `reinforces` | A → B | A adds evidence or experience backing B |
+| `refines` | A → B | A is a narrower or more precise version of B; both still hold |
+| `duplicates` | A ↔ B | Same knowledge, said differently |
+| `alternative_to` | A ↔ B | Different approach to the same goal; both hold |
+| `prerequisite_of` | A → B | Do A before B |
+
+No other type is accepted, from the JSON, the form or a peer.
+
+**Insight event**
+
+```js
+{
+  kind: 30078,
+  created_at: <unix seconds>,
+  tags: [
+    ['d', 'tacit-link-<uuidA>-<uuidB>'],   // the two records' d uuids, sorted
+    ['subject', '<subject label>'],
+    ['author_name', '<name>'],             // optional, as §7.1
+  ],
+  content: JSON.stringify({
+    schemaVersion: 1,
+    type: 'insight',
+    relation: 'supersedes',
+    from: '<pubkey:d>',                    // full record keys, never short IDs
+    to: '<pubkey:d>',
+    rationale: '…',                        // required from the JSON, optional when linked by hand
+    source: 'llm' | 'manual',
+  }),
+}
+```
+
+- **One insight per author per pair.** The `d` is built from the two records' uuids in sorted order, so an author's second insight on the same pair is an edit of the first. For a symmetric relation, `from` and `to` are stored in the same sorted order.
+- An insight is a record event as far as sync is concerned. It goes through §7.2–§7.5 unchanged: the receive pipeline, the review queue and its 50-per-author cap, trust, block, hide, edit, delete and tombstones. Only its author can edit or delete it; anyone else can hide it, or state their own insight on the same pair.
+- The content is not checked on receive (§7.3). An insight whose content is not a valid insight (unknown type, missing keys, `from` equal to `to`) is kept but never shown.
+
+**Rules**
+- **Same subject only.** Both records must have the same subject slug, and the insight takes that subject. It is routed to that subject room.
+- **Shared needs shared.** An insight can be shared only when both of its records are `shared` in the user's library. Otherwise it can only be stored as local, and Share says "Share record t:xxxx first".
+- **Visible insight.** An insight is shown (Insights list, record detail, Feed badges, map) only when both of its records are in the library. Otherwise it is kept and relayed as usual, and appears without any action once both records are there. This covers records not yet received, records waiting in review, hidden records, deleted records and blocked authors.
+- **Cascade on delete.** Deleting one of the user's records also deletes the user's own insights (current key) that point at it, with one deletion event per insight, sent if the insight was shared, and removes the user's insight drafts that point at it. The delete confirmation says "This also deletes N of your insights". Editing a record does not touch insights.
+- **Previous keys.** Insights signed by a previous key are read-only, like records. They do not count as "already linked" for the skip list or for import duplicates.
+
+**Local actions on insights**
+
+| Action | Applies to | Effect |
+|---|---|---|
+| Store / Share / Discard | Insight draft | As for drafts in §7.4, with the "shared needs shared" rule |
+| Accept / Discard, Accept all / Discard all | Unknown author's insight in the review queue | As for incoming records in §7.4 |
+| Share | Own local insight | Becomes `shared` → send to *R*, if both records are shared |
+| Edit | Own insight (current key) | Change relation, direction or rationale; re-sign with the same `d` |
+| Delete | Own insight (current key) | As §7.4 Delete |
+| Hide | Another author's insight | As §7.4 Hide |
+
 ## 8. Storage
 
 ### 8.1 IndexedDB `tacit`, version 1
 
 | Store | keyPath | Indexes | Value |
 |---|---|---|---|
-| `library` | `key` | `subjectSlug`, `pubkey`, `visibility` | `{ key, event, visibility, subjectSlug, receivedFrom?, receivedAt }` |
-| `pending` | `id` | `pubkey`, `kind` (`draft` / `incoming`) | Drafts: `{ id, kind:'draft', content, warnings[], createdAt }`. Incoming: `{ id: key, kind:'incoming', event, pubkey, receivedFrom, receivedAt }` |
+| `library` | `key` | `subjectSlug`, `pubkey`, `visibility` | `{ key, event, visibility, subjectSlug, receivedFrom?, receivedAt }`. Holds records and insights; an insight's content has `type: 'insight'` |
+| `pending` | `id` | `pubkey`, `kind` (`draft` / `incoming` / `insight-draft`) | Drafts: `{ id, kind:'draft', content, warnings[], createdAt }`. Incoming records and insights: `{ id: key, kind:'incoming', event, pubkey, receivedFrom, receivedAt }`. Insight drafts: `{ id, kind:'insight-draft', content, warnings[], createdAt }` with `content` as in §7.6 |
 | `tombstones` | `key` | – | `{ key, created_at, event }` |
 | `trust` | `pubkey` | `status` | `{ pubkey, status, nickname?, authorName? }` |
 | `hidden` | `key` | – | `{ key, hiddenAt }` |
@@ -247,10 +372,12 @@ There is no change from shared back to local. Delete is how an author withdraws 
 |---|---|
 | `tacit.secretKey` | Hex private key (local signer only) |
 | `tacit.previousKeys` | `string[]` of public keys |
-| `tacit.settings` | `{ signerPreference, relays: string[], subjects: Subject[] }` |
+| `tacit.settings` | `{ signerPreference, relays: string[], subjects: Subject[], insightPromptLimit? }` (default 30, §6.4) |
 | `tacit.theme` | `'light'` or `'dark'`. Absent means follow the system (§10.1) |
 
 `Subject = { label, slug, subscribed: boolean, password?: string }`. Passwords are stored in plain text, the same as the key.
+
+Everything that reads the library as records leaves insights out: the Feed, the import duplicate check (§6.2), the directory `sharedCount` (§9.4) and the record counts. Backup includes insights with the library (§11.1).
 
 ## 9. Network
 
@@ -268,13 +395,13 @@ There is no change from shared back to local. Delete is how an author withdraws 
 - Sharing to an unsubscribed subject subscribes to it, joins the room, then sends.
 
 ### 9.3 Sync action `syncTacit` (subject rooms)
-- Payload: an array of signed events (kind 30078 and kind 5).
+- Payload: an array of signed events (kind 30078 and kind 5). Insights are kind 30078 events and travel the same way.
 - When a peer joins *R*: send it every `library` record with `visibility = 'shared'` and `subjectSlug = slug(R)`, plus the tombstones for that subject.
 - When a record is shared, edited, deleted or accepted: send it to the current peers in *R*.
 - Never sent: `local` records, drafts, pending incoming records, or records from other subjects.
 
 ### 9.4 Directory action `announce`
-- Payload: `[{ label, slug, sharedCount }]` for the user's **subscribed, non-private** subjects. Unsigned, and treated as hints only.
+- Payload: `[{ label, slug, sharedCount }]` (`sharedCount` counts shared records, not insights) for the user's **subscribed, non-private** subjects. Unsigned, and treated as hints only.
 - Sent to each peer that joins the directory, and again to everyone when subscriptions change.
 - On receive: keep entries whose `label` is a string of at most 80 characters and whose `slug === slugify(label)`, at most 100 per peer. Keep them per peer id, and drop that peer's entries when it leaves.
 - Subject cache: every valid entry received is also saved locally (`tacit.subjectCache`, keyed by slug with `label`, `sharedCount`, `seenAt`), so it survives the announcing peer leaving and a reload. `seenAt` is when the subject was last announced by a peer that subscribes to it; a relayed entry carries its original `seenAt` and never refreshes it. Entries older than 7 days are dropped, and at most 200 are kept (newest first).
@@ -290,7 +417,9 @@ There is no change from shared back to local. Delete is how an author withdraws 
 |---|---|
 | **Feed** | The library. Filters: subject; author (all / mine / trusted / others); visibility (local / shared); text search over `information_chunks` and `actionable_workflows`. A row shows the subject label, a two-line preview of the information chunk, author avatar and label (nickname, the name the author shared, or short npub), verified badge, `created_at` and visibility. Tapping a row opens the record detail (§10.3), which shows the full record, warnings and the actions of §7.4. |
 | **Extract** | §6.1 |
-| **Import & Review** | Import panel (§6.2). Review queue: drafts first, then incoming records grouped by author, with bulk actions, trust/block buttons and a per-author count. Drafts can be edited before storing. |
+| **Import & Review** | Import panel (§6.2). Review queue: drafts first, then incoming records and insights grouped by author, with bulk actions, trust/block buttons and a per-author count. Drafts can be edited before storing. An incoming insight card shows the relation, its direction, the rationale and both records; a record the user does not hold shows as "t:xxxx — not in your library". |
+| **Insights** | §6.4: subject, record selection, insight prompts, insight import, insight drafts, manual link form, insight list |
+| **Tacit Map** | §10.10 |
 | **Subjects** | Subject list with a subscribe toggle, optional password, room status and peer count. Create subject. Discover list (§9.4). Sync log. |
 | **Identity** | Public key, signer source and switch, key export/import (§5), previous keys, trust and block lists, relay URLs, backup export/import (§11). |
 
@@ -308,7 +437,7 @@ The redesign changes presentation and navigation only. Data, signing, sync and s
 
 ### 10.2 Navigation and layout
 
-- Five destinations, as in the table above. On narrow screens (below 900 px) they form a tab bar fixed to the bottom of the screen, with the safe-area inset respected. From 900 px up, the same destinations appear as a navigation bar at the top.
+- Seven destinations, as in the table above, in that order. On narrow screens (below 900 px) they form a tab bar fixed to the bottom of the screen, with the safe-area inset respected. From 900 px up, the same destinations appear as a navigation bar at the top.
 - The content column is full width below 900 px and at most 75% of the window from 900 px up, centred. Forms and lists use the full width of the column.
 - Touch targets are at least 44 × 44 px.
 - The header holds the app name and the colour-scheme control. The tagline moves to the Feed's empty state (§10.7).
@@ -317,6 +446,8 @@ The redesign changes presentation and navigation only. Data, signing, sync and s
 
 - Opens from a Feed row as a sheet (a native `dialog`) with the full information chunk, the actionable workflow, author, verified badge, visibility, `created_at` and any warnings.
 - It holds the actions of §7.4 that apply to the record (Share, Edit, Delete, Hide, Trust author, Block author), keeping their current class names.
+- A **Relations** section lists the record's visible insights, grouped by relation type, each with the other record (short ID and preview), author and rationale, and the insight actions of §7.6. A **Link…** action creates an insight with this record as A (§6.4).
+- The record's short ID is shown.
 - Closes with a Close button, `Esc`, or a tap outside it. Closing returns focus to the row that opened it. Deleting or hiding closes it.
 - Record text is shown with text bindings only, never as HTML (§12).
 
@@ -341,7 +472,7 @@ The redesign changes presentation and navigation only. Data, signing, sync and s
 | Keys | Action |
 |---|---|
 | `/` | Go to Feed and focus the search field |
-| `g` then `f`, `e`, `r`, `s`, `i` | Go to Feed, Extract, Import & Review (`r`), Subjects, Identity |
+| `g` then `f`, `e`, `r`, `n`, `m`, `s`, `i` | Go to Feed, Extract, Import & Review (`r`), Insights (`n`), Tacit Map (`m`), Subjects, Identity |
 | `?` | Open the shortcut list |
 | `Esc` | Close the open sheet or list |
 
@@ -362,13 +493,32 @@ Each empty list shows a short title, one sentence on what goes here, and one but
 | Subjects | No subjects | Create subject (focuses the field) |
 | Subjects, Discover | No public subjects found | None; says peers appear when others announce public subjects |
 | Identity | No trusted or blocked authors | None; says how to trust an author from a record |
+| Insights | Subject has fewer than 2 records | Go to Extract |
+| Insights | Subject has records but no visible insights | None; points to record selection and the link form |
+| Tacit Map | Subject has no records | Go to Extract |
 
 ### 10.8 Accessibility
 
 - Text and interactive elements meet WCAG AA contrast in both schemes.
-- Every control is reachable and operable by keyboard, with a visible focus ring. The tab bar and segmented controls expose their selected state.
+- Every control is reachable and operable by keyboard, with a visible focus ring. Exception: the Tacit Map's canvas (§10.10). It is a visual aid; its content is fully available in the Insights list and the record detail Relations section, and its toolbar and legend are ordinary keyboard-operable controls. The tab bar and segmented controls expose their selected state.
 - Focus moves into the record detail when it opens and returns to its row when it closes (§10.3). The shortcut list behaves the same way.
 - Any transition respects `prefers-reduced-motion`. No decorative animation is part of this redesign.
+
+### 10.9 Insights in the Feed
+
+- A Feed row shows a **Superseded** badge when a visible insight says another record supersedes it, and the row is faded. A **Conflicts (n)** badge shows the number of distinct records it has a visible `conflicts` insight with.
+- Only visible insights in the library count: the user's own, accepted ones and those from trusted authors. Other relation types get no badge.
+- Selecting a badge opens the record detail at its Relations section.
+
+### 10.10 Tacit Map
+
+- One subject at a time, chosen in the tab. Radial layout: the subject in the centre, its specialties on an inner ring (records with no specialty go under "General"), and its records on the outer ring, grouped under their specialty. Within a specialty, records are ordered so that linked records sit next to each other. The layout is deterministic: the same library gives the same picture.
+- A record node is labelled with its short ID and the first ~40 characters of its information chunk. Superseded records are faded.
+- Visible insights are edges, grouped by pair and relation type: one edge per type, labelled with a count when more than one author states it. Each relation type has its own colour **and** line pattern; directed types have an arrowhead.
+- A legend lists the relation types and works as a filter. A **Linked only** toggle hides records without visible insights; it is on by default when the subject has more than 40 records.
+- Selecting a record node opens the record detail. Selecting an edge opens a sheet listing its insights with author, rationale and the insight actions.
+- Toolbar: Zoom in, Zoom out, Fit. With the map focused, `+`, `-` and `0` do the same.
+- Positions and the element list come from `tacit-map.js`; Cytoscape draws them with its `preset` layout. Its style is built from the colour tokens and rebuilt when the colour scheme changes.
 
 ## 11. Backup and existing data
 
@@ -406,11 +556,16 @@ Each empty list shows a short title, one sentence on what goes here, and one but
 | Shared contents are readable by anyone in the room | **By design**; private subjects limit who can join |
 | Directory reveals a user's subscribed public subjects | **By design**; private subjects are not announced |
 | Subject passwords and the local key are stored in plain text | **Accepted** for v1 |
+| A trusted author marks good records as superseded or conflicting | **Partial**: the badge opens the insight with its author and rationale; the user can hide it or block the author |
+| An insight reveals that a local record exists | **Mitigated**: an insight can be shared only when both records are shared (§7.6) |
+| Insight prompts send record text to an outside LLM | **By design**, as with extraction; the author is never included |
 
 ## 13. Testing
 
 - `package.json` (dev only, `"type": "module"`) with `npm test` → `node --test tests/`.
 - Unit tests cover: JSON/CSV parsers, paste format detection, import validation and warnings, `slugify`, prompt builder, building and verifying record and deletion events (including a tampered `content` failing `verifyEvent`), the merge decisions in §7.3 (driven by in-memory state), backup build and parse, and the interface helpers in `tacit-ui.js` (§10): avatar derivation is deterministic, in range and different for different keys; the shortcut resolver handles `/`, `g` sequences, the 1.5 s timeout, and ignores editable targets and modifier keys; the toast queue caps at three, merges duplicates and expires by time; the theme resolver maps a stored value and the system setting to the effective scheme and cycles System, Light, Dark.
+- Insights (`tacit-insight.js`): short ID derivation and resolution (no match, ambiguous match); batch split covers every pair, respects the limit and the prompt count formula; prompt contents (record blocks, no author, skip list of own pairs only); JSON rows to drafts with each rejection reason, rationale shortening, the `supersedes a newer record` warning, duplicates, disagreements and Accept; insight template with deterministic `d` and sorted symmetric pairs; visible-insight filter; grouping by pair and relation; Feed badges; cascade on delete; the "shared needs shared" check. Existing seams: `decideIncoming` treats insight events like records; `filterFeed`, `buildDrafts` and `announcementFor` leave insights out.
+- Tacit Map (`tacit-map.js`): deterministic positions, specialty grouping with "General", linked records adjacent, grouped edges with counts and classes, Linked only. Cytoscape drawing is checked by hand.
 - Visual and interaction checks for the redesign are manual, in a browser, in the slice 12 standalone test. The existing unit tests must stay green with no edits other than the selector updates in §10.1.
 - Manual checks (two browser profiles, A and B):
   1. A shares a record in subject S; B, subscribed to S, sees it in review (A is unknown to B).
@@ -446,6 +601,11 @@ Each empty list shows a short title, one sentence on what goes here, and one but
 - Grouped-list layout, tab bar and top navigation, record detail
 - Author avatars, toasts, keyboard shortcuts, guided empty states
 
+**Phase 4: insights and Tacit Map (§6.4, §7.6, §10.9, §10.10)**
+- Manual insights: insight events, Link… and Relations in record detail, Insights tab link form and insight list, incoming insights in review, cascade on delete, Feed badges
+- Insight prompt: record selection, insight prompts with batches, import, insight drafts, disagreements
+- Tacit Map with vendored Cytoscape (needs manual insights only)
+
 ## 15. Acceptance criteria
 
 - [ ] No network request goes to a third-party script or stylesheet host when the page loads.
@@ -466,6 +626,13 @@ Each empty list shows a short title, one sentence on what goes here, and one but
 - [ ] Phase 3: every action in §7.4 can be reached from the record detail, by keyboard alone.
 - [ ] Phase 3: the same public key shows the same avatar everywhere and after a reload.
 - [ ] Phase 3: each empty state in §10.7 appears on a fresh profile and its button does what it says.
+- [ ] Phase 4: an insight shared by A arrives at B; it is shown only once B holds both records, and goes through review while A is unknown to B.
+- [ ] Phase 4: an insight with a local record cannot be shared.
+- [ ] Phase 4: a selection larger than the prompt limit gives *m*(*m*−1)/2 prompts and every pair of selected records is in at least one.
+- [ ] Phase 4: importing the same JSON twice creates no new drafts; a different relation for a linked pair shows as a disagreement and Accept applies it.
+- [ ] Phase 4: deleting a record deletes the deleter's insights on it, on every peer.
+- [ ] Phase 4: a superseded record is faded in the Feed and on the map.
+- [ ] Phase 4: the Tacit Map draws the same layout after a reload, and the page still loads nothing from a third-party host.
 
 ## 16. Open items
 

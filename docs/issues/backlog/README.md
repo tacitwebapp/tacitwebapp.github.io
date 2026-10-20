@@ -86,6 +86,55 @@ From the review, judgement calls only:
 - [ ] Rename `known` / `held` / `retireKey` in `tacit-backup.js` for clarity.
 - [ ] Replace the faked `{ has: () => true }` context in `restoreBackup` with an explicit option to `decideIncoming`.
 
+## B10 — In-browser candidate-pair suggestions
+
+Type: HITL (decision)
+
+From the insights grilling: run a small sentence-embedding model (about 25 MB, self-hosted and vendored with its WASM runtime) to rank pairs by similarity, suggest `duplicates` as insight drafts above a threshold, and feed only the top pairs into insight prompts. Needs a SPEC §2 amendment (currently no model in the browser). Becomes worth it when subjects routinely hold more than about 100 records.
+
+- [ ] Decision recorded in SPEC §2.
+- [ ] If accepted: suggestions land as insight drafts, never signed automatically.
+
+## B11 — Insights across subjects
+
+Type: HITL (decision)
+
+Insights are same-subject only (SPEC §7.6). Cross-subject links need a routing rule (two rooms or two events), a "foreign record" node on the map, and must not reveal private subjects.
+
+- [ ] Decision and routing rule recorded.
+
+## B12 — Drag-to-link on the Tacit Map
+
+Type: AFK
+
+Create an insight by dragging from one record node to another, opening the link form with both records filled in. Pointer only; the form stays the keyboard path.
+
+- [ ] Works with mouse and touch.
+
+## B13 — "Hide superseded" Feed filter
+
+Type: AFK
+
+A Feed filter that leaves out superseded records (SPEC §10.9), if faded rows prove not enough.
+
+- [ ] Filter in `filterFeed` with unit test.
+
+## B14 — Keyboard navigation inside the Tacit Map
+
+Type: AFK
+
+SPEC §10.8 exempts the map canvas. Arrow keys through nodes in layout order, `[`/`]` to follow relations, Enter to open, `aria-live` announcements.
+
+- [ ] Map usable by keyboard; §10.8 exemption removed.
+
+## B15 — In-house SVG map renderer
+
+Type: HITL (decision)
+
+Replace Cytoscape with inline SVG if it proves too limiting. Only the drawing layer changes; positions already come from `tacit-map.js`.
+
+- [ ] Decision with the limitation that triggered it.
+
 ## Tracked elsewhere
 
 - Ticket 06 (slice 02): PARTIAL — no dev hook to tamper an event in transit; unsubscribed-subject share not run by hand.
