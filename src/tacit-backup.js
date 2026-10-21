@@ -14,6 +14,14 @@ export const buildBackup = ({ library, tombstones, trust, subjects }, now = new 
     subjects: subjects.map(({ label, slug, subscribed, password, needsPassword }) => ({ label, slug, subscribed: !!subscribed, private: !!(password || needsPassword) })),
 });
 
+export const DEFAULT_BACKUP_REMINDER = 'weekly';
+export const BACKUP_REMINDER_DAYS = { none: 0, daily: 1, weekly: 7, monthly: 30, yearly: 365 };
+
+export function backupDue({ backupReminder = DEFAULT_BACKUP_REMINDER, lastBackupAt = 0, backupRemindedAt = 0 }, hasData, now) {
+    const days = BACKUP_REMINDER_DAYS[backupReminder];
+    return !!days && hasData && now - Math.max(lastBackupAt, backupRemindedAt) >= days * 86400000;
+}
+
 export function parseBackup(text) {
     let backup;
     try { backup = JSON.parse(text); } catch (_) { throw new Error('This file is not a Tacit backup.'); }
