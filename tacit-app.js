@@ -82,6 +82,7 @@ export function registerTacitApp(Alpine) {
         insightFilters: { relation: '', author: '' }, expandedInsights: {}, tabLink: { insight: null, a: '', b: '', relation: 'conflicts', rationale: '' },
         tabCombo: { a: { open: false, search: '', active: 0 }, b: { open: false, search: '', active: 0 } },
         get subjectRecords() { return this.records.filter(item => item.subjectSlug === this.selectedSlug); },
+        insightsView: 'prompt', insightsViews: [{ id: 'prompt', label: 'Generate Prompt' }, { id: 'link', label: 'Link Tacits' }],
         selectedKeys: {}, insightRecordFilters: { author: '', visibility: '', search: '' }, copiedPrompts: {}, promptLimitError: '',
         insightPaste: '', insightImport: null, insightDrafts: [],
         get insightRecords() { return filterFeed(this.library, { subject: this.selectedSlug, ...this.insightRecordFilters }, { selfKeys: this.selfKeys, trustedKeys: new Set(this.trust.filter(entry => entry.status === 'trusted').map(entry => entry.pubkey)) }); },
@@ -243,7 +244,7 @@ export function registerTacitApp(Alpine) {
         },
         editTabLink(insight) {
             const { relation, from, to, rationale } = insight.content;
-            this.tabLink = { insight, a: from, b: to, relation, rationale };
+            this.insightsView = 'link'; this.tabLink = { insight, a: from, b: to, relation, rationale };
             this.$nextTick(() => document.getElementById('tab-link-form').scrollIntoView({ block: 'nearest' }));
         },
         async saveTabLink(choice) {

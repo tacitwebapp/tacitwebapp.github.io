@@ -140,6 +140,10 @@
             </div>
             <div id="insights-empty-records" x-show="subjectRecords.length < 2" class="group mt-4"><div class="empty-state"><p class="empty-title">Not enough records</p><p class="empty-text">Insights relate two records of the same subject. Extract and import more records for this subject first.</p><button data-icon="sparkles" type="button" class="btn-primary" @click="activeTab = 'extract'">Go to Extract</button></div></div>
             <template x-if="subjectRecords.length >= 2"><div>
+                <div id="insights-views" role="group" aria-label="Insights view" class="mt-4 grid grid-cols-2 gap-1 rounded-ctl bg-surface2 p-1">
+                    <template x-for="view in insightsViews" :key="view.id"><button type="button" :data-view="view.id" @click="insightsView = view.id" :aria-pressed="insightsView === view.id ? 'true' : 'false'" class="min-h-[44px] rounded-ctl px-2 text-sm font-semibold" :class="insightsView === view.id ? 'bg-surface text-accent shadow-sm' : 'text-muted'" x-text="view.label"></button></template>
+                </div>
+                <div id="insights-view-prompt" x-show="insightsView === 'prompt'">
                 <h3 class="group-title">Select records</h3>
                 <div class="group">
                     <div class="row"><label for="insight-record-search" class="field-label mb-0 w-28 shrink-0">Search</label><input id="insight-record-search" type="search" x-model="insightRecordFilters.search" placeholder="Search records" class="field"></div>
@@ -198,6 +202,8 @@
                         </article></template>
                     </div>
                 </div></template>
+                </div>
+                <div id="insights-view-link" x-show="insightsView === 'link'">
                 <h3 class="group-title">Link two records</h3>
                 <div class="lg:grid lg:grid-cols-2 lg:items-start lg:gap-4">
                 <form id="tab-link-form" class="group flex min-w-0 flex-col gap-3 overflow-visible p-4" @submit.prevent>
@@ -274,6 +280,7 @@
                             </div>
                         </article></template>
                     </div>
+                </div>
                 </div>
             </div></template>
         </section>
