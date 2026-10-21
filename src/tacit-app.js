@@ -82,6 +82,7 @@ export function registerTacitApp(Alpine) {
         get selfKeys() { return new Set([this.pubkey, ...this.previousKeys]); },
         insightFilters: { relation: '', author: '' }, expandedInsights: {}, tabLink: { insight: null, a: '', b: '', relation: 'conflicts', rationale: '' },
         tabCombo: { a: { open: false, search: '', active: 0 }, b: { open: false, search: '', active: 0 } },
+        subjectCombo: Object.fromEntries(['feed', 'extract', 'import', 'insights', 'map'].map(key => [key, { open: false, search: '', active: 0 }])),
         get subjectRecords() { return this.records.filter(item => item.subjectSlug === this.selectedSlug); },
         insightsView: 'prompt', insightsViews: [{ id: 'prompt', label: 'Generate Prompt' }, { id: 'link', label: 'Link Tacits' }],
         selectedKeys: {}, insightRecordFilters: { author: '', visibility: '', search: '' }, copiedPrompts: {}, promptLimitError: '',
@@ -241,6 +242,36 @@ export function registerTacitApp(Alpine) {
         },
         comboPick(side, item) { this.tabLink[side] = item.key; this.comboClose(side); this.tabLinkPicked(); },
         comboClear(side) { this.tabLink[side] = ''; this.comboClose(side); },
+        subjectComboSource(key) { return key === 'feed' ? [{ slug: '', label: 'All subjects' }, ...this.feedSubjects.map(([slug, label]) => ({ slug, label }))] : this.subjectOptions; },
+        subjectComboLabel(key) { const value = key === 'feed' ? this.feedFilters.subject : this.selectedSlug; return this.subjectComboSource(key).find(subject => subject.slug === value)?.label ?? ''; },
+        subjectComboOptions(key) {
+            const needle = this.subjectCombo[key].search.trim().toLowerCase();
+            const rows = this.subjectComboSource(key);
+            return needle ? rows.filter(({ slug, label }) => `${label} ${slug}`.toLowerCase().includes(needle)) : rows;
+        },
+        subjectComboOpen(key) { Object.assign(this.subjectCombo[key], { open: true, search: '', active: 0 }); },
+        subjectComboClose(key) { this.subjectCombo[key].open = false; },
+        subjectComboInput(key, value) { Object.assign(this.subjectCombo[key], { open: true, search: value, active: 0 }); },
+        subjectComboKey(key, event) {
+            const combo = this.subjectCombo[key];
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                if (!combo.open) { this.subjectComboOpen(key); return; }
+                const last = this.subjectComboOptions(key).length - 1;
+                combo.active = Math.max(0, Math.min(last, combo.active + (event.key === 'ArrowDown' ? 1 : -1)));
+                this.$nextTick(() => document.getElementById(`subject-${key}-opt-${combo.active}`)?.scrollIntoView({ block: 'nearest' }));
+            } else if (event.key === 'Enter' && combo.open) {
+                event.preventDefault();
+                const subject = this.subjectComboOptions(key)[combo.active];
+                if (subject) this.subjectComboPick(key, subject);
+            } else if (event.key === 'Escape' && combo.open) { event.preventDefault(); event.stopPropagation(); this.subjectComboClose(key); }
+            else if (event.key === 'Tab') this.subjectComboClose(key);
+        },
+        subjectComboPick(key, subject) {
+            if (key === 'feed') this.feedFilters.subject = subject.slug; else this.selectedSlug = subject.slug;
+            this.subjectComboClose(key);
+            if (key === 'insights') this.resetTabLink();
+        },
         resetTabLink() { this.tabLink = { insight: null, a: '', b: '', relation: 'conflicts', rationale: '' }; },
         swapTabLink() { [this.tabLink.a, this.tabLink.b] = [this.tabLink.b, this.tabLink.a]; },
         tabLinkPicked() {
