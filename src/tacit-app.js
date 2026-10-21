@@ -4,7 +4,7 @@ import { parseText, buildDrafts, existingRecords } from './tacit-import.js';
 import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, recordKey, cleanAuthorName, latestAuthorNames } from './tacit-events.js';
 import { createLocalSigner, createExtensionSigner, pickSource, retireKey, generateSecretKeyHex, parseSecretKey, encodeNsec, encodeNpub } from './tacit-identity.js';
 import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache } from './tacit-sync.js';
-import { filterFeed } from './tacit-feed.js';
+import { filterFeed, highlightParts } from './tacit-feed.js';
 import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit, shareBlocker, relationsOf, findOwnInsight, groupInsights, cascadeTargets, incomingInsightCard, feedBadges, isWellFormedInsight, DEFAULT_PROMPT_LIMIT, validPromptLimit, planInsightPrompts, insightPromptCards, importInsightRows, applyToDraft, updateInsightDraft } from './tacit-insight.js';
 import { rankBySimilarity, candidatesFor, LINK_TOP_N } from './tacit-similarity.js';
 import { buildBackup, parseBackup, restoreBackup, backupDue, DEFAULT_BACKUP_REMINDER } from './tacit-backup.js';
@@ -532,6 +532,7 @@ export function registerTacitApp(Alpine) {
         },
         shortIdOf,
         isInsight,
+        highlightParts(text) { return highlightParts(text, this.feedFilters.search); },
         insightCard(item) { return incomingInsightCard(item.content, this.library, this.incoming.flatMap(group => group.records)); },
         get detailRelations() { return this.detailItem ? relationsOf(this.library, this.detailItem.key) : []; },
         get feedBadgeMap() { return feedBadges(this.library); },

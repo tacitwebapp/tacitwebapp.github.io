@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { filterFeed } from '../src/tacit-feed.js';
+import { filterFeed, highlightParts } from '../src/tacit-feed.js';
 
 const rec = (key, pubkey, subjectSlug, visibility, info, action = '') => ({ key, subjectSlug, visibility, event: { pubkey }, content: { information_chunks: info, actionable_workflows: action } });
 const library = [
@@ -42,4 +42,24 @@ test('search matches either field, ignoring case and surrounding space', () => {
 
 test('a record with a missing workflow field does not break search', () => {
     assert.deepEqual(keys({ search: 'teflon' }), ['2']);
+});
+
+test('highlightParts splits text around case-insensitive matches', () => {
+    assert.deepEqual(highlightParts('Ants hate Vinegar', 'vinegar'), [
+        { text: 'Ants hate ', hit: false },
+        { text: 'Vinegar', hit: true },
+    ]);
+});
+
+test('highlightParts returns the whole text unhighlighted when search is blank', () => {
+    assert.deepEqual(highlightParts('Ants', '  '), [{ text: 'Ants', hit: false }]);
+    assert.deepEqual(highlightParts(undefined, ''), [{ text: '', hit: false }]);
+});
+
+test('highlightParts treats regex characters in the search literally', () => {
+    assert.deepEqual(highlightParts('cost (approx.) 5', '(approx.)'), [
+        { text: 'cost ', hit: false },
+        { text: '(approx.)', hit: true },
+        { text: ' 5', hit: false },
+    ]);
 });

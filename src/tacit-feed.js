@@ -1,5 +1,13 @@
 import { isInsight } from './tacit-insight.js';
 
+export function highlightParts(text, search = '') {
+    const value = String(text ?? '');
+    const needle = search.trim();
+    if (!needle) return [{ text: value, hit: false }];
+    const pattern = new RegExp(`(${needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    return value.split(pattern).map((part, index) => ({ text: part, hit: index % 2 === 1 })).filter(part => part.text !== '');
+}
+
 export function filterFeed(library, { subject = '', author = '', visibility = '', search = '' }, { selfKeys, trustedKeys }) {
     const needle = search.trim().toLowerCase();
     const authorGroup = pubkey => selfKeys.has(pubkey) ? 'mine' : trustedKeys.has(pubkey) ? 'trusted' : 'others';

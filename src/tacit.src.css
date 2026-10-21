@@ -125,6 +125,7 @@
     .empty-state { @apply flex w-full flex-col items-start gap-1 p-4; }
     .empty-title { @apply font-semibold; }
     .empty-text { @apply mb-2 text-sm text-muted; }
+    .search-hit { @apply rounded-sm; background: #fde047; color: #1c1c1e; }
 }
 
 [data-icon]::before {
