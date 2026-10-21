@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseSecretKey, encodeNsec, createLocalSigner, createExtensionSigner, pickSource, retireKey, generateSecretKeyHex } from '../src/tacit-identity.js';
+import { parseSecretKey, parsePublicKey, encodeNpub, encodeNsec, createLocalSigner, createExtensionSigner, pickSource, retireKey, generateSecretKeyHex } from '../src/tacit-identity.js';
 import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, isValidRecord, recordKey, authorNameOf, latestAuthorNames } from '../src/tacit-events.js';
 import { decideIncoming, PENDING_CAP, roomConfig, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache, SUBJECT_CACHE_TTL } from '../src/tacit-sync.js';
 import { slugify } from '../src/tacit-subject.js';
@@ -269,4 +269,14 @@ test('edit template replaces the author name tag, or drops it when none is set',
 test('latestAuthorNames takes the newest event per author; an unnamed newer event clears the name', () => {
     const at = (pubkey, created_at, name) => ({ pubkey, created_at, tags: name ? [['author_name', name]] : [] });
     assert.deepEqual(latestAuthorNames([at('a', 1, 'Old'), at('a', 2, 'New'), at('b', 1, 'Bee'), at('b', 2), at('c', 1)]), { a: 'New' });
+});
+
+test('parsePublicKey accepts hex and npub, rejects others', async () => {
+    const hex = await createLocalSigner(generateSecretKeyHex()).getPublicKey();
+    assert.equal(parsePublicKey(hex), hex);
+    assert.equal(parsePublicKey(` ${hex.toUpperCase()} `), hex);
+    assert.equal(parsePublicKey(encodeNpub(hex)), hex);
+    assert.throws(() => parsePublicKey('abc'));
+    assert.throws(() => parsePublicKey('npub1qqqq'));
+    assert.throws(() => parsePublicKey(encodeNsec(generateSecretKeyHex())));
 });

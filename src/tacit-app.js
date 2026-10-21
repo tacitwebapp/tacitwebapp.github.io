@@ -2,12 +2,13 @@ import { TacitInputTypeLabels, buildTacitPrompt } from './tacit-prompt.js';
 import { addSubject, slugify } from './tacit-subject.js';
 import { parseText, buildDrafts, existingRecords } from './tacit-import.js';
 import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, recordKey, cleanAuthorName, latestAuthorNames } from './tacit-events.js';
-import { createLocalSigner, createExtensionSigner, pickSource, retireKey, generateSecretKeyHex, parseSecretKey, encodeNsec, encodeNpub } from './tacit-identity.js';
+import { createLocalSigner, createExtensionSigner, pickSource, retireKey, generateSecretKeyHex, parseSecretKey, parsePublicKey, encodeNsec, encodeNpub } from './tacit-identity.js';
 import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache } from './tacit-sync.js';
 import { filterFeed, highlightParts } from './tacit-feed.js';
 import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit, shareBlocker, relationsOf, findOwnInsight, groupInsights, cascadeTargets, incomingInsightCard, feedBadges, isWellFormedInsight, DEFAULT_PROMPT_LIMIT, validPromptLimit, planInsightPrompts, insightPromptCards, importInsightRows, applyToDraft, updateInsightDraft } from './tacit-insight.js';
 import { rankBySimilarity, candidatesFor, LINK_TOP_N } from './tacit-similarity.js';
 import { buildBackup, parseBackup, restoreBackup, backupDue, DEFAULT_BACKUP_REMINDER } from './tacit-backup.js';
+import { parseRoute, buildRoute } from './tacit-route.js';
 import { avatarFor, nextTheme, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition } from './tacit-ui.js';
 import { buildMap, buildStyle, linkedOnlyByDefault, RELATION_STYLE } from './tacit-map.js';
 import cytoscape from '../vendor/cytoscape.esm.js';
@@ -65,7 +66,7 @@ export function registerTacitApp(Alpine) {
         activeTab: 'feed', inputTypeLabels: TacitInputTypeLabels, selectedInputType: 'txt', selectedSlug: '', specialty: '',
         settings: { relays: [], subjects: [] }, newSubject: '', subjectError: '',
         pubkey: '', previousKeys: [], signer: null, extensionAvailable: false, switchAck: false, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
-        importKeyText: '', importAck: false, identityMessage: '', backupSummary: '', theme: localStorage.getItem('tacit.theme') || '', toasts: [],
+        importKeyText: '', importAck: false, trustForm: { status: '', key: '', error: '' }, identityMessage: '', backupSummary: '', theme: localStorage.getItem('tacit.theme') || '', toasts: [],
         pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], authorNames: {}, directoryPeers: {}, subjectCache: {}, ready: false,
         feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null, linkForm: blankLink(), relations: RELATIONS,
         authorOptions: [{ value: '', label: 'All' }, { value: 'mine', label: 'Mine' }, { value: 'trusted', label: 'Trusted' }, { value: 'others', label: 'Others' }],
@@ -84,6 +85,9 @@ export function registerTacitApp(Alpine) {
         tabCombo: { a: { open: false, search: '', active: 0 }, b: { open: false, search: '', active: 0 } },
         subjectCombo: Object.fromEntries(['feed', 'extract', 'import', 'insights', 'map'].map(key => [key, { open: false, search: '', active: 0 }])),
         get subjectRecords() { return this.records.filter(item => item.subjectSlug === this.selectedSlug); },
+        importView: 'import', importViews: [{ id: 'import', label: 'Import' }, { id: 'review', label: 'Review' }],
+        get reviewCount() { return this.drafts.length + this.incoming.reduce((total, group) => total + group.records.length, 0); },
+        openReview() { this.activeTab = 'import'; this.importView = 'review'; },
         insightsView: 'prompt', insightsViews: [{ id: 'prompt', label: 'Generate Prompt' }, { id: 'link', label: 'Link Tacits' }],
         selectedKeys: {}, insightRecordFilters: { author: '', visibility: '', search: '' }, copiedPrompts: {}, promptLimitError: '',
         insightPaste: '', insightImport: null, insightDrafts: [],
@@ -310,6 +314,16 @@ export function registerTacitApp(Alpine) {
             this.selectedSlug = this.settings.subjects[0]?.slug || '';
             this.$watch('selectedSlug', () => { this.mapLinkedOnlyChoice = null; this.selectedKeys = {}; this.insightImport = null; });
             this.$watch('activeTab', tab => { if (tab !== 'insights') this.insightImport = null; });
+            const route = parseRoute(location.hash);
+            if (route) { this.activeTab = route.tab; if (route.tab === 'import') this.importView = route.view; if (route.tab === 'insights') this.insightsView = route.view; history.replaceState(null, '', buildRoute(this.activeTab, { import: this.importView, insights: this.insightsView })); }
+            this.$watch(() => buildRoute(this.activeTab, { import: this.importView, insights: this.insightsView }), hash => { if (location.hash !== hash) location.hash = hash; });
+            window.addEventListener('hashchange', () => {
+                const next = parseRoute(location.hash);
+                if (!next) return;
+                this.activeTab = next.tab;
+                if (next.tab === 'import') this.importView = next.view;
+                if (next.tab === 'insights') this.insightsView = next.view;
+            });
             await this.reload();
             try { directory = connectDirectory(this); } catch (error) { this.logSync(`Could not join directory: ${error.message}`); }
             this.settings.subjects.filter(subject => subject.subscribed).forEach(subject => this.joinSubject(subject.slug));
@@ -487,6 +501,7 @@ export function registerTacitApp(Alpine) {
                 for (const draft of result.drafts) await store.put('pending', { id: crypto.randomUUID(), kind: 'draft', content: draft.content, warnings: draft.warnings, createdAt: Date.now() });
                 this.importSummary = { created: result.drafts.length, rejected: result.rejected, skipped: result.skipped, error: '' };
                 await this.reload();
+                if (result.drafts.length) this.openReview();
             } catch (error) { this.importSummary = { created: 0, rejected: [], skipped: [], error: `Could not import: ${error.message}` }; }
         },
         async discardDraft(id) { await store.remove('pending', id); await this.reload(); },
@@ -674,6 +689,15 @@ export function registerTacitApp(Alpine) {
             await store.put('trust', { ...entry, nickname: name && name !== this.sharedName(entry.pubkey) ? name : undefined }); await this.reload();
         },
         async setStatus(entry, status) { if (status === 'blocked') await this.blockAuthor(entry.pubkey); else await this.trustAuthor(entry.pubkey); },
+        openTrustForm(status) { this.trustForm = { status, key: '', error: '' }; this.$nextTick(() => document.getElementById('trust-add-key')?.focus()); },
+        async submitTrustForm() {
+            try {
+                const pubkey = parsePublicKey(this.trustForm.key);
+                if (this.selfKeys.has(pubkey)) throw new Error('That is your own key.');
+                if (this.trustForm.status === 'blocked') await this.blockAuthor(pubkey); else await this.trustAuthor(pubkey);
+                this.trustForm = { status: '', key: '', error: '' };
+            } catch (error) { this.trustForm.error = error.message; }
+        },
         async removeTrust(pubkey) { await store.remove('trust', pubkey); await this.reload(); },
         async trustAuthor(pubkey) {
             await store.put('trust', { ...this.trust.find(entry => entry.pubkey === pubkey), pubkey, status: 'trusted', authorName: this.sharedName(pubkey) || undefined });
