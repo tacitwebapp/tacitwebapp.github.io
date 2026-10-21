@@ -11,6 +11,8 @@ Tacit knowledge is the deeply rooted "know-how," heuristics, unwritten rules of 
 
 Your task is to surface this hidden knowledge, organize it, establish relationships between different data points, and translate it into actionable workflows.
 
+**Fidelity Rule:** Extract only what the input actually says. Do not add facts, quantities, dosages, names, steps, or explanations from your own knowledge, even if you know them to be correct or the input seems incomplete. Do not correct, improve, or complete the practitioners' advice. If the input does not state something, leave it out. Synthesis may reorganize and connect what the input says, but must not add to it.
+
 ### **Step-by-Step Extraction Instructions**
 
 Please analyze the provided input strictly following these five steps:
@@ -35,6 +37,7 @@ Please analyze the provided input strictly following these five steps:
 **Step 5: Extract Actionable Workflows**
 *   Translate the tacit knowledge chunk into a concrete "Action Item" or "Workflow."
 *   Frame this as a directive or a step-by-step operational rule that a user could implement in their daily life or professional routine to improve their outcomes.
+*   Base every step on what the input states. Do not add steps, amounts, or conditions that are not in the input.
 
 ---
 
@@ -44,7 +47,7 @@ Please analyze the provided input strictly following these five steps:
 *Context:* A user asks why their Parijat plant has bugs. Another user replies, "Don't use harsh chemicals first, I always pick them off by hand, then spray a mix of Blackhawk and Poko. Wait 5 days before doing anything else to let the roots recover."
 *   **Subject:** Pest Control (Gardening)
 *   **Information Chunk:** Initial response to Parijat insect infestation should be manual removal followed by a specific chemical spray (Blackhawk + Poko), accompanied by a mandatory 5-day root recovery period.
-*   **Actionable Workflow:** Step 1: Manually remove visible insects. Step 2: Apply a foliar spray of Blackhawk (1ml) and Poko (2.5ml/liter). Step 3: Implement a strict 5-day waiting period before applying root drenching or other treatments to prevent root shock.
+*   **Actionable Workflow:** Step 1: Manually remove visible insects. Step 2: Apply a spray mix of Blackhawk and Poko. Step 3: Implement a strict 5-day waiting period before applying root drenching or other treatments to prevent root shock.
 
 **Example 2: Software Engineering Code Review**
 *Context:* A senior dev comments, "When parsing these large CSVs, I've noticed Polars chokes if you don't define the schema beforehand because it tries to infer types by scanning the whole file, which blows up memory."
@@ -70,7 +73,7 @@ Please process the provided input now based on these instructions.`;
 
 const TacitInputParsingInstructions = {
     'whatsapp-export-zip': "Extract the .txt chat file from the archive. Ignore timestamps, phone numbers, system messages, and '<Media omitted>' tags. Focus on Q&A exchanges, problem-solving threads, and advice shared between members.",
-    'youtube-link': 'Extract the video transcript or subtitles. Ignore sponsor segments, intro/outro boilerplate, and auto-generated filler words. Focus on spoken explanations, personal anecdotes, and step-by-step demonstrations of techniques.',
+    'youtube-link': 'First obtain the full transcript of the video, using any available tool (web browsing, a YouTube transcript or captions fetcher, or audio transcription). Do not rely on the title, description, or your own memory of the video. If you cannot obtain the transcript with your tools, return an empty JSON array [] and nothing else. Then ignore sponsor segments, intro/outro boilerplate, and auto-generated filler words. Focus on spoken explanations, personal anecdotes, and step-by-step demonstrations of techniques.',
     'website-link': 'Extract the primary article body or forum comments. Strip out navigation menus, footers, sidebars, and ads. Focus on author opinions, case studies, undocumented tips, and user-generated solutions in comment sections.',
     zip: 'Iterate through the readable text or document files within the archive. Ignore system files, images, or formatting metadata. Focus on extracting standard operating procedures, internal communications, and project notes.',
     txt: 'Read the raw text content. Filter out repetitive structural formatting, boilerplate headers, or logs. Focus on the core narrative, troubleshooting steps, heuristics, or direct advice provided in the text.',

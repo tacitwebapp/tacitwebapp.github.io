@@ -70,6 +70,7 @@
                 <div class="row"><button data-icon="copy" id="copy-prompt" @click="copy(dynamicPrompt, 'Prompt')" class="btn-secondary">Copy prompt</button></div>
                 <div class="row"><div class="w-full whitespace-pre-wrap break-words rounded-ctl bg-surface2 p-3 font-mono text-sm text-ink" x-text="dynamicPrompt"></div></div>
             </div>
+            <p id="youtube-transcript-hint" class="group-note" x-show="selectedInputType === 'youtube-link'">If your LLM cannot read YouTube links, get the transcript yourself: open the video, expand the description, click "Show transcript", and copy the text. Then switch Input type to "Text file (.txt)", copy the prompt again, and paste it with the transcript.</p>
         </section>
 
         <section id="tab-import" x-show="activeTab === 'import'" style="display: none;">
