@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { TacitJsonParser } from '../tacit-json-parser.js';
-import { TacitCsvParser } from '../tacit-csv-parser.js';
-import { buildTacitPrompt } from '../tacit-prompt.js';
+import { TacitJsonParser } from '../src/tacit-json-parser.js';
+import { TacitCsvParser } from '../src/tacit-csv-parser.js';
+import { buildTacitPrompt } from '../src/tacit-prompt.js';
 
 test('json parser accepts array, knowledge wrapper and single object', () => {
     assert.equal(TacitJsonParser.parse('[{"a":1},{"a":2}]').length, 2);

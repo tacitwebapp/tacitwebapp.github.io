@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createLocalSigner, generateSecretKeyHex } from '../tacit-identity.js';
-import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, recordKey } from '../tacit-events.js';
-import { buildBackup, parseBackup, restoreBackup } from '../tacit-backup.js';
+import { createLocalSigner, generateSecretKeyHex } from '../src/tacit-identity.js';
+import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, recordKey } from '../src/tacit-events.js';
+import { buildBackup, parseBackup, restoreBackup } from '../src/tacit-backup.js';
 
 const secret = generateSecretKeyHex();
 const signer = createLocalSigner(secret);

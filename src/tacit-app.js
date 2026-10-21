@@ -10,7 +10,7 @@ import { rankBySimilarity, candidatesFor, LINK_TOP_N } from './tacit-similarity.
 import { buildBackup, parseBackup, restoreBackup } from './tacit-backup.js';
 import { avatarFor, nextTheme, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition } from './tacit-ui.js';
 import { buildMap, buildStyle, linkedOnlyByDefault, RELATION_STYLE } from './tacit-map.js';
-import cytoscape from './vendor/cytoscape.esm.js';
+import cytoscape from '../vendor/cytoscape.esm.js';
 import * as store from './tacit-store.js';
 
 const rooms = {};

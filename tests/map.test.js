@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildMap, buildStyle, linkedOnlyByDefault, RELATION_STYLE } from '../tacit-map.js';
-import { groupInsights, insightD, RELATIONS } from '../tacit-insight.js';
+import { buildMap, buildStyle, linkedOnlyByDefault, RELATION_STYLE } from '../src/tacit-map.js';
+import { groupInsights, insightD, RELATIONS } from '../src/tacit-insight.js';
 
 const A = 'a'.repeat(64), B = 'b'.repeat(64);
 const uuid = n => `${String(n).padStart(8, '0')}-0000-4000-8000-000000000000`;

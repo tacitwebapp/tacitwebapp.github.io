@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { slugify, addSubject } from '../tacit-subject.js';
-import { detectFormat, parseText, buildDrafts } from '../tacit-import.js';
+import { slugify, addSubject } from '../src/tacit-subject.js';
+import { detectFormat, parseText, buildDrafts } from '../src/tacit-import.js';
 
 test('slugify collapses case, spacing and symbols', () => {
     for (const label of ['Pest Control', 'pest control', ' Pest  Control ']) assert.equal(slugify(label), 'pest-control');

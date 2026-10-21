@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { filterFeed } from '../tacit-feed.js';
+import { filterFeed } from '../src/tacit-feed.js';
 
 const rec = (key, pubkey, subjectSlug, visibility, info, action = '') => ({ key, subjectSlug, visibility, event: { pubkey }, content: { information_chunks: info, actionable_workflows: action } });
 const library = [

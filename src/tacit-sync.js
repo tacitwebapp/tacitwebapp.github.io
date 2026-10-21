@@ -1,4 +1,4 @@
-import { joinRoom } from './vendor/trystero-nostr.js';
+import { joinRoom } from '../vendor/trystero-nostr.js';
 import { slugify } from './tacit-subject.js';
 import { isInsight } from './tacit-insight.js';
 import { isValidSignature, recordKey, deletionKey, RECORD_KIND, DELETION_KIND } from './tacit-events.js';

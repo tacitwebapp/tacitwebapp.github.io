@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { shortIdOf, resolveShortId, buildInsightTemplate, buildInsightEdit, insightD, shareBlocker, visibleInsights, relationsOf, findOwnInsight, groupInsights, cascadeTargets, incomingInsightCard, feedBadges, isWellFormedInsight, RELATIONS, validPromptLimit, recordBlock, ownLinkedPairs, buildInsightPrompt, planInsightPrompts, insightPromptCards, importInsightRows, applyToDraft, updateInsightDraft } from '../tacit-insight.js';
-import { filterFeed } from '../tacit-feed.js';
-import { announcementFor, decideIncoming } from '../tacit-sync.js';
-import { buildDrafts, existingRecords } from '../tacit-import.js';
-import { recordKey } from '../tacit-events.js';
-import { createLocalSigner, generateSecretKeyHex } from '../tacit-identity.js';
+import { shortIdOf, resolveShortId, buildInsightTemplate, buildInsightEdit, insightD, shareBlocker, visibleInsights, relationsOf, findOwnInsight, groupInsights, cascadeTargets, incomingInsightCard, feedBadges, isWellFormedInsight, RELATIONS, validPromptLimit, recordBlock, ownLinkedPairs, buildInsightPrompt, planInsightPrompts, insightPromptCards, importInsightRows, applyToDraft, updateInsightDraft } from '../src/tacit-insight.js';
+import { filterFeed } from '../src/tacit-feed.js';
+import { announcementFor, decideIncoming } from '../src/tacit-sync.js';
+import { buildDrafts, existingRecords } from '../src/tacit-import.js';
+import { recordKey } from '../src/tacit-events.js';
+import { createLocalSigner, generateSecretKeyHex } from '../src/tacit-identity.js';
 
 const A ='a'.repeat(64), B = 'b'.repeat(64);
 const U1 = '3f9a1c2e-1111-4111-8111-111111111111', U2 = '7b20aa91-2222-4222-8222-222222222222', U3 = '3f9a1c2e-3333-4333-8333-333333333333';

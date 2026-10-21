@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseSecretKey, encodeNsec, createLocalSigner, createExtensionSigner, pickSource, retireKey, generateSecretKeyHex } from '../tacit-identity.js';
-import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, isValidRecord, recordKey, authorNameOf, latestAuthorNames } from '../tacit-events.js';
-import { decideIncoming, PENDING_CAP, roomConfig, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache, SUBJECT_CACHE_TTL } from '../tacit-sync.js';
-import { slugify } from '../tacit-subject.js';
+import { parseSecretKey, encodeNsec, createLocalSigner, createExtensionSigner, pickSource, retireKey, generateSecretKeyHex } from '../src/tacit-identity.js';
+import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, isValidRecord, recordKey, authorNameOf, latestAuthorNames } from '../src/tacit-events.js';
+import { decideIncoming, PENDING_CAP, roomConfig, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache, SUBJECT_CACHE_TTL } from '../src/tacit-sync.js';
+import { slugify } from '../src/tacit-subject.js';
 
 test('parseSecretKey accepts hex and nsec, rejects others', () => {
     const hex = generateSecretKeyHex();

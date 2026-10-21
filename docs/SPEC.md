@@ -42,9 +42,9 @@ The personal-vault use and the community-exchange use are equally important.
 |---|---|---|
 | Records | Unsigned JSON objects in `localStorage` | Signed Nostr events in IndexedDB |
 | Rooms | Free-text channel list, not linked to subjects | Subject = room, plus a directory room |
-| Peer join | Sends **all** saved records, including "stored locally" ones ([tacit-sync.js:15](../tacit-sync.js#L15)) | Sends only shared records for that room |
-| Share | Sends the record, then drops it from the sharer's library ([tacit-app.js:58](../tacit-app.js#L58)) | Sharer keeps it as shared |
-| Share all | Sends every record to every channel ([tacit-app.js:62](../tacit-app.js#L62)) | Removed; routing is by subject |
+| Peer join | Sends **all** saved records, including "stored locally" ones ([tacit-sync.js:15](../src/tacit-sync.js#L15)) | Sends only shared records for that room |
+| Share | Sends the record, then drops it from the sharer's library ([tacit-app.js:58](../src/tacit-app.js#L58)) | Sharer keeps it as shared |
+| Share all | Sends every record to every channel ([tacit-app.js:62](../src/tacit-app.js#L62)) | Removed; routing is by subject |
 | Duplicates | `JSON.stringify` equality (sensitive to key order) | Identified by `(pubkey, d)`, newest wins |
 | Schema | Free-form; feed falls back to `chunk`/`title`/`action_item` | `information_chunks` required |
 | Dependencies | Alpine `3.x.x`, Tailwind play CDN, Trystero via esm.sh | Pinned and vendored |
@@ -53,7 +53,7 @@ The personal-vault use and the community-exchange use are equally important.
 
 ### 4.1 Modules
 
-Plain ES modules, no bundler. `index.html` loads `tacit-main.js` as `type="module"`, which imports vendored Alpine's ESM build, registers the component, then calls `Alpine.start()`. Modules marked *pure* have no DOM, storage or network access, so `node --test` can test them.
+Plain ES modules, no bundler. `index.html` loads `src/tacit-main.js` as `type="module"`, which imports vendored Alpine's ESM build, registers the component, then calls `Alpine.start()`. All modules and `tacit.src.css` live in `src/`; the table below lists them by bare filename. Modules marked *pure* have no DOM, storage or network access, so `node --test` can test them.
 
 | File | Responsibility | Pure |
 |---|---|---|

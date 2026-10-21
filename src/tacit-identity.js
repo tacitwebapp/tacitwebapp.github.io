@@ -1,4 +1,4 @@
-import { finalizeEvent, verifyEvent, getPublicKey, generateSecretKey, nip19, hexToBytes, bytesToHex } from './vendor/nostr-tools.js';
+import { finalizeEvent, verifyEvent, getPublicKey, generateSecretKey, nip19, hexToBytes, bytesToHex } from '../vendor/nostr-tools.js';
 
 export function parseSecretKey(input) {
     const value = String(input).trim();

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rankBySimilarity, matchesQuery, candidatesFor } from '../tacit-similarity.js';
+import { rankBySimilarity, matchesQuery, candidatesFor } from '../src/tacit-similarity.js';
 
 const rec = (key, information_chunks, extra = {}) => ({ key, content: { information_chunks, ...extra } });
 const keys = ranked => ranked.map(row => row.item.key);

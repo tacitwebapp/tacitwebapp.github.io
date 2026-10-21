@@ -1,4 +1,4 @@
-import { verifyEvent } from './vendor/nostr-tools.js';
+import { verifyEvent } from '../vendor/nostr-tools.js';
 
 export const RECORD_KIND = 30078;
 export const DELETION_KIND = 5;
