@@ -7,7 +7,7 @@ import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAn
 import { filterFeed } from './tacit-feed.js';
 import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit, shareBlocker, relationsOf, findOwnInsight, groupInsights, cascadeTargets, incomingInsightCard, feedBadges, isWellFormedInsight, DEFAULT_PROMPT_LIMIT, validPromptLimit, planInsightPrompts, insightPromptCards, importInsightRows, applyToDraft, updateInsightDraft } from './tacit-insight.js';
 import { rankBySimilarity, candidatesFor, LINK_TOP_N } from './tacit-similarity.js';
-import { buildBackup, parseBackup, restoreBackup } from './tacit-backup.js';
+import { buildBackup, parseBackup, restoreBackup, backupDue, DEFAULT_BACKUP_REMINDER } from './tacit-backup.js';
 import { avatarFor, nextTheme, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition } from './tacit-ui.js';
 import { buildMap, buildStyle, linkedOnlyByDefault, RELATION_STYLE } from './tacit-map.js';
 import cytoscape from '../vendor/cytoscape.esm.js';
@@ -268,7 +268,7 @@ export function registerTacitApp(Alpine) {
             this.toast(form.insight ? 'Insight edited' : 'Insight stored');
         },
         async initApp() {
-            this.settings = { relays: [], subjects: [], ...readJson('tacit.settings', {}) };
+            this.settings = { relays: [], subjects: [], backupReminder: DEFAULT_BACKUP_REMINDER, ...readJson('tacit.settings', {}) };
             this.previousKeys = readJson('tacit.previousKeys', []);
             this.subjectCache = mergeSubjectCache(readJson('tacit.subjectCache', {}), [], Date.now());
             this.extensionAvailable = !!window.nostr;
@@ -290,6 +290,7 @@ export function registerTacitApp(Alpine) {
             this.initHelpTips();
             setInterval(() => { const live = expireToasts(this.toasts, Date.now()); if (live.length !== this.toasts.length) this.toasts = live; }, 500);
             this.ready = true;
+            if (backupDue(this.settings, this.library.length > 0, Date.now())) document.getElementById('backup-reminder').showModal();
         },
         localSecret() {
             let secret = localStorage.getItem('tacit.secretKey');
@@ -667,9 +668,11 @@ export function registerTacitApp(Alpine) {
             link.href = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
             link.download = `tacit-backup-${backup.exportedAt.slice(0, 10)}.json`;
             link.click(); URL.revokeObjectURL(link.href);
+            this.settings.lastBackupAt = Date.now(); this.saveSettings();
             this.backupSummary = `Exported ${backup.records.length} records.`;
             this.toast('Backup exported');
         },
+        backupReminderClosed() { this.settings.backupRemindedAt = Date.now(); this.saveSettings(); },
         async importBackup(event) {
             const file = event.target.files[0]; if (!file) return;
             try {

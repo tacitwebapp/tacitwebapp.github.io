@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createLocalSigner, generateSecretKeyHex } from '../src/tacit-identity.js';
 import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, recordKey } from '../src/tacit-events.js';
-import { buildBackup, parseBackup, restoreBackup } from '../src/tacit-backup.js';
+import { buildBackup, parseBackup, restoreBackup, backupDue } from '../src/tacit-backup.js';
 
 const secret = generateSecretKeyHex();
 const signer = createLocalSigner(secret);
@@ -167,4 +167,28 @@ test('a restored tombstone drops the matching pending incoming record', async ()
     const backup = buildBackup({ ...empty, tombstones: [{ key: recordKey(waiting), created_at: 150, event: tombstone }] });
     const plan = restoreBackup(backup, { ...empty, pending: [{ id: recordKey(waiting), kind: 'incoming', pubkey: waiting.pubkey, event: waiting }] });
     assert.deepEqual(plan.removeLibrary, [recordKey(waiting)]);
+});
+
+const DAY = 86400000;
+
+test('backupDue defaults to weekly and needs data', () => {
+    assert.equal(backupDue({ lastBackupAt: 0 }, true, 7 * DAY), true);
+    assert.equal(backupDue({ lastBackupAt: DAY }, true, 7 * DAY), false);
+    assert.equal(backupDue({ lastBackupAt: DAY }, true, 8 * DAY), true);
+    assert.equal(backupDue({}, false, 100 * DAY), false);
+});
+
+test('backupDue honours each frequency and None', () => {
+    const last = 1000 * DAY;
+    for (const [backupReminder, days] of [['daily', 1], ['weekly', 7], ['monthly', 30], ['yearly', 365]]) {
+        assert.equal(backupDue({ backupReminder, lastBackupAt: last }, true, last + days * DAY - 1), false, backupReminder);
+        assert.equal(backupDue({ backupReminder, lastBackupAt: last }, true, last + days * DAY), true, backupReminder);
+    }
+    assert.equal(backupDue({ backupReminder: 'none', lastBackupAt: 0 }, true, 9999 * DAY), false);
+    assert.equal(backupDue({ backupReminder: 'bogus' }, true, 9999 * DAY), false);
+});
+
+test('backupDue treats a dismissal as skipping the cycle', () => {
+    assert.equal(backupDue({ backupReminder: 'weekly', lastBackupAt: 0, backupRemindedAt: 10 * DAY }, true, 12 * DAY), false);
+    assert.equal(backupDue({ backupReminder: 'weekly', lastBackupAt: 0, backupRemindedAt: 10 * DAY }, true, 17 * DAY), true);
 });

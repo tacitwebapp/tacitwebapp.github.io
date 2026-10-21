@@ -367,6 +367,7 @@
             <div class="group">
                 <p class="row text-sm text-muted">Your records, deletions, trust list and subjects. It does not include your private key or subject passwords.</p>
                 <div class="row"><button data-icon="download" id="export-backup" @click="exportBackup" class="btn-secondary">Export backup</button></div>
+                <div class="row"><label for="backup-reminder-frequency" class="field-label mb-0 w-28 shrink-0">Remind me</label><select id="backup-reminder-frequency" x-model="settings.backupReminder" @change="saveSettings()" class="field"><option value="none">None</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></div>
                 <div class="row"><input id="import-backup" type="file" accept=".json,application/json" @change="importBackup" class="block w-full min-w-0 text-sm text-muted file:mr-4 file:min-h-[44px] file:cursor-pointer file:rounded-ctl file:border-0 file:bg-accent-soft file:px-4 file:text-sm file:font-semibold file:text-accent"></div>
                 <p id="backup-summary" class="row text-sm empty:hidden" x-text="backupSummary"></p>
             </div>
@@ -452,6 +453,16 @@
         <div class="toasts" aria-label="Notifications">
             <template x-for="t in toasts" :key="t.id"><div :role="t.failure ? 'alert' : 'status'" class="toast" :class="{ 'toast-failure': t.failure }"><span class="min-w-0 flex-1 break-words" x-text="t.text"></span><button type="button" class="toast-close" aria-label="Dismiss notification" @click="dismissToast(t.id)">&times;</button></div></template>
         </div>
+        <dialog id="backup-reminder" @close="backupReminderClosed()" aria-labelledby="backup-reminder-title" class="m-auto w-[min(92vw,420px)] rounded-card border border-line bg-surface p-0 text-ink backdrop:bg-ink/40">
+            <div class="flex flex-col gap-3 p-5">
+                <h2 id="backup-reminder-title" class="text-lg font-bold">Back up your data?</h2>
+                <p class="text-sm text-muted">Your records live only in this browser. A backup file protects them if the browser data is cleared.</p>
+                <div class="flex flex-wrap justify-end gap-2">
+                    <button type="button" class="btn-secondary" @click="$root.querySelector('#backup-reminder').close()">Not now</button>
+                    <button data-icon="download" type="button" class="btn-primary" @click="exportBackup(); $root.querySelector('#backup-reminder').close()">Yes, Take Backup Now</button>
+                </div>
+            </div>
+        </dialog>
         <dialog id="shortcut-list" @close="shortcutsClosed()" @click="$event.target === $el && $el.close()" aria-labelledby="shortcut-title" class="m-auto w-[min(92vw,420px)] rounded-card border border-line bg-surface p-0 text-ink backdrop:bg-ink/40">
             <div class="flex flex-col gap-3 p-5">
                 <h2 id="shortcut-title" class="text-lg font-bold">Keyboard shortcuts</h2>
