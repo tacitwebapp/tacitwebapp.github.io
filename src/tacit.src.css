@@ -99,6 +99,7 @@
     .page { @apply mx-auto w-full max-w-full desk:max-w-[75%] px-4 pb-28 pt-2 desk:pb-12; }
     .large-title { @apply mb-4 mt-2 text-[2rem] font-bold leading-tight tracking-tight; }
     .group { @apply overflow-hidden rounded-card border border-line bg-surface; }
+    .group:has([aria-expanded='true']) { overflow: visible; }
     .group-title { @apply mb-1.5 mt-6 px-1 text-xs font-semibold uppercase tracking-wide text-muted; }
     .group-note { @apply px-1 pt-1.5 text-xs text-muted; }
     .row { @apply flex w-full items-center gap-3 px-4 py-3 text-left; }
