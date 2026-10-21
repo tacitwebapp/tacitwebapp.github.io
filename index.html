@@ -292,17 +292,18 @@
                 <div class="row"><label for="map-subject" class="field-label mb-0 w-28 shrink-0">Subject</label><select id="map-subject" x-model="selectedSlug" class="field"><option value="">Select a subject</option><template x-for="subject in subjectOptions" :key="subject.slug"><option :value="subject.slug" x-text="subject.label"></option></template></select></div>
             </div>
             <div id="map-empty" x-show="subjectRecords.length === 0" class="group mt-4"><div class="empty-state"><p class="empty-title">No records to map</p><p class="empty-text">The map draws one subject's records and the insights between them. Extract and import records for this subject first.</p><button data-icon="sparkles" type="button" class="btn-primary" @click="activeTab = 'extract'">Go to Extract</button></div></div>
-            <div x-show="subjectRecords.length > 0" class="mt-4 flex flex-col gap-3">
+            <div id="map-panel" x-show="subjectRecords.length > 0" class="mt-4 flex flex-col gap-3" :class="mapFullscreen && 'overflow-auto bg-page p-4'">
                 <div id="map-toolbar" role="toolbar" aria-label="Map controls" class="flex flex-wrap gap-2">
                     <button data-icon="plus" type="button" id="map-zoom-in" class="btn-secondary" @click="mapZoom(1.25)">Zoom in</button>
                     <button data-icon="minus" type="button" id="map-zoom-out" class="btn-secondary" @click="mapZoom(0.8)">Zoom out</button>
                     <button data-icon="maximize" type="button" id="map-fit" class="btn-secondary" @click="mapFit()">Fit</button>
+                    <button x-show="fullscreenSupported" data-icon="maximize" type="button" id="map-fullscreen" class="btn-secondary" :aria-pressed="mapFullscreen ? 'true' : 'false'" @click="toggleMapFullscreen()" x-text="mapFullscreen ? 'Exit full screen' : 'Full screen'">Full screen</button>
                     <button type="button" id="map-linked-only" class="btn-secondary" :class="{ 'bg-accent-soft text-accent': mapLinkedOnly }" :aria-pressed="mapLinkedOnly ? 'true' : 'false'" @click="mapLinkedOnlyChoice = !mapLinkedOnly">Linked only</button>
                 </div>
                 <div id="map-legend" role="group" aria-label="Relation types" class="flex flex-wrap gap-2">
                     <template x-for="(info, name) in relations" :key="name"><button type="button" :data-relation="name" class="map-legend-item flex min-h-[44px] items-center gap-2 rounded-ctl border border-line px-3 text-sm" :class="mapRelations.includes(name) ? 'bg-surface text-ink' : 'bg-surface2 text-muted line-through'" :aria-pressed="mapRelations.includes(name) ? 'true' : 'false'" @click="toggleMapRelation(name)"><span class="inline-block w-8 border-t-[3px]" :class="relationStyle[name].swatch" aria-hidden="true"></span><span x-text="name.replace('_', ' ')"></span><span x-show="info.directed" aria-hidden="true">&rarr;</span></button></template>
                 </div>
-                <div id="map-canvas" tabindex="0" role="application" aria-label="Tacit Map. The same content is listed in the Insights tab and in each record's Relations. Plus, minus and 0 zoom and fit." @keydown="mapKey($event)" class="group h-[65vh] min-h-[360px] w-full touch-none"></div>
+                <div id="map-canvas" tabindex="0" role="application" aria-label="Tacit Map. The same content is listed in the Insights tab and in each record's Relations. Plus, minus and 0 zoom and fit." @keydown="mapKey($event)" class="group min-h-[360px] w-full touch-none" :class="mapFullscreen ? 'flex-1' : 'h-[65vh]'"></div>
             </div>
         </section>
 

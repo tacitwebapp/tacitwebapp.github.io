@@ -166,6 +166,11 @@ export function registerTacitApp(Alpine) {
             const groups = groupInsights(this.library, { subject: this.selectedSlug });
             return buildMap(this.subjectRecords, groups, { subjectLabel: this.selectedSubject?.label ?? '', relations: this.mapRelations, linkedOnly: this.mapLinkedOnly }).elements;
         },
+        mapFullscreen: false, fullscreenSupported: !!document.fullscreenEnabled,
+        toggleMapFullscreen() {
+            if (document.fullscreenElement) document.exitFullscreen();
+            else document.getElementById('map-panel')?.requestFullscreen().catch(() => this.toast('Full screen is not available', true));
+        },
         toggleMapRelation(name) { this.mapRelations = this.mapRelations.includes(name) ? this.mapRelations.filter(entry => entry !== name) : [...this.mapRelations, name]; },
         syncMap() {
             const elements = this.activeTab === 'map' && this.subjectRecords.length ? this.mapElements : null;
@@ -277,6 +282,10 @@ export function registerTacitApp(Alpine) {
             try { directory = connectDirectory(this); } catch (error) { this.logSync(`Could not join directory: ${error.message}`); }
             this.settings.subjects.filter(subject => subject.subscribed).forEach(subject => this.joinSubject(subject.slug));
             window.addEventListener('keydown', event => this.onKey(event));
+            document.addEventListener('fullscreenchange', () => {
+                this.mapFullscreen = document.fullscreenElement?.id === 'map-panel';
+                this.$nextTick(() => { cy?.resize(); cy?.fit(undefined, 30); });
+            });
             this.initHelpTips();
             setInterval(() => { const live = expireToasts(this.toasts, Date.now()); if (live.length !== this.toasts.length) this.toasts = live; }, 500);
             this.ready = true;
