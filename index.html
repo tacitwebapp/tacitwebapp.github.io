@@ -18,6 +18,7 @@
                 <template x-for="tab in mainTabs" :key="tab.id"><button :data-tab="tab.id" :data-icon="tab.icon" @click="activeTab = tab.id" :aria-current="activeTab === tab.id ? 'page' : null" class="tab" x-text="tab.label"></button></template>
             </nav>
             <div class="app-tools">
+                <button type="button" id="review-bell" class="tool relative" data-icon="bell" @click="openReview()" :aria-label="reviewCount ? `${reviewCount} pending review. Open Review.` : 'Nothing pending review'"><span id="review-bell-count" x-show="reviewCount > 0" class="absolute right-0 top-1 min-w-[18px] rounded-full bg-danger px-1 text-center text-[11px] leading-[18px] text-white" x-text="reviewCount > 99 ? '99+' : reviewCount"></span></button>
                 <button type="button" id="theme-toggle" class="tool" :data-icon="themeIcon" @click="cycleTheme()" :aria-label="`Colour scheme: ${themeLabel}. Activate to change.`" x-text="themeLabel"></button>
                 <button type="button" id="shortcuts-button" data-icon="keyboard" class="tool" @click="openShortcuts($el)" aria-haspopup="dialog" aria-label="Keyboard shortcuts"></button>
             </div>
@@ -75,6 +76,19 @@
 
         <section id="tab-import" x-show="activeTab === 'import'" style="display: none;">
             <h2 class="large-title">Import &amp; Review</h2>
+            <div id="import-views" role="group" aria-label="Import and Review view" class="mt-4 grid grid-cols-2 gap-1 rounded-ctl bg-surface2 p-1">
+                <template x-for="view in importViews" :key="view.id"><button type="button" :data-view="view.id" @click="importView = view.id" :aria-pressed="importView === view.id ? 'true' : 'false'" class="min-h-[44px] rounded-ctl px-2 text-sm font-semibold" :class="importView === view.id ? 'bg-surface text-accent shadow-sm' : 'text-muted'"><span x-text="view.label"></span><span x-show="view.id === 'review' && reviewCount > 0" class="review-chip ml-2 rounded-ctl bg-accent-soft px-2 py-0.5 text-xs text-accent" x-text="reviewCount"></span></button></template>
+            </div>
+            <div id="import-summary" x-show="importSummary" class="group mt-4 bg-accent-soft">
+                <template x-if="importSummary"><div class="row flex-col items-stretch gap-1 text-sm">
+                    <p x-show="importSummary.error" class="text-danger" x-text="importSummary.error"></p>
+                    <p x-show="!importSummary.error" x-text="`${importSummary.created} drafts created, ${importSummary.rejected.length} rejected, ${importSummary.skipped.length} duplicates skipped`"></p>
+                    <ul class="ml-5 list-disc"><template x-for="item in importSummary.rejected"><li x-text="`Row ${item.row} rejected: ${item.reason}`"></li></template><template x-for="item in importSummary.skipped"><li x-text="`Row ${item.row} skipped: ${item.reason}`"></li></template></ul>
+                </div></template>
+            </div>
+            </div>
+            <div id="import-view-review" x-show="importView === 'review'">
+            <div id="import-view-import" x-show="importView === 'import'">
             <h3 class="group-title">Subject</h3>
             <div class="group">
                 <div class="row"><label for="import-subject" class="field-label mb-0 w-28 shrink-0">Subject</label><div class="relative min-w-0 flex-1" @click.outside="subjectComboClose('import')"><input id="import-subject" type="text" role="combobox" autocomplete="off" aria-label="Subject" aria-autocomplete="list" aria-controls="subject-import-list" :aria-expanded="subjectCombo.import.open" :aria-activedescendant="subjectCombo.import.open && subjectComboOptions('import').length ? `subject-import-opt-${subjectCombo.import.active}` : null" :value="subjectCombo.import.open ? subjectCombo.import.search : subjectComboLabel('import')" placeholder="Search or select a subject" @focus="subjectComboOpen('import')" @click="!subjectCombo.import.open && subjectComboOpen('import')" @input="subjectComboInput('import', $event.target.value)" @keydown="subjectComboKey('import', $event)" class="field truncate"><ul id="subject-import-list" role="listbox" aria-label="Subject options" x-show="subjectCombo.import.open" class="absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded-ctl border border-line bg-surface font-normal shadow-lg"><template x-for="(subject, index) in subjectComboOptions('import')" :key="subject.slug"><li :id="`subject-import-opt-${index}`" role="option" :aria-selected="subject.slug === selectedSlug" class="flex cursor-pointer items-center px-3 py-2" :class="index === subjectCombo.import.active ? 'bg-accent-soft' : ''" @mousedown.prevent="subjectComboPick('import', subject)" @mousemove="subjectCombo.import.active = index" x-text="subject.label"></li></template><li x-show="subjectComboOptions('import').length === 0" class="px-3 py-2 text-muted">No subject matches.</li></ul></div></div>
@@ -86,13 +100,6 @@
                 <div class="row"><button data-icon="download" id="import-paste-button" @click="importPasted" :disabled="!selectedSubject || !pasteText.trim()" class="btn-primary">Import pasted text</button></div>
             </div>
             <p class="group-note text-warn" x-show="!selectedSubject">Select a subject to enable import.</p>
-            <div id="import-summary" x-show="importSummary" class="group mt-4 bg-accent-soft">
-                <template x-if="importSummary"><div class="row flex-col items-stretch gap-1 text-sm">
-                    <p x-show="importSummary.error" class="text-danger" x-text="importSummary.error"></p>
-                    <p x-show="!importSummary.error" x-text="`${importSummary.created} drafts created, ${importSummary.rejected.length} rejected, ${importSummary.skipped.length} duplicates skipped`"></p>
-                    <ul class="ml-5 list-disc"><template x-for="item in importSummary.rejected"><li x-text="`Row ${item.row} rejected: ${item.reason}`"></li></template><template x-for="item in importSummary.skipped"><li x-text="`Row ${item.row} skipped: ${item.reason}`"></li></template></ul>
-                </div></template>
-            </div>
             <h3 class="group-title">Review queue</h3>
             <div x-show="drafts.length === 0 && incoming.length === 0" class="group"><div class="empty-state"><p class="empty-title">Nothing to review</p><p class="empty-text">Imported drafts and records from other authors show up here. Use the import panel above to add some.</p></div></div>
             <div class="group" x-show="drafts.length > 0">
@@ -131,6 +138,7 @@
                     </article></template>
                 </div>
             </div></template>
+            </div>
         </section>
 
         <section id="tab-insights" x-show="activeTab === 'insights'" style="display: none;">
@@ -333,8 +341,8 @@
             <div class="group">
                 <div class="row text-sm"><span class="avatar" aria-hidden="true" :style="avatarStyle(pubkey)" :class="{ 'avatar-neutral': avatarOf(pubkey).neutral }" x-text="avatarOf(pubkey).initial"></span><span class="text-muted">Signer</span><strong id="signer-source" class="ml-auto" x-text="signerLabel"></strong></div>
                 <div class="row"><label for="author-name" class="field-label mb-0 w-28 shrink-0">Name</label><input id="author-name" type="text" maxlength="40" :value="settings.authorName || ''" @change="setAuthorName($event.target)" placeholder="Optional, shared with your records" class="field"><button type="button" class="help" aria-label="About your name" data-tip="Optional. Sent with each record you share from now on, so others can see it next to your key. Records you already shared keep their old name until you edit them. Leave empty to send no name.">?</button></div>
-                <div class="row flex-col items-start gap-1 text-sm"><span class="text-muted">Public key</span><span id="npub" class="w-full break-all font-mono text-xs" x-text="npub"></span></div>
-                <div class="row flex-col items-start gap-1 text-sm"><span class="text-muted">Hex</span><span class="w-full break-all font-mono text-xs"><span id="pubkey-hex" x-text="pubkey.slice(0, 12)"></span>…</span></div>
+                <div class="row flex-col items-start gap-1 text-sm"><span class="flex items-center gap-1.5"><span class="text-muted">Public key</span><button type="button" class="help" aria-label="About your public key" data-tip="Your public identity in npub form. Share it freely: others use it to recognise records you signed and to add you to their trust list. It is derived from your private key, and it cannot be used to sign as you or to work out the private key.">?</button></span><span id="npub" class="w-full break-all font-mono text-xs" x-text="npub"></span></div>
+                <div class="row flex-col items-start gap-1 text-sm"><span class="flex items-center gap-1.5"><span class="text-muted">Hex</span><button type="button" class="help" aria-label="About the hex key" data-tip="The same public key as the npub above, written as raw hex, which is the form used inside records and signatures. Only the first 12 characters are shown here, which is enough to tell identities apart at a glance. Use the npub when you need the full key.">?</button></span><span class="w-full break-all font-mono text-xs"><span id="pubkey-hex" x-text="pubkey.slice(0, 12)"></span>…</span></div>
             </div>
 
             <h3 class="group-title">Export private key</h3>
@@ -373,8 +381,9 @@
                 <p id="backup-summary" class="row text-sm empty:hidden" x-text="backupSummary"></p>
             </div>
 
-            <h3 class="group-title">Trusted and blocked authors</h3>
+            <div class="mb-1.5 mt-6 flex flex-wrap items-center justify-between gap-2"><h3 class="group-title m-0">Trusted and blocked authors</h3><span class="flex gap-2"><button data-icon="shield-check" id="trust-add" type="button" class="btn-secondary" @click="openTrustForm('trusted')">Trust</button><button data-icon="ban" id="block-add" type="button" class="btn-danger" @click="openTrustForm('blocked')">Block</button></span></div>
             <div id="trust-list" class="group">
+                <form x-show="trustForm.status" @submit.prevent="submitTrustForm()" class="row flex-wrap"><input id="trust-add-key" type="text" x-model="trustForm.key" :placeholder="trustForm.status === 'blocked' ? 'Public key to block (hex or npub1...)' : 'Public key to trust (hex or npub1...)'" :aria-label="trustForm.status === 'blocked' ? 'Public key to block' : 'Public key to trust'" class="field min-w-0 flex-1 font-mono" @keydown.escape="trustForm.status = ''"><button type="submit" class="btn-secondary" x-text="trustForm.status === 'blocked' ? 'Block author' : 'Trust author'"></button><button type="button" class="btn-secondary" @click="trustForm.status = ''">Cancel</button><p x-show="trustForm.error" class="w-full text-sm text-danger" x-text="trustForm.error"></p></form>
                 <template x-for="entry in trust" :key="entry.pubkey"><div class="trust-row row flex-wrap justify-between"><span class="flex min-w-0 items-center gap-2"><span class="avatar" aria-hidden="true" :style="avatarStyle(entry.pubkey)" :class="{ 'avatar-neutral': avatarOf(entry.pubkey).neutral }" x-text="avatarOf(entry.pubkey).initial"></span><span class="min-w-0 break-all font-mono text-xs" x-text="shortKey(entry.pubkey)"></span></span><span class="flex min-w-0 flex-wrap items-center gap-2"><input type="text" class="trust-nickname field w-40 max-w-full" placeholder="Nickname" aria-label="Nickname" :value="entry.nickname || sharedName(entry.pubkey)" @change="setNickname(entry, $event.target.value)"><select class="trust-status field w-auto" aria-label="Status" :value="entry.status" @change="setStatus(entry, $event.target.value)"><option value="trusted">Trusted</option><option value="blocked">Blocked</option></select><button data-icon="x" class="trust-remove btn-danger" @click="removeTrust(entry.pubkey)">Remove</button></span></div></template>
                 <div x-show="trust.length === 0" class="row"><div class="empty-state"><p class="empty-title">No trusted or blocked authors</p><p class="empty-text">Open a record in the Feed and choose Trust author or Block author.</p></div></div>
             </div>
