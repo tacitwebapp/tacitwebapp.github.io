@@ -20,5 +20,6 @@ Each slice is a vertical, independently testable increment. Every slice folder h
 | [14 manual insights](slice-14-manual-insights/) | 30, 31, 34, 35, 36, 39 (parent spec 00) | 04, 07, 08, 12, 13 |
 | [15 insight prompt](slice-15-insight-prompt/) | 32, 33, 40 | 14 |
 | [16 tacit map](slice-16-tacit-map/) | 37, 38 | 14 |
+| [17 progressive web app](slice-17-pwa/) | 41-50 | 09, 12 |
 
 Unscheduled work: [backlog](backlog/).

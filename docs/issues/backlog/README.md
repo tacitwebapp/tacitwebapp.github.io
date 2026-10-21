@@ -135,6 +135,22 @@ Replace Cytoscape with inline SVG if it proves too limiting. Only the drawing la
 
 - [ ] Decision with the limitation that triggered it.
 
+## B16 — Web Share Target for Extract
+
+Type: HITL (decision)
+
+After slice 17, register Tacit as a share target (`share_target` in the manifest) so a WhatsApp export or a link shared from another app lands on Extract with the subject picker. File sharing needs a POST handled by the service worker and works on Android Chrome only; iOS has no Web Share Target. Decide if the Android-only gain is worth a SW route that handles user files.
+
+- [ ] Decision recorded in SPEC §16.
+
+## B17 — Manifest shortcuts
+
+Type: AFK
+
+`shortcuts` in the manifest for Extract and Import & Review (long-press the app icon). Needs hash routes or a query parameter that opens a tab; the app has neither today.
+
+- [ ] Tab opens from a `?tab=` parameter and from the shortcut.
+
 ## Tracked elsewhere
 
 - Ticket 06 (slice 02): PARTIAL — no dev hook to tamper an event in transit; unsubscribed-subject share not run by hand.
