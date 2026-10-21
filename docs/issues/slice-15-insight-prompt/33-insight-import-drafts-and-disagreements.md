@@ -1,7 +1,7 @@
 # 33 — Insight import, insight drafts and disagreements
 
 Type: AFK
-**Status:** TODO
+**Status:** DONE
 **Label:** ready-for-agent
 
 ## Parent
@@ -19,12 +19,12 @@ Other rows become insight drafts in `pending` (`kind: 'insight-draft'`, `source:
 ## Acceptance criteria
 
 - [ ] Summary reads "N drafts, M disagreements, K rejected, J duplicates" with reasons.
-- [ ] Importing the same JSON twice creates no new drafts.
+- [x] Importing the same JSON twice creates no new drafts.
 - [ ] A different relation for a linked pair is a disagreement; Accept applies it to a draft and to a signed insight (edit keeps `d`; shared edit is sent).
 - [ ] Drafts survive a reload and can be edited before signing.
 - [ ] Store all, Share all and Discard all work; Share all skips drafts with a local record and says how many.
-- [ ] Unit tests: every rejection reason, shortening, supersedes warning, duplicate versus disagreement, first-row-wins, Accept on draft and on signed insight.
-- [ ] `npm test` passes.
+- [x] Unit tests: every rejection reason, shortening, supersedes warning, duplicate versus disagreement, first-row-wins, Accept on draft and on signed insight.
+- [x] `npm test` passes.
 
 ## Blocked by
 

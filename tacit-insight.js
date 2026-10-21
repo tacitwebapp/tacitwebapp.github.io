@@ -104,3 +104,122 @@ export function incomingInsightCard(content, library, pending) {
     const end = key => ({ shortId: shortIdOf(key), preview: previewOf(key) });
     return { label: RELATIONS[content.relation]?.label ?? content.relation, directed: !!RELATIONS[content.relation]?.directed, rationale: content.rationale ?? '', from: end(content.from), to: end(content.to) };
 }
+
+export const DEFAULT_PROMPT_LIMIT = 30;
+export const validPromptLimit = value => Number.isInteger(value) && value >= 4 && value <= 200 && value % 2 === 0;
+
+const RELATION_MEANING = {
+    conflicts: 'same situation, incompatible advice or outcome',
+    supersedes: 'from replaces to\'s way of doing it; to is outdated',
+    reinforces: 'from adds evidence or experience backing to',
+    refines: 'from is a narrower or more precise version of to; both still hold',
+    duplicates: 'same knowledge, said differently',
+    alternative_to: 'different approach to the same goal; both hold',
+    prerequisite_of: 'do from before to',
+};
+
+const isoDate = seconds => new Date(seconds * 1000).toISOString().slice(0, 10);
+
+export const recordBlock = item => [
+    `[${shortIdOf(item.key)}] ${isoDate(item.event.created_at)}${item.content.specialty ? ` · Specialty: ${item.content.specialty}` : ''}`,
+    `Information: ${item.content.information_chunks ?? ''}`,
+    ...(item.content.actionable_workflows ? [`Workflow: ${item.content.actionable_workflows}`] : []),
+].join('\n');
+
+const pairId = (a, b) => [a, b].sort().join('|');
+
+export function ownLinkedPairs(library, drafts, pubkey) {
+    const insights = library.filter(item => item.event.pubkey === pubkey && isWellFormedInsight(item.content, item.key)).map(item => item.content);
+    const own = drafts.filter(draft => draft.kind === 'insight-draft').map(draft => draft.content);
+    return [...new Set([...insights, ...own].map(content => pairId(content.from, content.to)))].map(id => id.split('|'));
+}
+
+export function buildInsightPrompt(records, linkedPairs = []) {
+    const keys = new Set(records.map(item => item.key));
+    const skip = linkedPairs.filter(([a, b]) => keys.has(a) && keys.has(b))
+        .map(([a, b]) => [shortIdOf(a), shortIdOf(b)].sort().join('–')).sort();
+    const relations = Object.entries(RELATIONS).map(([name, info]) => `- ${name} (${info.directed ? 'from → to' : 'symmetric, order does not matter'}): ${RELATION_MEANING[name]}`);
+    return [
+        'You relate pieces of knowledge. Below are records about one subject. Find pairs of records with a clear relation.',
+        '',
+        'Relation types:',
+        ...relations,
+        '',
+        'Rules:',
+        '- Output only pairs with a clear relation. Skip weak or speculative ones.',
+        '- Use only the seven relation types above.',
+        '- If there are no clear relations, output [].',
+        '- Give a short rationale for every pair that names what differs or agrees.',
+        ...(skip.length ? [`- Already linked, do not output: ${skip.join(', ')}`] : []),
+        '',
+        'Return only a JSON array, with no other text, in this format:',
+        '[{"from": "t:3f9a1c2e", "to": "t:7b20aa91", "relation": "supersedes", "rationale": "Why they are related."}]',
+        '',
+        'Records:',
+        '',
+        records.map(recordBlock).join('\n\n'),
+    ].join('\n');
+}
+
+export function planInsightPrompts(records, limit = DEFAULT_PROMPT_LIMIT) {
+    const sorted = [...records].sort((a, b) => String(a.content.specialty ?? '').localeCompare(String(b.content.specialty ?? '')) || a.event.created_at - b.event.created_at || a.key.localeCompare(b.key));
+    if (sorted.length <= limit) return sorted.length >= 2 ? [{ number: 1, total: 1, groups: null, records: sorted }] : [];
+    const m = Math.ceil(2 * sorted.length / limit), base = Math.floor(sorted.length / m), extra = sorted.length % m;
+    const groups = [];
+    for (let i = 0, at = 0; i < m; i++) { const size = base + (i < extra ? 1 : 0); groups.push(sorted.slice(at, at + size)); at += size; }
+    const pairs = [];
+    for (let i = 0; i < m; i++) for (let j = i + 1; j < m; j++) pairs.push([i, j]);
+    return pairs.map(([i, j], index) => ({ number: index + 1, total: pairs.length, groups: [i + 1, j + 1], records: [...groups[i], ...groups[j]] }));
+}
+
+export function insightPromptCards(records, limit, { library, drafts, pubkey }) {
+    const linked = ownLinkedPairs(library, drafts, pubkey);
+    return planInsightPrompts(records, limit).map(plan => ({
+        label: `Prompt ${plan.number} of ${plan.total}${plan.groups ? ` · groups ${plan.groups.join('+')}` : ''}`,
+        count: plan.records.length,
+        text: buildInsightPrompt(plan.records, linked),
+    }));
+}
+
+const MAX_RATIONALE = 500;
+const normalized = fields => insightContent({ source: 'llm', ...fields });
+const sameInsight = (a, b) => a.relation === b.relation && a.from === b.from && a.to === b.to;
+
+export function importInsightRows(text, { library, drafts, pubkey }) {
+    let rows;
+    try { rows = JSON.parse(text); } catch (error) { throw new Error(`not valid JSON (${error.message})`); }
+    if (!Array.isArray(rows)) throw new Error('expected a JSON array of insight rows');
+    const records = library.filter(item => !isInsight(item.content)), byKey = new Map(records.map(item => [item.key, item]));
+    const existing = new Map();
+    for (const item of library) if (item.event.pubkey === pubkey && isWellFormedInsight(item.content, item.key)) existing.set(dOf(item.key), { type: 'insight', item, content: item.content });
+    for (const draft of drafts) if (draft.kind === 'insight-draft') existing.set(insightD(draft.content.from, draft.content.to), { type: 'draft', item: draft, content: draft.content });
+    const result = { drafts: [], disagreements: [], rejected: [], duplicates: 0 };
+    rows.forEach((row, index) => {
+        const reject = reason => result.rejected.push({ row: index + 1, reason });
+        if (!row || typeof row !== 'object' || Array.isArray(row)) return reject('not an object');
+        const from = resolveShortId(records, row.from), to = resolveShortId(records, row.to);
+        if (from.error) return reject(`${from.error === 'ambiguous' ? 'ambiguous' : 'unknown'} ID ${row.from}`);
+        if (to.error) return reject(`${to.error === 'ambiguous' ? 'ambiguous' : 'unknown'} ID ${row.to}`);
+        if (from.key === to.key) return reject('from and to are the same record');
+        if (byKey.get(from.key).subjectSlug !== byKey.get(to.key).subjectSlug) return reject('records are in different subjects');
+        if (!Object.hasOwn(RELATIONS, row.relation)) return reject(`unknown relation ${row.relation}`);
+        const rationale = typeof row.rationale === 'string' ? row.rationale.trim() : '';
+        if (!rationale) return reject('missing rationale');
+        const warnings = [];
+        const cut = rationale.length > MAX_RATIONALE;
+        if (cut) warnings.push('rationale shortened');
+        if (row.relation === 'supersedes' && byKey.get(from.key).event.created_at < byKey.get(to.key).event.created_at) warnings.push('supersedes a newer record');
+        const content = normalized({ relation: row.relation, from: from.key, to: to.key, rationale: cut ? rationale.slice(0, MAX_RATIONALE) : rationale });
+        const current = existing.get(insightD(content.from, content.to));
+        if (!current) {
+            const draft = { id: crypto.randomUUID(), kind: 'insight-draft', content, warnings, createdAt: Date.now() };
+            result.drafts.push(draft); existing.set(insightD(content.from, content.to), { type: 'draft', item: draft, content });
+        } else if (sameInsight(current.content, content)) result.duplicates++;
+        else result.disagreements.push({ id: `${index}-${insightD(content.from, content.to)}`, type: current.type, item: current.item, existing: current.content, proposed: content });
+    });
+    return result;
+}
+
+export const applyToDraft = (draft, proposed) => ({ ...draft, content: normalized({ ...draft.content, relation: proposed.relation, from: proposed.from, to: proposed.to, rationale: proposed.rationale }) });
+
+export const updateInsightDraft = (draft, changes) => ({ ...draft, content: normalized({ ...draft.content, ...changes }) });

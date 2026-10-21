@@ -140,6 +140,64 @@
             </div>
             <div id="insights-empty-records" x-show="subjectRecords.length < 2" class="group mt-4"><div class="empty-state"><p class="empty-title">Not enough records</p><p class="empty-text">Insights relate two records of the same subject. Extract and import more records for this subject first.</p><button data-icon="sparkles" type="button" class="btn-primary" @click="activeTab = 'extract'">Go to Extract</button></div></div>
             <template x-if="subjectRecords.length >= 2"><div>
+                <h3 class="group-title">Select records</h3>
+                <div class="group">
+                    <div class="row"><label for="insight-record-search" class="field-label mb-0 w-28 shrink-0">Search</label><input id="insight-record-search" type="search" x-model="insightRecordFilters.search" placeholder="Search records" class="field"></div>
+                    <div class="row"><label for="insight-record-author" class="field-label mb-0 w-28 shrink-0">Author</label><select id="insight-record-author" x-model="insightRecordFilters.author" class="field"><template x-for="option in authorOptions" :key="option.value"><option :value="option.value" x-text="option.label"></option></template></select></div>
+                    <div class="row"><label for="insight-record-visibility" class="field-label mb-0 w-28 shrink-0">Visibility</label><select id="insight-record-visibility" x-model="insightRecordFilters.visibility" class="field"><option value="">All</option><option value="shared">Shared</option><option value="local">Local</option></select></div>
+                    <div class="row flex-wrap"><button data-icon="check" type="button" id="select-all-records" class="btn-secondary" :disabled="!insightRecords.length" @click="selectAllRecords()">Select all</button><button data-icon="x" type="button" id="clear-selection" class="btn-secondary" :disabled="!selectedRecords.length" @click="selectedKeys = {}">Clear</button><span id="selected-count" class="text-sm text-muted" x-text="`${selectedRecords.length} selected, ${insightRecords.length} shown`"></span></div>
+                    <div id="insight-record-list" class="max-h-80 overflow-y-auto">
+                        <p id="insight-records-none" x-show="!insightRecords.length" class="row text-sm text-muted">No records match the filters.</p>
+                        <template x-for="item in insightRecords" :key="item.key"><label class="insight-record row cursor-pointer items-start gap-3 text-sm"><input type="checkbox" class="mt-1" :checked="!!selectedKeys[item.key]" @change="$event.target.checked ? selectedKeys[item.key] = true : delete selectedKeys[item.key]" :aria-label="`Select ${shortIdOf(item.key)}`"><span class="font-mono text-xs text-muted" x-text="shortIdOf(item.key)"></span><span class="line-clamp-2 min-w-0 flex-1 break-words" x-text="item.content.information_chunks"></span></label></template>
+                    </div>
+                </div>
+                <h3 class="group-title">Insight prompt</h3>
+                <div class="group">
+                    <div class="row"><label for="prompt-limit" class="field-label mb-0 w-28 shrink-0">Prompt limit</label><input id="prompt-limit" type="number" min="4" max="200" step="2" :value="promptLimit" @change="setPromptLimit($event.target.value); if (promptLimitError) $event.target.value = promptLimit" class="field"></div>
+                    <p id="prompt-limit-error" x-show="promptLimitError" class="row text-sm text-danger" x-text="promptLimitError"></p>
+                    <p id="prompt-counter" class="row text-sm" x-text="`${selectedRecords.length} records → ${promptCount} prompts`"></p>
+                    <p id="prompt-hint" x-show="selectedRecords.length < 2" class="row text-sm text-muted">Select at least 2 records to build a prompt.</p>
+                    <template x-for="card in promptCards" :key="card.label"><article class="prompt-card row flex-wrap items-center gap-2">
+                        <span class="min-w-0 flex-1 text-sm" x-text="`${card.label} · ${card.count} records`"></span>
+                        <span x-show="copiedPrompts[card.text]" class="prompt-copied text-sm text-success" aria-label="Copied">&#10003; Copied</span>
+                        <button data-icon="copy" type="button" class="prompt-copy btn-secondary" :disabled="selectedRecords.length < 2" @click="copyPrompt(card)">Copy</button>
+                    </article></template>
+                </div>
+                <h3 class="group-title">Import insights</h3>
+                <div class="group">
+                    <div class="row"><input id="insight-import-file" type="file" @change="importInsightFile" accept=".json,application/json" aria-label="Insight JSON file" class="field flex items-center py-1.5 text-muted file:mr-3 file:min-h-[36px] file:rounded-ctl file:border-0 file:bg-accent-soft file:px-3 file:text-sm file:font-semibold file:text-accent"></div>
+                    <div class="row"><textarea id="insight-import-paste" x-model="insightPaste" rows="5" placeholder="Or paste the LLM's JSON here" aria-label="Pasted insight JSON" class="field font-mono"></textarea></div>
+                    <div class="row"><button data-icon="download" type="button" id="insight-import-button" class="btn-primary" :disabled="!insightPaste.trim()" @click="importInsightPasted()">Import pasted JSON</button></div>
+                    <template x-if="insightImport"><div id="insight-import-summary" class="flex flex-col">
+                        <p x-show="insightImport.error" class="row text-sm text-danger" x-text="insightImport.error"></p>
+                        <p x-show="!insightImport.error" class="row text-sm font-semibold" x-text="`${insightImport.drafts.length} drafts, ${insightImport.disagreements.length} disagreements, ${insightImport.rejected.length} rejected, ${insightImport.duplicates} duplicates`"></p>
+                        <template x-for="entry in insightImport.rejected" :key="entry.row"><p class="insight-rejected row text-sm text-muted" x-text="`Row ${entry.row}: ${entry.reason}`"></p></template>
+                        <template x-for="entry in insightImport.disagreements" :key="entry.id"><div class="insight-disagreement row flex-col items-stretch gap-2 text-sm">
+                            <p class="font-mono text-xs text-muted" x-text="`${shortIdOf(entry.existing.from)} – ${shortIdOf(entry.existing.to)}`"></p>
+                            <p x-text="`Yours: ${relations[entry.existing.relation].label}${relations[entry.existing.relation].directed ? ` (${shortIdOf(entry.existing.from)} to ${shortIdOf(entry.existing.to)})` : ''}`"></p>
+                            <p x-text="`Proposed: ${relations[entry.proposed.relation].label}${relations[entry.proposed.relation].directed ? ` (${shortIdOf(entry.proposed.from)} to ${shortIdOf(entry.proposed.to)})` : ''}`"></p>
+                            <p class="whitespace-pre-wrap break-words text-muted" x-text="entry.proposed.rationale"></p>
+                            <div><button data-icon="check" type="button" class="accept-disagreement btn-success" @click="acceptDisagreement(entry)">Accept</button></div>
+                        </div></template>
+                    </div></template>
+                </div>
+                <template x-if="subjectInsightDrafts.length"><div id="insight-drafts">
+                    <h3 class="group-title">Insight drafts</h3>
+                    <div class="group">
+                        <div class="row flex-wrap"><button data-icon="save" type="button" id="store-all-insights" class="btn-secondary" @click="saveAllInsightDrafts('local')">Store all</button><button data-icon="share" type="button" id="share-all-insights" class="btn-success" @click="saveAllInsightDrafts('shared')">Share all</button><button data-icon="trash" type="button" id="discard-all-insights" class="btn-danger" @click="discardAllInsightDrafts()">Discard all</button></div>
+                        <template x-for="draft in subjectInsightDrafts" :key="draft.id"><article class="insight-draft row flex-col items-stretch gap-2 text-sm">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <select class="draft-relation field w-auto" aria-label="Relation" :value="draft.content.relation" @change="editInsightDraft(draft, { relation: $event.target.value })"><template x-for="(info, name) in relations" :key="name"><option :value="name" :selected="name === draft.content.relation" x-text="info.label"></option></template></select>
+                                <button type="button" x-show="relations[draft.content.relation].directed" class="draft-swap btn-secondary" @click="editInsightDraft(draft, { from: draft.content.to, to: draft.content.from })">Swap direction</button>
+                            </div>
+                            <template x-for="end in [draft.content.from, draft.content.to]" :key="end"><div class="flex items-center gap-2"><span class="font-mono text-xs text-muted" x-text="shortIdOf(end)"></span><span class="line-clamp-2 min-w-0 flex-1 break-words" x-text="recordOf(end)?.content.information_chunks ?? 'Not in your library'"></span></div></template>
+                            <p x-show="relations[draft.content.relation].directed" class="text-xs text-muted" x-text="`${shortIdOf(draft.content.from)} ${relations[draft.content.relation].label} ${shortIdOf(draft.content.to)}`"></p>
+                            <textarea class="draft-rationale field" rows="3" aria-label="Rationale" :value="draft.content.rationale" @change="editInsightDraft(draft, { rationale: $event.target.value })"></textarea>
+                            <p x-show="draft.warnings.length" class="text-xs text-warn" x-text="draft.warnings.join(', ')"></p>
+                            <div class="flex flex-wrap gap-2"><button data-icon="save" type="button" class="draft-store btn-secondary" @click="saveInsightDraft(draft, 'local')">Store</button><button data-icon="share" type="button" class="draft-share btn-success" @click="saveInsightDraft(draft, 'shared')">Share</button><button data-icon="trash" type="button" class="draft-discard btn-danger" @click="discardInsightDraft(draft)">Discard</button></div>
+                        </article></template>
+                    </div>
+                </div></template>
                 <h3 class="group-title">Link two records</h3>
                 <div class="lg:grid lg:grid-cols-2 lg:items-start lg:gap-4">
                 <form id="tab-link-form" class="group flex min-w-0 flex-col gap-3 overflow-visible p-4" @submit.prevent>

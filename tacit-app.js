@@ -5,7 +5,7 @@ import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, recordKe
 import { createLocalSigner, createExtensionSigner, pickSource, retireKey, generateSecretKeyHex, parseSecretKey, encodeNsec, encodeNpub } from './tacit-identity.js';
 import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache } from './tacit-sync.js';
 import { filterFeed } from './tacit-feed.js';
-import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit, shareBlocker, relationsOf, findOwnInsight, groupInsights, cascadeTargets, incomingInsightCard, feedBadges, isWellFormedInsight } from './tacit-insight.js';
+import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit, shareBlocker, relationsOf, findOwnInsight, groupInsights, cascadeTargets, incomingInsightCard, feedBadges, isWellFormedInsight, DEFAULT_PROMPT_LIMIT, validPromptLimit, planInsightPrompts, insightPromptCards, importInsightRows, applyToDraft, updateInsightDraft } from './tacit-insight.js';
 import { rankBySimilarity, candidatesFor, LINK_TOP_N } from './tacit-similarity.js';
 import { buildBackup, parseBackup, restoreBackup } from './tacit-backup.js';
 import { avatarFor, nextTheme, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition } from './tacit-ui.js';
@@ -82,6 +82,78 @@ export function registerTacitApp(Alpine) {
         insightFilters: { relation: '', author: '' }, expandedInsights: {}, tabLink: { insight: null, a: '', b: '', relation: 'conflicts', rationale: '' },
         tabCombo: { a: { open: false, search: '', active: 0 }, b: { open: false, search: '', active: 0 } },
         get subjectRecords() { return this.records.filter(item => item.subjectSlug === this.selectedSlug); },
+        selectedKeys: {}, insightRecordFilters: { author: '', visibility: '', search: '' }, copiedPrompts: {}, promptLimitError: '',
+        insightPaste: '', insightImport: null, insightDrafts: [],
+        get insightRecords() { return filterFeed(this.library, { subject: this.selectedSlug, ...this.insightRecordFilters }, { selfKeys: this.selfKeys, trustedKeys: new Set(this.trust.filter(entry => entry.status === 'trusted').map(entry => entry.pubkey)) }); },
+        get selectedRecords() { return this.subjectRecords.filter(item => this.selectedKeys[item.key]); },
+        get promptLimit() { return validPromptLimit(this.settings.insightPromptLimit) ? this.settings.insightPromptLimit : DEFAULT_PROMPT_LIMIT; },
+        get promptCount() { return planInsightPrompts(this.selectedRecords, this.promptLimit).length; },
+        get promptCards() { return insightPromptCards(this.selectedRecords, this.promptLimit, { library: this.library, drafts: this.insightDrafts, pubkey: this.pubkey }); },
+        get subjectInsightDrafts() { return this.insightDrafts.filter(draft => this.records.find(item => item.key === draft.content.from)?.subjectSlug === this.selectedSlug); },
+        selectAllRecords() { this.selectedKeys = Object.fromEntries(this.insightRecords.map(item => [item.key, true])); },
+        recordOf(key) { return this.library.find(item => item.key === key && !isInsight(item.content)); },
+        setPromptLimit(text) {
+            const value = Number(text);
+            if (!text.trim() || !validPromptLimit(value)) { this.promptLimitError = 'Use an even number from 4 to 200'; return; }
+            this.promptLimitError = ''; this.settings.insightPromptLimit = value; this.saveSettings();
+        },
+        async copyPrompt(card) { if (await this.copy(card.text, 'Prompt')) this.copiedPrompts[card.text] = true; },
+        async runInsightImport(text) {
+            try {
+                const result = importInsightRows(text, { library: this.library, drafts: this.insightDrafts, pubkey: this.pubkey });
+                for (const draft of result.drafts) await store.put('pending', draft);
+                this.insightImport = { ...result, error: '' };
+                await this.reload();
+            } catch (error) { this.insightImport = { drafts: [], disagreements: [], rejected: [], duplicates: 0, error: `Could not import: ${error.message}` }; }
+        },
+        async importInsightFile(event) {
+            const file = event.target.files[0]; if (!file) return;
+            await this.runInsightImport(await file.text()); event.target.value = '';
+        },
+        async importInsightPasted() { await this.runInsightImport(this.insightPaste); this.insightPaste = ''; },
+        async acceptDisagreement(entry) {
+            if (entry.type === 'draft') {
+                const draft = this.insightDrafts.find(item => item.id === entry.item.id);
+                if (draft) await store.put('pending', applyToDraft(draft, entry.proposed));
+            } else {
+                const item = this.library.find(candidate => candidate.key === entry.item.key); if (!item) return;
+                const event = await this.signer.signEvent(buildInsightEdit(item.event, entry.proposed, undefined, this.settings.authorName));
+                const { content, ...base } = item;
+                const saved = { ...base, event, receivedAt: Date.now() };
+                await store.put('library', saved);
+                if (saved.visibility === 'shared') this.publish(saved);
+            }
+            this.insightImport.disagreements = this.insightImport.disagreements.filter(candidate => candidate.id !== entry.id);
+            await this.reload(); this.toast('Insight updated');
+        },
+        async editInsightDraft(draft, changes) { await store.put('pending', updateInsightDraft(draft, changes)); await this.reload(); },
+        async discardInsightDraft(draft) { await store.remove('pending', draft.id); await this.reload(); },
+        async commitInsightDraft(draft, choice) {
+            const record = this.recordOf(draft.content.from);
+            if (!record) return 'missing';
+            if (findOwnInsight(this.library, this.pubkey, draft.content.from, draft.content.to)) return 'linked';
+            if (choice === 'shared' && shareBlocker(draft.content, this.library)) return 'blocked';
+            const event = await this.signer.signEvent(buildInsightTemplate({ ...draft.content, subject: record.content.subject }, undefined, this.settings.authorName));
+            const saved = { key: recordKey(event), event, visibility: choice, subjectSlug: record.subjectSlug, receivedAt: Date.now() };
+            await store.put('library', saved); await store.remove('pending', draft.id);
+            if (choice === 'shared') this.publish(saved);
+            return 'done';
+        },
+        async saveInsightDraft(draft, choice) {
+            const outcome = await this.commitInsightDraft(draft, choice);
+            await this.reload();
+            if (outcome === 'blocked') this.toast(shareBlocker(draft.content, this.library), true);
+            else if (outcome === 'linked') this.toast('You already linked this pair', true);
+            else if (outcome === 'missing') this.toast('A record of this draft is not in your library', true);
+            else this.toast(choice === 'shared' ? 'Insight shared' : 'Insight stored');
+        },
+        async saveAllInsightDrafts(choice) {
+            const counts = { done: 0, blocked: 0, linked: 0, missing: 0 };
+            for (const draft of [...this.subjectInsightDrafts]) { counts[await this.commitInsightDraft(draft, choice)]++; await this.reload(); }
+            const skipped = counts.blocked + counts.linked + counts.missing;
+            this.toast(`${choice === 'shared' ? 'Shared' : 'Stored'} ${counts.done}${skipped ? `, skipped ${skipped}${counts.blocked ? ` (${counts.blocked} with a local record)` : ''}` : ''}`, !!skipped);
+        },
+        async discardAllInsightDrafts() { for (const draft of this.subjectInsightDrafts) await store.remove('pending', draft.id); await this.reload(); },
         get subjectInsightCount() { return groupInsights(this.library, { subject: this.selectedSlug }).length; },
         get insightGroups() {
             const trustedKeys = new Set(this.trust.filter(entry => entry.status === 'trusted').map(entry => entry.pubkey));
@@ -198,7 +270,8 @@ export function registerTacitApp(Alpine) {
                 await this.activateSigner('local');
             }
             this.selectedSlug = this.settings.subjects[0]?.slug || '';
-            this.$watch('selectedSlug', () => { this.mapLinkedOnlyChoice = null; });
+            this.$watch('selectedSlug', () => { this.mapLinkedOnlyChoice = null; this.selectedKeys = {}; this.insightImport = null; });
+            this.$watch('activeTab', tab => { if (tab !== 'insights') this.insightImport = null; });
             await this.reload();
             try { directory = connectDirectory(this); } catch (error) { this.logSync(`Could not join directory: ${error.message}`); }
             this.settings.subjects.filter(subject => subject.subscribed).forEach(subject => this.joinSubject(subject.slug));
@@ -235,6 +308,7 @@ export function registerTacitApp(Alpine) {
         async reload() {
             const pending = await store.getAll('pending');
             this.drafts = pending.filter(item => item.kind === 'draft').sort((a, b) => a.createdAt - b.createdAt);
+            this.insightDrafts = pending.filter(item => item.kind === 'insight-draft').sort((a, b) => a.createdAt - b.createdAt);
             const groups = {};
             pending.filter(item => item.kind === 'incoming').forEach(item => { const content = parseContent(item.event); if (content && (!isInsight(content) || isWellFormedInsight(content, item.id))) (groups[item.pubkey] ??= []).push({ ...item, content }); });
             this.incoming = Object.entries(groups).map(([pubkey, records]) => ({ pubkey, records }));
@@ -300,9 +374,10 @@ export function registerTacitApp(Alpine) {
             try { await navigator.clipboard.writeText(text); } catch (_) {
                 const area = document.createElement('textarea'); area.value = text; document.body.appendChild(area); area.select();
                 const copied = document.execCommand('copy'); area.remove();
-                if (!copied) { this.toast('Copy failed', true); return; }
+                if (!copied) { this.toast('Copy failed', true); return false; }
             }
             this.toast(`${label} copied`);
+            return true;
         },
 
         createSubject() {
