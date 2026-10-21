@@ -14,6 +14,7 @@ import cytoscape from '../vendor/cytoscape.esm.js';
 import * as store from './tacit-store.js';
 
 const rooms = {};
+let receiving = Promise.resolve();
 let rankCache = null;
 let cy = null;
 let mapNodeIds = '';
@@ -589,27 +590,43 @@ export function registerTacitApp(Alpine) {
             if (events.length) rooms[slug]?.action.send(events, { target: peerId });
         },
         statusOf(pubkey) { return this.trust.find(entry => entry.pubkey === pubkey)?.status; },
-        async receiveFromPeer(events, slug, peerId) {
+        receiveFromPeer(events, slug, peerId) {
+            return receiving = receiving.then(() => this.applyFromPeer(events, slug, peerId)).catch(error => console.warn('Could not apply peer events', error));
+        },
+        async applyFromPeer(events, slug, peerId) {
             if (!Array.isArray(events)) return;
+            const held = Object.fromEntries(this.library.map(item => [item.key, item.event]));
+            const pendingIncoming = Object.fromEntries(this.incoming.flatMap(group => group.records).map(item => [item.id, item.event]));
+            const pendingCounts = Object.fromEntries(this.incoming.map(group => [group.pubkey, group.records.length]));
+            const tombstones = Object.fromEntries(this.tombstones.map(item => [item.key, item.created_at]));
+            const hiddenKeys = new Set(this.hiddenKeys);
+            const trustedPubkeys = new Set([...this.selfKeys, ...this.trust.filter(entry => entry.status === 'trusted').map(entry => entry.pubkey)]);
+            const blockedPubkeys = new Set(this.trust.filter(entry => entry.status === 'blocked').map(entry => entry.pubkey));
+            let changed = false;
             for (const event of events) {
-                const held = Object.fromEntries(this.library.map(item => [item.key, item.event]));
-                const pendingIncoming = Object.fromEntries(this.incoming.flatMap(group => group.records).map(item => [item.id, item.event]));
-                const pendingCount = this.incoming.find(group => group.pubkey === event.pubkey)?.records.length ?? 0;
-                const decision = decideIncoming(event, {
-                    held, pendingIncoming, pendingCount, hiddenKeys: new Set(this.hiddenKeys), tombstones: Object.fromEntries(this.tombstones.map(item => [item.key, item.created_at])),
-                    trustedPubkeys: new Set([...this.selfKeys, ...this.trust.filter(entry => entry.status === 'trusted').map(entry => entry.pubkey)]),
-                    blockedPubkeys: new Set(this.trust.filter(entry => entry.status === 'blocked').map(entry => entry.pubkey)),
-                });
+                const decision = decideIncoming(event, { held, pendingIncoming, pendingCount: pendingCounts[event.pubkey] ?? 0, hiddenKeys, tombstones, trustedPubkeys, blockedPubkeys });
                 if (decision.reason === 'tampered') { console.warn(`Rejected tampered record from peer ${peerId.slice(0, 6)}`); this.logSync(`Rejected tampered record from peer ${peerId.slice(0, 6)}`); }
                 if (decision.reason === 'queue-full') this.logSync(`Review queue full for ${shortKey(event.pubkey)}`);
                 if (decision.action === 'delete') {
                     await store.put('tombstones', { key: decision.key, created_at: event.created_at, event });
-                    if (decision.removeHeld) { await store.remove('library', decision.key); await store.remove('pending', decision.key); }
-                } else if (decision.action === 'accept') await store.put('library', { key: recordKey(event), event, visibility: 'shared', subjectSlug: slug, receivedFrom: peerId, receivedAt: Date.now() });
-                else if (decision.action === 'review') await store.put('pending', { id: recordKey(event), kind: 'incoming', event, subjectSlug: slug, pubkey: event.pubkey, receivedFrom: peerId, receivedAt: Date.now() });
-                else continue;
-                await this.reload();
+                    tombstones[decision.key] = event.created_at;
+                    if (decision.removeHeld) {
+                        await store.remove('library', decision.key); await store.remove('pending', decision.key);
+                        delete held[decision.key];
+                        if (pendingIncoming[decision.key]) { delete pendingIncoming[decision.key]; pendingCounts[event.pubkey]--; }
+                    }
+                } else if (decision.action === 'accept') {
+                    await store.put('library', { key: recordKey(event), event, visibility: 'shared', subjectSlug: slug, receivedFrom: peerId, receivedAt: Date.now() });
+                    held[recordKey(event)] = event;
+                } else if (decision.action === 'review') {
+                    const key = recordKey(event);
+                    await store.put('pending', { id: key, kind: 'incoming', event, subjectSlug: slug, pubkey: event.pubkey, receivedFrom: peerId, receivedAt: Date.now() });
+                    if (!pendingIncoming[key]) pendingCounts[event.pubkey] = (pendingCounts[event.pubkey] ?? 0) + 1;
+                    pendingIncoming[key] = event;
+                } else continue;
+                changed = true;
             }
+            if (changed) await this.reload();
         },
         async acceptIncoming(item) {
             const record = { key: item.id, event: item.event, visibility: 'shared', subjectSlug: item.subjectSlug, receivedFrom: item.receivedFrom, receivedAt: item.receivedAt };
