@@ -15,7 +15,7 @@
         <header class="app-header">
             <h1 class="app-name">Tacit</h1>
             <nav class="tabbar" aria-label="Main navigation">
-                <template x-for="tab in mainTabs" :key="tab.id"><button :data-tab="tab.id" :data-icon="tab.icon" @click="activeTab = tab.id" :aria-current="activeTab === tab.id ? 'page' : null" class="tab" x-text="tab.label"></button></template>
+                <template x-for="tab in mainTabs" :key="tab.id"><button :data-tab="tab.id" :data-icon="tab.icon" @click="activeTab = tab.id" :aria-current="activeTab === tab.id ? 'page' : null" class="tab"><span class="desk:hidden" x-text="tab.short || tab.label"></span><span class="hidden desk:inline" x-text="tab.label"></span></button></template>
             </nav>
             <div class="app-tools">
                 <div class="desk:relative" @click.outside="bellOpen = false" @keydown.escape="bellOpen = false">
