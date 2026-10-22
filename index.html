@@ -18,7 +18,14 @@
                 <template x-for="tab in mainTabs" :key="tab.id"><button :data-tab="tab.id" :data-icon="tab.icon" @click="activeTab = tab.id" :aria-current="activeTab === tab.id ? 'page' : null" class="tab" x-text="tab.label"></button></template>
             </nav>
             <div class="app-tools">
-                <button type="button" id="review-bell" class="tool relative" data-icon="bell" @click="openReview()" :aria-label="reviewCount ? `${reviewCount} pending review. Open Review.` : 'Nothing pending review'"><span id="review-bell-count" x-show="reviewCount > 0" class="absolute right-0 top-1 min-w-[18px] rounded-full bg-danger px-1 text-center text-[11px] leading-[18px] text-white" x-text="reviewCount > 99 ? '99+' : reviewCount"></span></button>
+                <div class="desk:relative" @click.outside="bellOpen = false" @keydown.escape="bellOpen = false">
+                    <button type="button" id="review-bell" class="tool relative" data-icon="bell" @click="bellOpen = !bellOpen" aria-haspopup="true" :aria-expanded="bellOpen" :aria-label="notificationCount ? `${notificationCount} ${notificationCount === 1 ? 'notification' : 'notifications'}` : 'No notifications'"><span id="review-bell-count" x-show="notificationCount > 0" class="absolute right-0 top-1 min-w-[18px] rounded-full bg-danger px-1 text-center text-[11px] leading-[18px] text-white" x-text="notificationCount > 99 ? '99+' : notificationCount"></span></button>
+                    <div id="notifications" x-show="bellOpen" style="display: none;" class="fixed inset-x-4 top-[60px] z-20 flex flex-col gap-1 desk:absolute desk:inset-x-auto desk:right-0 desk:top-full desk:mt-1 desk:w-80 rounded-card border border-line bg-surface p-2 text-sm text-ink shadow-lg">
+                        <div x-show="reviewCount > 0" class="notification-review flex items-center justify-between gap-2 rounded-ctl p-2"><span x-text="`Review (${reviewCount})`"></span><button type="button" class="btn-secondary" @click="openReview()">Review</button></div>
+                        <div x-show="nameNudge" class="notification-name flex flex-col gap-2 rounded-ctl p-2"><span>Set your name so others see it next to your records.</span><span class="flex flex-wrap justify-end gap-2"><button type="button" class="btn-secondary" @click="dismissNameNudge()">Dismiss</button><button type="button" class="btn-primary" @click="openNameSetting()">Set name</button></span></div>
+                        <p x-show="notificationCount === 0" class="p-2 text-muted">Nothing to show.</p>
+                    </div>
+                </div>
                 <button type="button" id="theme-toggle" class="tool" :data-icon="themeIcon" @click="cycleTheme()" :aria-label="`Colour scheme: ${themeLabel}. Activate to change.`" x-text="themeLabel"></button>
                 <button type="button" id="shortcuts-button" data-icon="keyboard" class="tool" @click="openShortcuts($el)" aria-haspopup="dialog" aria-label="Keyboard shortcuts"></button>
             </div>
@@ -476,6 +483,17 @@
         <div class="toasts" aria-label="Notifications">
             <template x-for="t in toasts" :key="t.id"><div :role="t.failure ? 'alert' : 'status'" class="toast" :class="{ 'toast-failure': t.failure }"><span class="min-w-0 flex-1 break-words" x-text="t.text"></span><button type="button" class="toast-close" aria-label="Dismiss notification" @click="dismissToast(t.id)">&times;</button></div></template>
         </div>
+        <dialog id="name-prompt" @close="finishNamePrompt('')" @click="$event.target === $el && $el.close()" aria-labelledby="name-prompt-title" class="m-auto w-[min(92vw,420px)] rounded-card border border-line bg-surface p-0 text-ink backdrop:bg-ink/40">
+            <form class="flex flex-col gap-3 p-5" @submit.prevent="finishNamePrompt('save')">
+                <h2 id="name-prompt-title" class="text-lg font-bold">Add your name?</h2>
+                <p class="text-sm text-muted">Your name is sent with each record you share and shown to others next to your key. Records you already shared keep their old name. You can change it any time in Identity.</p>
+                <input id="name-prompt-input" type="text" maxlength="40" x-model="nameDraft" aria-label="Your name" placeholder="Your name" class="field" autofocus>
+                <div class="flex flex-wrap justify-end gap-2">
+                    <button type="button" class="btn-secondary" @click="finishNamePrompt('skip')">Skip</button>
+                    <button type="submit" class="btn-primary">Save name</button>
+                </div>
+            </form>
+        </dialog>
         <dialog id="backup-reminder" @close="backupReminderClosed()" aria-labelledby="backup-reminder-title" class="m-auto w-[min(92vw,420px)] rounded-card border border-line bg-surface p-0 text-ink backdrop:bg-ink/40">
             <div class="flex flex-col gap-3 p-5">
                 <h2 id="backup-reminder-title" class="text-lg font-bold">Back up your data?</h2>

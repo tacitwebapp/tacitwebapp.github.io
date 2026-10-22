@@ -9,7 +9,7 @@ import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit
 import { rankBySimilarity, candidatesFor, LINK_TOP_N } from './tacit-similarity.js';
 import { buildBackup, parseBackup, restoreBackup, backupDue, DEFAULT_BACKUP_REMINDER } from './tacit-backup.js';
 import { parseRoute, buildRoute } from './tacit-route.js';
-import { avatarFor, nextTheme, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition } from './tacit-ui.js';
+import { avatarFor, nextTheme, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition, needsNamePrompt, nameNudgeActive } from './tacit-ui.js';
 import { buildMap, buildStyle, linkedOnlyByDefault, RELATION_STYLE } from './tacit-map.js';
 import cytoscape from '../vendor/cytoscape.esm.js';
 import * as store from './tacit-store.js';
@@ -66,7 +66,7 @@ export function registerTacitApp(Alpine) {
         activeTab: 'feed', inputTypeLabels: TacitInputTypeLabels, selectedInputType: 'txt', selectedSlug: '', specialty: '', customPrompt: null, promptEditing: false, promptDraft: '',
         settings: { relays: [], subjects: [] }, newSubject: '', subjectError: '',
         pubkey: '', previousKeys: [], signer: null, extensionAvailable: false, switchAck: false, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
-        importKeyText: '', importAck: false, trustForm: { status: '', key: '', error: '' }, identityMessage: '', backupSummary: '', theme: localStorage.getItem('tacit.theme') || '', toasts: [],
+        bellOpen: false, nameDraft: '', resolveName: null, importKeyText: '', importAck: false, trustForm: { status: '', key: '', error: '' }, identityMessage: '', backupSummary: '', theme: localStorage.getItem('tacit.theme') || '', toasts: [],
         pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], authorNames: {}, directoryPeers: {}, subjectCache: {}, ready: false,
         feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null, linkForm: blankLink(), relations: RELATIONS,
         authorOptions: [{ value: '', label: 'All' }, { value: 'mine', label: 'Mine' }, { value: 'trusted', label: 'Trusted' }, { value: 'others', label: 'Others' }],
@@ -87,7 +87,29 @@ export function registerTacitApp(Alpine) {
         get subjectRecords() { return this.records.filter(item => item.subjectSlug === this.selectedSlug); },
         importView: 'import', importViews: [{ id: 'import', label: 'Import', icon: 'download' }, { id: 'review', label: 'Review', icon: 'eye' }],
         get reviewCount() { return this.drafts.length + this.incoming.reduce((total, group) => total + group.records.length, 0); },
-        openReview() { this.activeTab = 'import'; this.importView = 'review'; },
+        get nameNudge() { return nameNudgeActive(this.settings, this.pubkey); },
+        get notificationCount() { return this.reviewCount + (this.nameNudge ? 1 : 0); },
+        openReview() { this.bellOpen = false; this.activeTab = 'import'; this.importView = 'review'; },
+        openNameSetting() {
+            this.bellOpen = false; this.activeTab = 'identity';
+            this.$nextTick(() => document.getElementById('author-name')?.focus());
+        },
+        dismissNameNudge() { this.settings.nameNudgeDismissedKey = this.pubkey; this.saveSettings(); },
+        askName() {
+            if (!needsNamePrompt(this.settings, this.pubkey)) return Promise.resolve(true);
+            this.nameDraft = this.settings.authorName || '';
+            return new Promise(resolve => { this.resolveName = resolve; document.getElementById('name-prompt').showModal(); });
+        },
+        finishNamePrompt(choice) {
+            const resolve = this.resolveName; if (!resolve) return;
+            this.resolveName = null;
+            if (choice) {
+                if (choice === 'save') this.settings.authorName = cleanAuthorName(this.nameDraft) || undefined;
+                this.settings.namePromptedKey = this.pubkey; this.saveSettings();
+            }
+            document.getElementById('name-prompt').close();
+            resolve(!!choice);
+        },
         insightsView: 'prompt', insightsViews: [{ id: 'prompt', label: 'Generate Prompt', icon: 'sparkles' }, { id: 'link', label: 'Link Tacits', icon: 'link' }],
         selectedKeys: {}, expandedKeys: {}, insightRecordFilters: { author: '', visibility: '', search: '' }, copiedPrompts: {}, promptLimitError: '',
         insightPaste: '', insightImport: null, insightDrafts: [],
@@ -124,6 +146,7 @@ export function registerTacitApp(Alpine) {
                 if (draft) await store.put('pending', applyToDraft(draft, entry.proposed));
             } else {
                 const item = this.library.find(candidate => candidate.key === entry.item.key); if (!item) return;
+                if (!await this.askName()) return;
                 const event = await this.signer.signEvent(buildInsightEdit(item.event, entry.proposed, undefined, this.settings.authorName));
                 const { content, ...base } = item;
                 const saved = { ...base, event, receivedAt: Date.now() };
@@ -147,6 +170,7 @@ export function registerTacitApp(Alpine) {
             return 'done';
         },
         async saveInsightDraft(draft, choice) {
+            if (!await this.askName()) return;
             const outcome = await this.commitInsightDraft(draft, choice);
             await this.reload();
             if (outcome === 'blocked') this.toast(shareBlocker(draft.content, this.library), true);
@@ -155,6 +179,7 @@ export function registerTacitApp(Alpine) {
             else this.toast(choice === 'shared' ? 'Insight shared' : 'Insight stored');
         },
         async saveAllInsightDrafts(choice) {
+            if (!await this.askName()) return;
             const counts = { done: 0, blocked: 0, linked: 0, missing: 0 };
             for (const draft of [...this.subjectInsightDrafts]) { counts[await this.commitInsightDraft(draft, choice)]++; await this.reload(); }
             const skipped = counts.blocked + counts.linked + counts.missing;
@@ -292,6 +317,7 @@ export function registerTacitApp(Alpine) {
             const form = this.tabLink, record = this.library.find(item => item.key === form.a);
             const fields = { relation: form.relation, from: form.a, to: form.b, rationale: form.rationale.trim() };
             if (!form.insight && choice === 'shared') { const blocked = shareBlocker(fields, this.library); if (blocked) { this.toast(blocked, true); return; } }
+            if (!await this.askName()) return;
             const event = await this.signer.signEvent(form.insight
                 ? buildInsightEdit(form.insight.event, fields, undefined, this.settings.authorName)
                 : buildInsightTemplate({ ...fields, subject: record.content.subject }, undefined, this.settings.authorName));
@@ -312,6 +338,7 @@ export function registerTacitApp(Alpine) {
                 this.identityMessage = `Extension unavailable, using local key: ${error.message}`;
                 await this.activateSigner('local');
             }
+            if (this.settings.authorName && !this.settings.namePromptedKey) { this.settings.namePromptedKey = this.pubkey; this.saveSettings(); }
             this.selectedSlug = this.settings.subjects[0]?.slug || '';
             this.$watch('selectedSlug', () => { this.mapLinkedOnlyChoice = null; this.selectedKeys = {}; this.insightImport = null; });
             this.$watch('activeTab', tab => { if (tab !== 'insights') this.insightImport = null; });
@@ -394,7 +421,9 @@ export function registerTacitApp(Alpine) {
         sharedName(pubkey) { return this.authorNames[pubkey] || this.trust.find(entry => entry.pubkey === pubkey)?.authorName || ''; },
         authorLabel(pubkey) { return pubkey === this.pubkey ? 'you' : this.previousKeys.includes(pubkey) ? 'by previous key' : this.trust.find(entry => entry.pubkey === pubkey)?.nickname || this.sharedName(pubkey) || shortKey(pubkey); },
         setAuthorName(input) {
-            this.settings.authorName = cleanAuthorName(input.value) || undefined; this.saveSettings();
+            this.settings.authorName = cleanAuthorName(input.value) || undefined;
+            if (this.settings.authorName) this.settings.namePromptedKey = this.pubkey;
+            this.saveSettings();
             input.value = this.settings.authorName || '';
             this.toast(this.settings.authorName ? 'Name saved' : 'Name cleared');
         },
@@ -526,10 +555,12 @@ export function registerTacitApp(Alpine) {
             return { key: recordKey(event), event, subjectSlug: addSubject([], draft.content.subject).subject.slug, receivedAt: Date.now() };
         },
         async storeDraft(draft) {
+            if (!await this.askName()) return;
             await store.put('library', { ...await this.signDraft(draft), visibility: 'local' });
             await store.remove('pending', draft.id); await this.reload(); this.activeTab = 'feed'; this.toast('Draft stored');
         },
         async shareDraft(draft) {
+            if (!await this.askName()) return;
             const record = await this.signDraft(draft);
             await store.put('library', { ...record, visibility: 'shared' });
             await store.remove('pending', draft.id); await this.reload();
@@ -587,6 +618,7 @@ export function registerTacitApp(Alpine) {
             const [from, to] = form.direction === 'forward' ? [record.key, form.otherKey] : [form.otherKey, record.key];
             const fields = { relation: form.relation, from, to, rationale: form.rationale.trim() };
             if (!form.insight && choice === 'shared') { const blocked = shareBlocker(fields, this.library); if (blocked) { this.toast(blocked, true); return; } }
+            if (!await this.askName()) return;
             const event = await this.signer.signEvent(form.insight
                 ? buildInsightEdit(form.insight.event, fields, undefined, this.settings.authorName)
                 : buildInsightTemplate({ ...fields, subject: record.content.subject }, undefined, this.settings.authorName));
@@ -607,6 +639,7 @@ export function registerTacitApp(Alpine) {
         async editRecord(item) {
             const text = prompt('Information chunk', item.content.information_chunks);
             if (!text?.trim() || text.trim() === item.content.information_chunks) return;
+            if (!await this.askName()) return;
             const event = await this.signer.signEvent(buildEditTemplate(item.event, { ...item.content, information_chunks: text.trim() }, undefined, this.settings.authorName));
             const { content, ...record } = item;
             const edited = { ...record, event, receivedAt: Date.now() };

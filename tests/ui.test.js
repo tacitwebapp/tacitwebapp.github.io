@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { avatarFor, resolveTheme, nextTheme, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition } from '../src/tacit-ui.js';
+import { avatarFor, resolveTheme, nextTheme, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition, needsNamePrompt, nameNudgeActive } from '../src/tacit-ui.js';
 
 const keyOf = n => n.toString(16).padStart(2, '0').repeat(32);
 const sampleKeys = ['3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d', '79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798', 'fa984bd7dbb282f07e16e7ae87b26a2a7b9b90b7246a44771f0cf5ae58018f52', 'e8f32e723decf4051aefac8e2c93c9c5b214313817cdb01a1494b917c8436b35', '0000000000000000000000000000000000000000000000000000000000000001'];
@@ -193,4 +193,25 @@ test('tip is kept inside the viewport horizontally', () => {
 test('tip flips above the anchor when there is no room below', () => {
     const anchor = { left: 190, top: 760, width: 20, height: 20 };
     assert.equal(tipPosition(anchor, tipSize, viewport).top, 694);
+});
+
+test('the name prompt is needed until it is answered for the active key', () => {
+    assert.equal(needsNamePrompt({}, 'a'), true);
+    assert.equal(needsNamePrompt({ namePromptedKey: 'a' }, 'a'), false);
+});
+
+test('the name prompt fires again after the key changes', () => {
+    assert.equal(needsNamePrompt({ namePromptedKey: 'a', authorName: 'Ann' }, 'b'), true);
+});
+
+test('the name reminder needs an answered prompt, no name and no dismissal', () => {
+    assert.equal(nameNudgeActive({}, 'a'), false);
+    assert.equal(nameNudgeActive({ namePromptedKey: 'a' }, 'a'), true);
+    assert.equal(nameNudgeActive({ namePromptedKey: 'a', authorName: 'Ann' }, 'a'), false);
+    assert.equal(nameNudgeActive({ namePromptedKey: 'a', nameNudgeDismissedKey: 'a' }, 'a'), false);
+});
+
+test('a dismissed name reminder returns for a new key once that key is prompted', () => {
+    const settings = { namePromptedKey: 'b', nameNudgeDismissedKey: 'a' };
+    assert.equal(nameNudgeActive(settings, 'b'), true);
 });
