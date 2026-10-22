@@ -85,7 +85,12 @@ export function roomConfig(relays, password) {
     return config;
 }
 
+function requireSecureContext() {
+    if (!globalThis.crypto?.subtle) throw new Error('peer sync needs a secure context (https or localhost)');
+}
+
 export function connectRoom(app, slug, password) {
+    requireSecureContext();
     const room = joinRoom(roomConfig(app.settings.relays, password), roomId(slug));
     const action = room.makeAction('syncTacit');
     action.onMessage = (events, { peerId }) => app.receiveFromPeer(events, slug, peerId);
@@ -100,6 +105,7 @@ export function connectRoom(app, slug, password) {
 }
 
 export function connectDirectory(app) {
+    requireSecureContext();
     const room = joinRoom(roomConfig(app.settings.relays), DIRECTORY_ROOM);
     const action = room.makeAction('announce');
     action.onMessage = (entries, { peerId }) => app.receiveAnnouncement(entries, peerId);
