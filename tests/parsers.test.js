@@ -23,6 +23,12 @@ test('prompt builder embeds input type and subject', () => {
     assert.match(prompt, /`Pest Control`/);
 });
 
+test('prompt builder supports pdf input type', () => {
+    const prompt = buildTacitPrompt({ inputType: 'pdf', subjectCategory: 'Gardening' });
+    assert.match(prompt, /\*\*Input Type:\*\* PDF file \(\.pdf\)/);
+    assert.match(prompt, /perform OCR on it/);
+});
+
 test('prompt builder adds optional specialty', () => {
     const plain = buildTacitPrompt({ inputType: 'txt', subjectCategory: 'Gardening' });
     assert.doesNotMatch(plain, /specialty/i);

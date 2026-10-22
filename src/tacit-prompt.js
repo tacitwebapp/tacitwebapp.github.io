@@ -78,6 +78,7 @@ const TacitInputParsingInstructions = {
     zip: 'Iterate through the readable text or document files within the archive. Ignore system files, images, or formatting metadata. Focus on extracting standard operating procedures, internal communications, and project notes.',
     txt: 'Read the raw text content. Filter out repetitive structural formatting, boilerplate headers, or logs. Focus on the core narrative, troubleshooting steps, heuristics, or direct advice provided in the text.',
     csv: 'Parse the tabular data, specifically targeting columns containing free-text comments, notes, descriptions, or feedback. Ignore purely numerical or ID columns. Focus on subjective observations, manual overrides, or exceptions noted in the text fields.',
+    pdf: 'Read the text of every page in order. If a page has no text layer (a scanned page), perform OCR on it. Ignore running headers and footers, page numbers, tables of contents, and repeated boilerplate. Focus on the core narrative, troubleshooting steps, heuristics, and direct advice; transcribe the relationships in any diagrams or tables that carry them.',
     image: 'Perform OCR to extract readable text. If the image contains a diagram, flowchart, or handwritten notes, transcribe the relationships and annotations. Focus on unwritten heuristics, decision points, or marginalia.'
 };
 
@@ -88,6 +89,7 @@ export const TacitInputTypeLabels = {
     zip: 'Archive (.zip)',
     txt: 'Text file (.txt)',
     csv: 'CSV file (.csv)',
+    pdf: 'PDF file (.pdf)',
     image: 'Image'
 };
 
