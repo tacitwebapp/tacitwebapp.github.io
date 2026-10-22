@@ -144,6 +144,10 @@ _Avoid_: Graph, mind map (outside casual use), network view
 The keypair a user signs records with. Its public key is how other users recognise the user.
 _Avoid_: Account, user, profile
 
+**Author name**:
+The optional name an identity sends with each record it signs, so others see it next to the key. It is public, and a record keeps the name it was signed with.
+_Avoid_: Username, display name, profile name
+
 **Author**:
 The identity that signed a record.
 _Avoid_: Owner, creator, sender
@@ -171,6 +175,10 @@ _Avoid_: Banned user, blacklist
 **Unknown author**:
 An author who is neither trusted nor blocked. Their records go to review.
 _Avoid_: Stranger, untrusted author
+
+**Notification**:
+An item in the header bell's popover that needs the user's attention: records waiting for review, or the reminder to set an author name. The badge counts them.
+_Avoid_: Alert, message
 
 ## Network
 

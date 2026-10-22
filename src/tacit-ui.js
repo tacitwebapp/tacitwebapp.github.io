@@ -29,6 +29,14 @@ export function nextTheme(stored) {
     return 'light';
 }
 
+export function needsNamePrompt(settings, pubkey) {
+    return settings.namePromptedKey !== pubkey;
+}
+
+export function nameNudgeActive(settings, pubkey) {
+    return !settings.authorName && settings.namePromptedKey === pubkey && settings.nameNudgeDismissedKey !== pubkey;
+}
+
 const MAX_TOASTS = 3;
 const TOAST_MS = 4000;
 const TOAST_FAILURE_MS = 8000;

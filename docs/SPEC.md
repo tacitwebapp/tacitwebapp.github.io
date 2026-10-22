@@ -108,6 +108,7 @@ signer = {
 - **Extension (NIP-07):** used when `window.nostr` is present and the `signerPreference` setting is `extension` (the default). Key export and import are disabled; the extension manages the key.
 - **Local key:** otherwise. On first run, `generateSecretKey()` creates a key, which is stored as hex in `localStorage['tacit.secretKey']`. nostr-tools v2 expects `Uint8Array` keys, so convert with `hexToBytes`/`bytesToHex`.
 - Identity tab: shows the public key (npub plus short hex), the signer source and an optional author name (`settings.authorName`, sent as the `author_name` tag of §7.1). The user can switch the signer when both are available. Switching changes identity, so it gets the same warning as an import (§5.3).
+- Name prompt: the first time the user signs a record, insight or edit under an identity, a dialog asks for a name (prefilled with the current `settings.authorName`). Save stores it, Skip leaves it as is, and both continue the action. Escape or a click outside cancels the action and asks again next time. Deletions do not prompt. A bulk save prompts once before it starts. Saving a name in the Identity tab counts as answering. A switch or import is a new identity, so the prompt fires again. See §10.11 for the reminder after Skip.
 
 ### 5.2 Export
 - "Export private key" (local signer only) reveals the key in hex and nsec and offers a copy button, behind a warning: anyone with this key can sign records as you.
@@ -372,7 +373,7 @@ No other type is accepted, from the JSON, the form or a peer.
 |---|---|
 | `tacit.secretKey` | Hex private key (local signer only) |
 | `tacit.previousKeys` | `string[]` of public keys |
-| `tacit.settings` | `{ signerPreference, relays: string[], subjects: Subject[], insightPromptLimit? }` (default 30, §6.4) |
+| `tacit.settings` | `{ signerPreference, relays: string[], subjects: Subject[], insightPromptLimit?, authorName?, namePromptedKey?, nameNudgeDismissedKey? }` (limit default 30, §6.4). The two `*Key` fields hold the public key whose name prompt was answered, and whose name reminder was dismissed (§5.1, §10.11). |
 | `tacit.theme` | `'light'` or `'dark'`. Absent means follow the system (§10.1) |
 
 `Subject = { label, slug, subscribed: boolean, password?: string }`. Passwords are stored in plain text, the same as the key.
@@ -440,7 +441,7 @@ The redesign changes presentation and navigation only. Data, signing, sync and s
 - Seven destinations, as in the table above, in that order. On narrow screens (below 900 px) they form a tab bar fixed to the bottom of the screen, with the safe-area inset respected. From 900 px up, the same destinations appear as a navigation bar at the top.
 - The content column is full width below 900 px and at most 75% of the window from 900 px up, centred. Forms and lists use the full width of the column.
 - Touch targets are at least 44 × 44 px.
-- The header holds the app name and the colour-scheme control. The tagline moves to the Feed's empty state (§10.7).
+- The header holds the app name, the notification bell (§10.11) and the colour-scheme control. The tagline moves to the Feed's empty state (§10.7).
 
 ### 10.3 Record detail
 
@@ -520,6 +521,15 @@ Each empty list shows a short title, one sentence on what goes here, and one but
 - Toolbar: Zoom in, Zoom out, Fit. With the map focused, `+`, `-` and `0` do the same.
 - Positions and the element list come from `tacit-map.js`; Cytoscape draws them with its `preset` layout. Its style is built from the colour tokens and rebuilt when the colour scheme changes.
 
+### 10.11 Notifications
+
+- The header bell opens a popover. Its badge counts the unread items: the review count (drafts plus incoming records) plus 1 while the name reminder is active.
+- The popover lists the active items. When there are none it says "Nothing to show".
+  - **Review (N)**, shown when N > 0. Review opens Import & Review on the review queue.
+  - **Set your name**, shown while the reminder is active. Set name opens the Identity tab with the Name field focused. Dismiss removes the reminder and lowers the badge by 1.
+- The name reminder is active when no name is set, the user answered the name prompt (§5.1), and has not dismissed the reminder. Saving a name removes it. Dismissing is stored per public key, so an identity switch or import brings it back.
+- Escape, a click outside, or choosing an item closes the popover.
+
 ## 11. Backup and existing data
 
 ### 11.1 Backup file
@@ -565,6 +575,7 @@ Each empty list shows a short title, one sentence on what goes here, and one but
 - `package.json` (dev only, `"type": "module"`) with `npm test` → `node --test tests/`.
 - Unit tests cover: JSON/CSV parsers, paste format detection, import validation and warnings, `slugify`, prompt builder, building and verifying record and deletion events (including a tampered `content` failing `verifyEvent`), the merge decisions in §7.3 (driven by in-memory state), backup build and parse, and the interface helpers in `tacit-ui.js` (§10): avatar derivation is deterministic, in range and different for different keys; the shortcut resolver handles `/`, `g` sequences, the 1.5 s timeout, and ignores editable targets and modifier keys; the toast queue caps at three, merges duplicates and expires by time; the theme resolver maps a stored value and the system setting to the effective scheme and cycles System, Light, Dark.
 - Insights (`tacit-insight.js`): short ID derivation and resolution (no match, ambiguous match); batch split covers every pair, respects the limit and the prompt count formula; prompt contents (record blocks, no author, skip list of own pairs only); JSON rows to drafts with each rejection reason, rationale shortening, the `supersedes a newer record` warning, duplicates, disagreements and Accept; insight template with deterministic `d` and sorted symmetric pairs; visible-insight filter; grouping by pair and relation; Feed badges; cascade on delete; the "shared needs shared" check. Existing seams: `decideIncoming` treats insight events like records; `filterFeed`, `buildDrafts` and `announcementFor` leave insights out.
+- Name prompt and reminder (`tacit-ui.js`): the prompt is needed until it is answered for the active public key, and again after a key change; the reminder is active only with no name, after an answer and before dismissal.
 - Tacit Map (`tacit-map.js`): deterministic positions, specialty grouping with "General", linked records adjacent, grouped edges with counts and classes, Linked only. Cytoscape drawing is checked by hand.
 - Visual and interaction checks for the redesign are manual, in a browser, in the slice 12 standalone test. The existing unit tests must stay green with no edits other than the selector updates in §10.1.
 - Manual checks (two browser profiles, A and B):
