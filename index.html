@@ -68,9 +68,12 @@
             <p class="group-note text-danger" x-show="subjectError" x-text="subjectError"></p>
             <h3 class="group-title">Prompt</h3>
             <div class="group">
-                <div class="row"><button data-icon="copy" id="copy-prompt" @click="copy(dynamicPrompt, 'Prompt')" class="btn-secondary">Copy prompt</button></div>
-                <div class="row"><div class="w-full whitespace-pre-wrap break-words rounded-ctl bg-surface2 p-3 font-mono text-sm text-ink" x-text="dynamicPrompt"></div></div>
+                <div class="row flex-wrap gap-2" x-show="!promptEditing"><button data-icon="copy" id="copy-prompt" @click="copy(dynamicPrompt, 'Prompt')" class="btn-secondary">Copy prompt</button><button data-icon="pencil" id="edit-prompt" type="button" @click="editPrompt()" class="btn-secondary">Edit</button><span id="prompt-custom-badge" x-show="customPrompt" class="text-sm text-muted">Edited prompt</span></div>
+                <div class="row" x-show="!promptEditing"><div class="w-full whitespace-pre-wrap break-words rounded-ctl bg-surface2 p-3 font-mono text-sm text-ink" x-text="dynamicPrompt"></div></div>
+                <div class="row" x-show="promptEditing"><textarea id="prompt-editor" x-model="promptDraft" rows="20" aria-label="Extraction prompt" class="field font-mono"></textarea></div>
+                <div class="row flex-wrap gap-2" x-show="promptEditing"><button type="button" id="save-prompt" class="btn-primary" @click="savePrompt()">Save</button><button type="button" id="cancel-prompt" class="btn-secondary" @click="promptEditing = false">Cancel</button><button type="button" id="reset-prompt" class="btn-secondary" @click="resetPrompt()">Reset to default</button></div>
             </div>
+            <p id="prompt-local-note" class="group-note" x-show="promptEditing">Your edited prompt is stored only in this browser. It is never shared over the network or included in backups. The Input Type, Input Parsing Instructions, subject and specialty lines are filled in automatically, so keep those lines in place.</p>
             <p id="youtube-transcript-hint" class="group-note" x-show="selectedInputType === 'youtube-link'">If your LLM cannot read YouTube links, get the transcript yourself: open the video, expand the description, click "Show transcript", and copy the text. Then switch Input type to "Text file (.txt)", copy the prompt again, and paste it with the transcript.</p>
         </section>
 

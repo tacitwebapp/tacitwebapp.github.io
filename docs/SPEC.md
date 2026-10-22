@@ -123,7 +123,7 @@ signer = {
 ## 6. Capture
 
 ### 6.1 Extract tab
-- Input type and subject dropdowns, plus "Create subject". The prompt is built by `buildTacitPrompt({ inputType, subjectCategory, specialty })`, with a **Copy** button. An optional **Specialty** text field (for example "Kitchen Garden" under the subject "Gardening") is passed as `specialty`; the prompt then asks the LLM to restrict extraction to it and emit a `specialty` key per record, which is kept in the record content and shown in the Feed. Specialty never affects the room: routing is by subject only.
+- Input type and subject dropdowns, plus "Create subject". The prompt is built by `buildTacitPrompt({ inputType, subjectCategory, specialty })`, with a **Copy** button. An optional **Specialty** text field (for example "Kitchen Garden" under the subject "Gardening") is passed as `specialty`; the prompt then asks the LLM to restrict extraction to it and emit a `specialty` key per record, which is kept in the record content and shown in the Feed. Specialty never affects the room: routing is by subject only. An **Edit** button opens the prompt template in a textarea (Save, Cancel, Reset to default). An edited template is kept in `localStorage` (`tacit.extractPrompt`) only: it is never published, synced, or included in backups. The dynamic lines (input type, parsing instructions, subject, specialty) are still filled in from the edited template.
 - The selected subject becomes the default subject in the Import panel.
 
 ### 6.2 Import

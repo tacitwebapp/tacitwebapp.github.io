@@ -1,4 +1,4 @@
-const TacitPrompt = `**Input Type:** [INSERT INPUT TYPE HERE - e.g., WhatsApp Chat Export, YouTube Video Transcript, Social Media Post, Raw Text]
+export const DEFAULT_TACIT_PROMPT = `**Input Type:** [INSERT INPUT TYPE HERE - e.g., WhatsApp Chat Export, YouTube Video Transcript, Social Media Post, Raw Text]
 
 **Input Parsing Instructions:** [INSERT PARSING INSTRUCTIONS HERE - e.g., "Ignore timestamps and phone numbers. Focus on Q&A exchanges between group members." or "Summarize the transcript first, ignoring sponsor segments."]
 
@@ -93,7 +93,7 @@ export const TacitInputTypeLabels = {
     image: 'Image'
 };
 
-export const buildTacitPrompt = ({ inputType, subjectCategory, specialty }) => {
+export const buildTacitPrompt = ({ inputType, subjectCategory, specialty, template = DEFAULT_TACIT_PROMPT }) => {
     const inputLabel = TacitInputTypeLabels[inputType] || 'Not selected';
     const parsingInstructions = TacitInputParsingInstructions[inputType] || 'Select an input type to receive parsing instructions.';
     const subject = subjectCategory || 'Not selected';
@@ -102,7 +102,7 @@ export const buildTacitPrompt = ({ inputType, subjectCategory, specialty }) => {
     const rule = specialtyLabel
         ? `${subjectRule}\n*   Set the \`specialty\` of every extracted record to \`${specialtyLabel}\`, and extract only knowledge that falls within this specialty of the subject. Ignore knowledge outside it.`
         : subjectRule;
-    return TacitPrompt
+    return template
         .replace(/\*\*Input Type:\*\*.*/, () => `**Input Type:** ${inputLabel}`)
         .replace(/\*\*Input Parsing Instructions:\*\*.*/, () => `**Input Parsing Instructions:** ${parsingInstructions}`)
         .replace('### **Role & Objective**', () => `**Subject Category (Channel):** ${subject}\n${specialtyLabel ? `**Specialty:** ${specialtyLabel}\n` : ''}\n### **Role & Objective**`)
