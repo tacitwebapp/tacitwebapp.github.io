@@ -79,7 +79,7 @@ export function registerTacitApp(Alpine) {
         get npub() { return this.pubkey ? encodeNpub(this.pubkey) : ''; },
         get feedItems() { return filterFeed(this.library, this.feedFilters, { selfKeys: this.selfKeys, trustedKeys: new Set(this.trust.filter(entry => entry.status === 'trusted').map(entry => entry.pubkey)) }); },
         get records() { return this.library.filter(item => !isInsight(item.content)); },
-        get feedSubjects() { return [...new Map(this.records.map(item => [item.subjectSlug, item.content.subject])).entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1]))); },
+        get feedSubjects() { return [...new Map([...this.records.map(item => [item.subjectSlug, item.content.subject]), ...this.settings.subjects.map(subject => [subject.slug, subject.label])]).entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1]))); },
         get selfKeys() { return new Set([this.pubkey, ...this.previousKeys]); },
         insightFilters: { relation: '', author: '' }, expandedInsights: {}, tabLink: { insight: null, a: '', b: '', relation: 'conflicts', rationale: '' },
         tabCombo: { a: { open: false, search: '', active: 0 }, b: { open: false, search: '', active: 0 } },
