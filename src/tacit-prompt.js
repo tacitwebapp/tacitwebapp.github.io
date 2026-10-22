@@ -93,8 +93,11 @@ export const TacitInputTypeLabels = {
     image: 'Image'
 };
 
-export const buildTacitPrompt = ({ inputType, subjectCategory, specialty, template = DEFAULT_TACIT_PROMPT }) => {
+export const TacitLinkInputTypes = ['youtube-link', 'website-link'];
+
+export const buildTacitPrompt = ({ inputType, subjectCategory, specialty, inputLink, template = DEFAULT_TACIT_PROMPT }) => {
     const inputLabel = TacitInputTypeLabels[inputType] || 'Not selected';
+    const link = TacitLinkInputTypes.includes(inputType) ? inputLink?.trim() : '';
     const parsingInstructions = TacitInputParsingInstructions[inputType] || 'Select an input type to receive parsing instructions.';
     const subject = subjectCategory || 'Not selected';
     const specialtyLabel = specialty?.trim();
@@ -104,7 +107,7 @@ export const buildTacitPrompt = ({ inputType, subjectCategory, specialty, templa
         : subjectRule;
     return template
         .replace(/\*\*Input Type:\*\*.*/, () => `**Input Type:** ${inputLabel}`)
-        .replace(/\*\*Input Parsing Instructions:\*\*.*/, () => `**Input Parsing Instructions:** ${parsingInstructions}`)
+        .replace(/\*\*Input Parsing Instructions:\*\*.*/, () => `**Input Parsing Instructions:** ${parsingInstructions}${link ? `\n\n**Input Link:** ${link}` : ''}`)
         .replace('### **Role & Objective**', () => `**Subject Category (Channel):** ${subject}\n${specialtyLabel ? `**Specialty:** ${specialtyLabel}\n` : ''}\n### **Role & Objective**`)
         .replace('*   Keep the tags broad enough to group related knowledge but specific enough to be useful.', () => rule)
         .replace(/^( *)"subject": .*$/m, (line, indent) => (specialtyLabel ? `${line}\n${indent}"specialty": ${JSON.stringify(`String (Set to \`${specialtyLabel}\`)`)},` : line));

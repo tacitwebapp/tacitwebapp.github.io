@@ -124,6 +124,7 @@
     .help::before { content: ''; position: absolute; inset: -12px; }
     .help-tip { @apply pointer-events-none fixed z-50 w-max max-w-[16rem] rounded-ctl border border-line bg-surface px-3 py-2 text-xs text-ink shadow-lg; }
     .empty-state { @apply flex w-full flex-col items-start gap-1 p-4; }
+    .empty-state > button { @apply self-end; }
     .empty-title { @apply font-semibold; }
     .empty-text { @apply mb-2 text-sm text-muted; }
     .search-hit { @apply rounded-sm; background: #fde047; color: #1c1c1e; }
