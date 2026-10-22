@@ -468,6 +468,7 @@ export function registerTacitApp(Alpine) {
             else if (result.action === 'search') { this.activeTab = 'feed'; this.$nextTick(() => document.getElementById('feed-search').focus()); }
             else if (result.action.startsWith('go:')) this.activeTab = result.action.slice(3);
         },
+        copyKey(pubkey) { return this.copy(encodeNpub(pubkey), 'Public key'); },
         async copy(text, label) {
             try { await navigator.clipboard.writeText(text); } catch (_) {
                 const area = document.createElement('textarea'); area.value = text; document.body.appendChild(area); area.select();
