@@ -63,7 +63,7 @@ const shortKey = pubkey => `${encodeNpub(pubkey).slice(0, 12)}…${pubkey.slice(
 export function registerTacitApp(Alpine) {
     Alpine.data('tacitApp', () => ({
         mainTabs: [{ id: 'feed', label: 'Feed', icon: 'list' }, { id: 'extract', label: 'Extract', icon: 'sparkles' }, { id: 'import', label: 'Import & Review', short: 'Import', icon: 'inbox' }, { id: 'insights', label: 'Insights', icon: 'link' }, { id: 'map', label: 'Tacit Map', short: 'Map', icon: 'map' }, { id: 'subjects', label: 'Subjects', icon: 'folder' }, { id: 'identity', label: 'Identity', icon: 'key' }],
-        activeTab: 'feed', inputTypeLabels: TacitInputTypeLabels, selectedInputType: 'txt', selectedSlug: '', specialty: '', customPrompt: null, promptEditing: false, promptDraft: '',
+        activeTab: 'feed', inputTypeLabels: TacitInputTypeLabels, selectedInputType: 'txt', inputLink: '', selectedSlug: '', specialty: '', customPrompt: null, promptEditing: false, promptDraft: '',
         settings: { relays: [], subjects: [] }, rememberedSubject: null, newSubject: '', subjectError: '',
         pubkey: '', previousKeys: [], signer: null, extensionAvailable: false, switchAck: false, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
         bellOpen: false, nameDraft: '', resolveName: null, importKeyText: '', importAck: false, trustForm: { status: '', key: '', error: '' }, identityMessage: '', backupSummary: '', theme: localStorage.getItem('tacit.theme') || '', toasts: [],
@@ -76,7 +76,7 @@ export function registerTacitApp(Alpine) {
             return remembered?.slug === this.selectedSlug && !rows.some(row => row.slug === remembered.slug) ? [...rows, remembered] : rows;
         },
         get selectedSubject() { return this.subjectOptions.find(subject => subject.slug === this.selectedSlug); },
-        get dynamicPrompt() { return buildTacitPrompt({ inputType: this.selectedInputType, subjectCategory: this.selectedSubject?.label || '', specialty: this.specialty, template: this.customPrompt ?? DEFAULT_TACIT_PROMPT }); },
+        get dynamicPrompt() { return buildTacitPrompt({ inputType: this.selectedInputType, subjectCategory: this.selectedSubject?.label || '', specialty: this.specialty, inputLink: this.inputLink, template: this.customPrompt ?? DEFAULT_TACIT_PROMPT }); },
         get discover() { return groupDiscover(this.directoryPeers, this.subjectCache); },
         get extensionActive() { return this.signer?.source === 'extension'; },
         get signerLabel() { return this.extensionActive ? 'extension' : 'local key'; },
