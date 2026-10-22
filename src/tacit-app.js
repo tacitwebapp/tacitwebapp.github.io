@@ -1,4 +1,4 @@
-import { TacitInputTypeLabels, buildTacitPrompt } from './tacit-prompt.js';
+import { TacitInputTypeLabels, DEFAULT_TACIT_PROMPT, buildTacitPrompt } from './tacit-prompt.js';
 import { addSubject, slugify } from './tacit-subject.js';
 import { parseText, buildDrafts, existingRecords } from './tacit-import.js';
 import { buildRecordTemplate, buildEditTemplate, buildDeletionTemplate, recordKey, cleanAuthorName, latestAuthorNames } from './tacit-events.js';
@@ -63,7 +63,7 @@ const shortKey = pubkey => `${encodeNpub(pubkey).slice(0, 12)}…${pubkey.slice(
 export function registerTacitApp(Alpine) {
     Alpine.data('tacitApp', () => ({
         mainTabs: [{ id: 'feed', label: 'Feed', icon: 'list' }, { id: 'extract', label: 'Extract', icon: 'sparkles' }, { id: 'import', label: 'Import & Review', icon: 'inbox' }, { id: 'insights', label: 'Insights', icon: 'link' }, { id: 'map', label: 'Tacit Map', icon: 'map' }, { id: 'subjects', label: 'Subjects', icon: 'folder' }, { id: 'identity', label: 'Identity', icon: 'key' }],
-        activeTab: 'feed', inputTypeLabels: TacitInputTypeLabels, selectedInputType: 'txt', selectedSlug: '', specialty: '',
+        activeTab: 'feed', inputTypeLabels: TacitInputTypeLabels, selectedInputType: 'txt', selectedSlug: '', specialty: '', customPrompt: null, promptEditing: false, promptDraft: '',
         settings: { relays: [], subjects: [] }, newSubject: '', subjectError: '',
         pubkey: '', previousKeys: [], signer: null, extensionAvailable: false, switchAck: false, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
         importKeyText: '', importAck: false, trustForm: { status: '', key: '', error: '' }, identityMessage: '', backupSummary: '', theme: localStorage.getItem('tacit.theme') || '', toasts: [],
@@ -72,7 +72,7 @@ export function registerTacitApp(Alpine) {
         authorOptions: [{ value: '', label: 'All' }, { value: 'mine', label: 'Mine' }, { value: 'trusted', label: 'Trusted' }, { value: 'others', label: 'Others' }],
         get subjectOptions() { return [...this.settings.subjects, ...this.discover.filter(row => !this.hasSubject(row.slug))]; },
         get selectedSubject() { return this.subjectOptions.find(subject => subject.slug === this.selectedSlug); },
-        get dynamicPrompt() { return buildTacitPrompt({ inputType: this.selectedInputType, subjectCategory: this.selectedSubject?.label || '', specialty: this.specialty }); },
+        get dynamicPrompt() { return buildTacitPrompt({ inputType: this.selectedInputType, subjectCategory: this.selectedSubject?.label || '', specialty: this.specialty, template: this.customPrompt ?? DEFAULT_TACIT_PROMPT }); },
         get discover() { return groupDiscover(this.directoryPeers, this.subjectCache); },
         get extensionActive() { return this.signer?.source === 'extension'; },
         get signerLabel() { return this.extensionActive ? 'extension' : 'local key'; },
@@ -305,6 +305,7 @@ export function registerTacitApp(Alpine) {
         async initApp() {
             this.settings = { relays: [], subjects: [], backupReminder: DEFAULT_BACKUP_REMINDER, ...readJson('tacit.settings', {}) };
             this.previousKeys = readJson('tacit.previousKeys', []);
+            try { this.customPrompt = localStorage.getItem('tacit.extractPrompt'); } catch (_) { /* blocked: default prompt */ }
             this.subjectCache = mergeSubjectCache(readJson('tacit.subjectCache', {}), [], Date.now());
             this.extensionAvailable = !!window.nostr;
             try { await this.activateSigner(pickSource(window.nostr, this.settings.signerPreference)); } catch (error) {
@@ -374,6 +375,17 @@ export function registerTacitApp(Alpine) {
             this.tombstones = await store.getAll('tombstones');
             this.library = (await store.getAll('library')).sort((a, b) => b.event.created_at - a.event.created_at).map(item => ({ ...item, content: parseContent(item.event) })).filter(item => item.content);
             this.authorNames = latestAuthorNames([...this.library, ...pending.filter(item => item.kind === 'incoming')].map(item => item.event));
+        },
+        editPrompt() { this.promptDraft = this.customPrompt ?? DEFAULT_TACIT_PROMPT; this.promptEditing = true; },
+        savePrompt() {
+            const text = this.promptDraft.trim();
+            this.storePrompt(text && text !== DEFAULT_TACIT_PROMPT ? text : null);
+            this.promptEditing = false; this.toast(this.customPrompt ? 'Prompt saved on this device' : 'Default prompt restored');
+        },
+        resetPrompt() { this.promptDraft = DEFAULT_TACIT_PROMPT; },
+        storePrompt(text) {
+            this.customPrompt = text;
+            try { if (text) localStorage.setItem('tacit.extractPrompt', text); else localStorage.removeItem('tacit.extractPrompt'); } catch (_) { this.toast('Could not store prompt; it will be lost on reload', true); }
         },
         saveSettings() { localStorage.setItem('tacit.settings', JSON.stringify(this.settings)); },
         logSync(message) { this.syncLogs.unshift(`[${new Date().toLocaleTimeString()}] ${message}`); if (this.syncLogs.length > 50) this.syncLogs.pop(); },

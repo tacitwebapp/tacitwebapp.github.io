@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { TacitJsonParser } from '../src/tacit-json-parser.js';
 import { TacitCsvParser } from '../src/tacit-csv-parser.js';
-import { buildTacitPrompt } from '../src/tacit-prompt.js';
+import { buildTacitPrompt, DEFAULT_TACIT_PROMPT } from '../src/tacit-prompt.js';
 
 test('json parser accepts array, knowledge wrapper and single object', () => {
     assert.equal(TacitJsonParser.parse('[{"a":1},{"a":2}]').length, 2);
@@ -42,4 +42,12 @@ test('prompt builder keeps replacement patterns in specialty literal', () => {
     const prompt = buildTacitPrompt({ inputType: 'txt', subjectCategory: 'Gardening', specialty: 'A "b" $& $\' x' });
     assert.match(prompt, /\*\*Specialty:\*\* A "b" \$& \$' x\n\n### \*\*Role & Objective\*\*/);
     assert.match(prompt, /"specialty": "String \(Set to `A \\"b\\" \$& \$' x`\)",/);
+});
+
+test('prompt builder uses a custom template and still fills dynamic lines', () => {
+    const template = DEFAULT_TACIT_PROMPT.replace('Expert Knowledge Management AI', 'Careful Archivist');
+    const prompt = buildTacitPrompt({ inputType: 'txt', subjectCategory: 'Gardening', template });
+    assert.match(prompt, /Careful Archivist/);
+    assert.match(prompt, /\*\*Input Type:\*\* Text file/);
+    assert.equal(buildTacitPrompt({ inputType: 'txt', subjectCategory: 'Gardening' }), buildTacitPrompt({ inputType: 'txt', subjectCategory: 'Gardening', template: DEFAULT_TACIT_PROMPT }));
 });
