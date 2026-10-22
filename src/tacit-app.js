@@ -64,13 +64,17 @@ export function registerTacitApp(Alpine) {
     Alpine.data('tacitApp', () => ({
         mainTabs: [{ id: 'feed', label: 'Feed', icon: 'list' }, { id: 'extract', label: 'Extract', icon: 'sparkles' }, { id: 'import', label: 'Import & Review', short: 'Import', icon: 'inbox' }, { id: 'insights', label: 'Insights', icon: 'link' }, { id: 'map', label: 'Tacit Map', short: 'Map', icon: 'map' }, { id: 'subjects', label: 'Subjects', icon: 'folder' }, { id: 'identity', label: 'Identity', icon: 'key' }],
         activeTab: 'feed', inputTypeLabels: TacitInputTypeLabels, selectedInputType: 'txt', selectedSlug: '', specialty: '', customPrompt: null, promptEditing: false, promptDraft: '',
-        settings: { relays: [], subjects: [] }, newSubject: '', subjectError: '',
+        settings: { relays: [], subjects: [] }, rememberedSubject: null, newSubject: '', subjectError: '',
         pubkey: '', previousKeys: [], signer: null, extensionAvailable: false, switchAck: false, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
         bellOpen: false, nameDraft: '', resolveName: null, importKeyText: '', importAck: false, trustForm: { status: '', key: '', error: '' }, identityMessage: '', backupSummary: '', theme: localStorage.getItem('tacit.theme') || '', toasts: [],
         pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], authorNames: {}, directoryPeers: {}, subjectCache: {}, ready: false,
         feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null, linkForm: blankLink(), relations: RELATIONS,
         authorOptions: [{ value: '', label: 'All' }, { value: 'mine', label: 'Mine' }, { value: 'trusted', label: 'Trusted' }, { value: 'others', label: 'Others' }],
-        get subjectOptions() { return [...this.settings.subjects, ...this.discover.filter(row => !this.hasSubject(row.slug))]; },
+        get subjectOptions() {
+            const rows = [...this.settings.subjects, ...this.discover.filter(row => !this.hasSubject(row.slug))];
+            const remembered = this.rememberedSubject;
+            return remembered?.slug === this.selectedSlug && !rows.some(row => row.slug === remembered.slug) ? [...rows, remembered] : rows;
+        },
         get selectedSubject() { return this.subjectOptions.find(subject => subject.slug === this.selectedSlug); },
         get dynamicPrompt() { return buildTacitPrompt({ inputType: this.selectedInputType, subjectCategory: this.selectedSubject?.label || '', specialty: this.specialty, template: this.customPrompt ?? DEFAULT_TACIT_PROMPT }); },
         get discover() { return groupDiscover(this.directoryPeers, this.subjectCache); },
@@ -83,7 +87,7 @@ export function registerTacitApp(Alpine) {
         get selfKeys() { return new Set([this.pubkey, ...this.previousKeys]); },
         insightFilters: { relation: '', author: '' }, expandedInsights: {}, tabLink: { insight: null, a: '', b: '', relation: 'conflicts', rationale: '' },
         tabCombo: { a: { open: false, search: '', active: 0 }, b: { open: false, search: '', active: 0 } },
-        subjectCombo: Object.fromEntries(['feed', 'extract', 'import', 'insights', 'map'].map(key => [key, { open: false, search: '', active: 0 }])),
+        subjectCombo: Object.fromEntries(['feed', 'global'].map(key => [key, { open: false, search: '', active: 0 }])),
         get subjectRecords() { return this.records.filter(item => item.subjectSlug === this.selectedSlug); },
         importView: 'import', importViews: [{ id: 'import', label: 'Import', icon: 'download' }, { id: 'review', label: 'Review', icon: 'eye' }],
         get reviewCount() { return this.drafts.length + this.incoming.reduce((total, group) => total + group.records.length, 0); },
@@ -297,9 +301,8 @@ export function registerTacitApp(Alpine) {
             else if (event.key === 'Tab') this.subjectComboClose(key);
         },
         subjectComboPick(key, subject) {
-            if (key === 'feed') this.feedFilters.subject = subject.slug; else this.selectedSlug = subject.slug;
+            if (key === 'feed') this.feedFilters.subject = subject.slug; else { this.selectedSlug = subject.slug; this.resetTabLink(); }
             this.subjectComboClose(key);
-            if (key === 'insights') this.resetTabLink();
         },
         resetTabLink() { this.tabLink = { insight: null, a: '', b: '', relation: 'conflicts', rationale: '' }; },
         swapTabLink() { [this.tabLink.a, this.tabLink.b] = [this.tabLink.b, this.tabLink.a]; },
@@ -339,8 +342,15 @@ export function registerTacitApp(Alpine) {
                 await this.activateSigner('local');
             }
             if (this.settings.authorName && !this.settings.namePromptedKey) { this.settings.namePromptedKey = this.pubkey; this.saveSettings(); }
-            this.selectedSlug = this.settings.subjects[0]?.slug || '';
-            this.$watch('selectedSlug', () => { this.mapLinkedOnlyChoice = null; this.selectedKeys = {}; this.insightImport = null; });
+            const saved = readJson('tacit.selectedSubject', null);
+            if (saved?.slug) { this.rememberedSubject = saved; this.selectedSlug = saved.slug; }
+            else this.selectedSlug = this.settings.subjects[0]?.slug || '';
+            this.$watch('selectedSlug', slug => {
+                this.mapLinkedOnlyChoice = null; this.selectedKeys = {}; this.insightImport = null;
+                if (!slug || !this.selectedSubject) return;
+                this.rememberedSubject = { slug, label: this.selectedSubject.label };
+                try { localStorage.setItem('tacit.selectedSubject', JSON.stringify(this.rememberedSubject)); } catch (_) { /* blocked: selection not remembered */ }
+            });
             this.$watch('activeTab', tab => { if (tab !== 'insights') this.insightImport = null; });
             const route = parseRoute(location.hash);
             if (route) { this.activeTab = route.tab; if (route.tab === 'import') this.importView = route.view; if (route.tab === 'insights') this.insightsView = route.view; history.replaceState(null, '', buildRoute(this.activeTab, { import: this.importView, insights: this.insightsView })); }
@@ -353,6 +363,11 @@ export function registerTacitApp(Alpine) {
                 if (next.tab === 'insights') this.insightsView = next.view;
             });
             await this.reload();
+            const savedFeedSubject = readJson('tacit.feedSubject', '');
+            if (this.feedSubjects.some(([slug]) => slug === savedFeedSubject)) this.feedFilters.subject = savedFeedSubject;
+            this.$watch('feedFilters.subject', slug => {
+                try { if (slug) localStorage.setItem('tacit.feedSubject', JSON.stringify(slug)); else localStorage.removeItem('tacit.feedSubject'); } catch (_) { /* blocked: selection not remembered */ }
+            });
             try { directory = connectDirectory(this); } catch (error) { this.logSync(`Could not join directory: ${error.message}`); }
             this.settings.subjects.filter(subject => subject.subscribed).forEach(subject => this.joinSubject(subject.slug));
             window.addEventListener('keydown', event => this.onKey(event));
