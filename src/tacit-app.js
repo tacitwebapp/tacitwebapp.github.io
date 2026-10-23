@@ -6,7 +6,7 @@ import { createLocalSigner, createExtensionSigner, pickSource, retireKey, genera
 import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache } from './tacit-sync.js';
 import { filterFeed, highlightParts } from './tacit-feed.js';
 import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit, shareBlocker, relationsOf, findOwnInsight, groupInsights, cascadeTargets, incomingInsightCard, feedBadges, isWellFormedInsight, DEFAULT_PROMPT_LIMIT, validPromptLimit, planInsightPrompts, insightPromptCards, importInsightRows, applyToDraft, updateInsightDraft } from './tacit-insight.js';
-import { isRecord, isComment, COMMENT_BODY_MAX, worksD, buildWorksTemplate, buildCommentTemplate, buildThread, flattenThread, shownCount, worksCount, cascadeTargets as discussionTargets, fullViewIdOf, resolveFullView } from './tacit-comment.js';
+import { isRecord, isComment, COMMENT_BODY_MAX, worksD, buildWorksTemplate, buildCommentTemplate, buildCommentEdit, buildThread, flattenThread, shownCount, worksCount, cascadeTargets as discussionTargets, fullViewIdOf, resolveFullView } from './tacit-comment.js';
 import { rankBySimilarity, candidatesFor, LINK_TOP_N } from './tacit-similarity.js';
 import { buildBackup, parseBackup, restoreBackup, backupDue, DEFAULT_BACKUP_REMINDER } from './tacit-backup.js';
 import { parseRoute, buildRoute } from './tacit-route.js';
@@ -695,6 +695,24 @@ export function registerTacitApp(Alpine) {
         },
         async submitComment() { if (await this.postComment(this.detailItem.key, this.commentDraft)) this.commentDraft = ''; },
         async submitReply(row) { if (await this.postComment(row.key, this.replyDraft)) { this.replyTo = ''; this.replyDraft = ''; } },
+        async editComment(row) {
+            const body = prompt('Edit comment', row.item.content.body)?.trim();
+            if (!body || body === row.item.content.body || body.length > COMMENT_BODY_MAX || !await this.askName()) return;
+            const event = await this.signer.signEvent(buildCommentEdit(row.item.event, body, undefined, this.settings.authorName));
+            const { content, ...record } = row.item;
+            const edited = { ...record, event, receivedAt: Date.now() };
+            await store.put('library', edited); await this.reload();
+            this.publish(edited);
+            this.toast('Comment edited');
+        },
+        async deleteComment(row) {
+            await this.removeItem(row.item); await this.reload();
+            this.toast('Comment deleted');
+        },
+        async hideComment(row) {
+            await store.put('hidden', { key: row.key, hiddenAt: Date.now() }); await store.remove('library', row.key); await this.reload();
+            this.toast('Comment hidden');
+        },
         async openRelations(item, el) {
             await this.openDetail(item, el);
             document.querySelector('#record-detail .relations')?.scrollIntoView({ block: 'start' });

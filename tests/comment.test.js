@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildWorksTemplate, isValidWorks, worksCount, cascadeTargets, fullViewIdOf, resolveFullView, buildCommentTemplate, isValidComment, buildThread, shownCount, flattenThread, isRecord } from '../src/tacit-comment.js';
+import { buildWorksTemplate, isValidWorks, worksCount, cascadeTargets, fullViewIdOf, resolveFullView, buildCommentTemplate, buildCommentEdit, isValidComment, buildThread, flattenThread, shownCount, isRecord } from '../src/tacit-comment.js';
 import { decideIncoming, announcementFor } from '../src/tacit-sync.js';
 import { filterFeed } from '../src/tacit-feed.js';
 import { buildDrafts, existingRecords } from '../src/tacit-import.js';
@@ -181,6 +181,16 @@ test('comment template: d is tacit-comment- plus a uuid, content carries root, p
     assert.match(buildCommentTemplate({ root, parent: root, body: 'x', subject: 'Pest' }, 500).tags[0][1], /^tacit-comment-[0-9a-f-]{36}$/);
 });
 
+test('a comment edit keeps d, subject and postedAt, changes the body and signs a newer created_at', () => {
+    const root = rec(B, U1).key;
+    const original = { pubkey: A, ...buildCommentTemplate({ root, parent: root, body: 'Only on clay', subject: 'Pest' }, 500, 'Ann', U2) };
+    const edit = buildCommentEdit(original, 'Only on heavy clay', 900, 'Annie');
+    assert.deepEqual(edit.tags, [['d', `tacit-comment-${U2}`], ['subject', 'Pest'], ['author_name', 'Annie']]);
+    assert.deepEqual(JSON.parse(edit.content), { schemaVersion: 1, type: 'comment', root, parent: root, body: 'Only on heavy clay', postedAt: 500 });
+    assert.equal(edit.created_at, 900);
+    assert.equal(buildCommentEdit(original, 'again', 400).created_at, 501);
+});
+
 test('a comment is valid with its fields present, a root or comment parent and a body of 1 to 2000 characters', () => {
     const root = rec(B, U1).key, key = comment(A, 1, root, root).key, parentKey = comment(B, 2, root, root).key;
     const good = { schemaVersion: 1, type: 'comment', root, parent: root, body: 'ok', postedAt: 300 };
@@ -244,6 +254,13 @@ test('a stub says why its comment is not shown: deleted, hidden or blocked autho
     const replies = [gone, hidden, banned, unknown].map((parent, index) => comment(D, 10 + index, root.key, parent.key));
     const thread = buildThread(root.key, { library: [root, ...replies], tombstones: { [gone.key]: 400 }, hiddenKeys: new Set([hidden.key]), blockedKeys: new Set([C]) });
     assert.deepEqual(thread.map(node => [node.key, node.stub]), [[gone.key, 'deleted'], [hidden.key, 'hidden'], [banned.key, 'hidden'], [unknown.key, 'missing']]);
+});
+
+test('a deleted, hidden or blocked comment with no shown replies leaves no stub', () => {
+    const root = rec(D, U1), gone = comment(A, 1, root.key, root.key), hidden = comment(B, 2, root.key, root.key), banned = comment(C, 3, root.key, root.key);
+    const goneReply = comment(D, 4, root.key, gone.key), kept = comment(E, 5, root.key, root.key);
+    const options = { tombstones: { [gone.key]: 400, [goneReply.key]: 400 }, hiddenKeys: new Set([hidden.key]), blockedKeys: new Set([C]) };
+    assert.deepEqual(buildThread(root.key, { library: [root, gone, hidden, banned, goneReply, kept], ...options }).map(node => [node.key, node.stub]), [[kept.key, null]]);
 });
 
 test('a held comment that is deleted, hidden or from a blocked author is not shown, and its replies sit under a stub', () => {
