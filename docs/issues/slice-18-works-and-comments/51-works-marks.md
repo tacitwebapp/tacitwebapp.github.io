@@ -1,7 +1,7 @@
 # 51 — Works marks: mark a shared record as worked, and see "Works for N (T)"
 
 Type: AFK
-**Status:** TODO
+**Status:** DONE
 **Label:** ready-for-agent
 
 ## Parent
@@ -24,15 +24,15 @@ Feed rows show "Works for N (T)" next to the insight badges when N > 0. Deleting
 ## Acceptance criteria
 
 - [ ] On a shared record, Works marks it, and pressing it again un-marks it (deletion event and tombstone). Marking again after that is accepted by peers.
-- [ ] Only one mark per author per record exists. Marking twice is an edit, not a second mark.
+- [x] Only one mark per author per record exists. Marking twice is an edit, not a second mark.
 - [ ] "Works for N (T)" counts distinct authors, leaves out the record author's own mark, shows T even when 0, and is hidden when N is 0.
 - [ ] A blocked or hidden author's marks are not counted.
 - [ ] A local record shows no Works toggle, and says "Share this record to discuss it".
-- [ ] An unknown author's valid mark goes straight to the library and is relayed. An invalid one is dropped. Neither touches the review queue or its cap.
+- [x] An unknown author's valid mark goes straight to the library and is relayed. An invalid one is dropped. Neither touches the review queue or its cap.
 - [ ] Feed rows show the count.
 - [ ] Deleting a record deletes the user's own mark on it, on every peer.
-- [ ] Marks are left out of the Feed, import duplicates, `sharedCount` and the Insights record list, and round-trip through backup.
-- [ ] Unit tests for the template, validity, `worksCount` and the `decideIncoming` branch, alongside the insight tests' patterns. `npm test` passes.
+- [x] Marks are left out of the Feed, import duplicates, `sharedCount` and the Insights record list, and round-trip through backup.
+- [x] Unit tests for the template, validity, `worksCount` and the `decideIncoming` branch, alongside the insight tests' patterns. `npm test` passes.
 
 ## Blocked by
 
