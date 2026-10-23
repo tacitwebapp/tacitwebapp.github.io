@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildWorksTemplate, isValidWorks, worksCount, cascadeTargets, fullViewIdOf, resolveFullView, buildCommentTemplate, buildCommentEdit, isValidComment, buildThread, flattenThread, shownCount, isRecord, foldedComments } from '../src/tacit-comment.js';
+import { buildWorksTemplate, isValidWorks, worksCount, cascadeTargets, fullViewIdOf, resolveFullView, buildCommentTemplate, buildCommentEdit, isValidComment, buildThread, flattenThread, shownCount, isRecord, foldedComments, commentNotifications } from '../src/tacit-comment.js';
 import { decideIncoming, announcementFor } from '../src/tacit-sync.js';
 import { filterFeed } from '../src/tacit-feed.js';
 import { buildDrafts, existingRecords } from '../src/tacit-import.js';
@@ -427,4 +427,92 @@ test('a collapsed comment hides its whole subtree and reports how many shown com
 test('a comment whose only replies are folded has no replies to collapse', () => {
     const root = rec(D, U1), c1 = comment(A, 1, root.key, root.key), spam = comment(B, 2, root.key, c1.key);
     assert.equal(flattenThread(buildThread(root.key, { library: [root, c1], folded: [spam] }), { maxIndent: 4 })[0].replies, 0);
+});
+
+const SECOND = 1000;
+const at = (item, seconds) => ({ ...item, receivedAt: seconds * SECOND });
+const notify = (library, { folded = [], threadSeen = { since: 1000, seen: {} }, selfKeys = new Set([A]) } = {}) => commentNotifications({ library, folded, selfKeys, threadSeen });
+
+test('another author\'s comment on the user\'s record counts once it is received after since', () => {
+    const mine = rec(A, U1), theirs = rec(B, U2);
+    const fresh = at(comment(B, 1, mine.key, mine.key), 1500), old = at(comment(C, 2, mine.key, mine.key), 900);
+    const elsewhere = at(comment(C, 3, theirs.key, theirs.key), 1500), own = at(comment(A, 4, mine.key, mine.key), 1500);
+    const result = notify([mine, theirs, fresh, old, elsewhere, own]);
+    assert.deepEqual([result.newComments.count, result.newComments.record], [1, mine]);
+    assert.deepEqual([result.replies.count, result.replies.record, result.review.count, result.review.record], [0, null, 0, null]);
+});
+
+test('a comment on the user\'s record under a previous key counts, and a record the user does not hold does not open', () => {
+    const mine = rec(D, U1), c = at(comment(B, 1, mine.key, mine.key), 1500);
+    assert.equal(notify([mine, c], { selfKeys: new Set([A, D]) }).newComments.count, 1);
+    assert.equal(notify([c], { selfKeys: new Set([A, D]) }).newComments.count, 0);
+});
+
+test('seen is per record: only comments received after that record\'s seen time count', () => {
+    const one = rec(A, U1), two = rec(A, U2);
+    const library = [one, two, at(comment(B, 1, one.key, one.key), 1500), at(comment(B, 2, one.key, one.key), 2500), at(comment(B, 3, two.key, two.key), 1500)];
+    const result = notify(library, { threadSeen: { since: 1000, seen: { [one.key]: 2000 } } });
+    assert.equal(result.newComments.count, 2);
+    assert.equal(notify(library, { threadSeen: { since: 1000, seen: { [one.key]: 3000, [two.key]: 3000 } } }).newComments.count, 0);
+});
+
+test('receivedAt decides, whatever created_at and postedAt say', () => {
+    const mine = rec(A, U1), base = comment(B, 1, mine.key, mine.key);
+    const past = at({ ...base, event: { pubkey: B, created_at: 10 }, content: { ...base.content, postedAt: 10 } }, 1500);
+    const future = at({ ...comment(B, 2, mine.key, mine.key), event: { pubkey: B, created_at: 99999 } }, 1500);
+    const backdatedLate = at({ ...comment(B, 3, mine.key, mine.key), event: { pubkey: B, created_at: 5000 } }, 900);
+    assert.equal(notify([mine, past, future, backdatedLate]).newComments.count, 2);
+    assert.equal(notify([mine, past, future], { threadSeen: { since: 1000, seen: { [mine.key]: 1600 } } }).newComments.count, 0);
+});
+
+test('the record to open holds the newest matching comment by receivedAt', () => {
+    const one = rec(A, U1), two = rec(A, U2);
+    const library = [one, two, at(comment(B, 1, one.key, one.key), 1600), at(comment(B, 2, two.key, two.key), 1700), at(comment(B, 3, one.key, one.key), 1650)];
+    assert.equal(notify(library).newComments.record, two);
+    assert.equal(notify(library, { threadSeen: { since: 1000, seen: { [two.key]: 5000 } } }).newComments.record, one);
+});
+
+test('a reply to the user\'s comment counts as a reply on any record, once, and not as a new comment', () => {
+    const mine = rec(A, U1), theirs = rec(B, U2);
+    const myComment = at(comment(A, 1, theirs.key, theirs.key), 1100), reply = at(comment(B, 2, theirs.key, myComment.key), 1500);
+    const onMine = at(comment(C, 3, mine.key, mine.key), 1500), myOnMine = at(comment(A, 5, mine.key, mine.key), 1200), replyToMyOnMine = at(comment(C, 6, mine.key, myOnMine.key), 1600);
+    const result = notify([mine, theirs, myComment, reply, onMine, myOnMine, replyToMyOnMine]);
+    assert.deepEqual([result.replies.count, result.replies.record], [2, mine]);
+    assert.deepEqual([result.newComments.count, result.newComments.record], [1, mine]);
+    assert.equal(notify([theirs, myComment, reply]).replies.record, theirs);
+    assert.equal(notify([theirs, myComment, reply], { threadSeen: { since: 1000, seen: { [theirs.key]: 1500 } } }).replies.count, 0);
+});
+
+test('the user\'s own replies, and replies to someone else\'s comment, are not replies to the user', () => {
+    const theirs = rec(B, U2), first = at(comment(B, 1, theirs.key, theirs.key), 1100);
+    const own = at(comment(A, 2, theirs.key, first.key), 1200), self = at(comment(A, 3, theirs.key, own.key), 1300), other = at(comment(C, 4, theirs.key, first.key), 1400);
+    assert.equal(notify([theirs, first, own, self, other]).replies.count, 0);
+});
+
+test('invalid comments never notify', () => {
+    const mine = rec(A, U1), bad = at(comment(B, 1, mine.key, mine.key, { content: { schemaVersion: 1, type: 'comment', root: mine.key, parent: mine.key, body: '', postedAt: 301 } }), 1500);
+    assert.equal(notify([mine, bad]).newComments.count, 0);
+});
+
+test('folded comments on the user\'s records need review once received after since', () => {
+    const mine = rec(A, U1), theirs = rec(B, U2);
+    const spam = at(comment(C, 1, mine.key, mine.key), 1500), later = at(comment(C, 2, mine.key, mine.key), 1800);
+    const elsewhere = at(comment(C, 3, theirs.key, theirs.key), 1500), early = at(comment(E, 4, mine.key, mine.key), 500);
+    const result = notify([mine, theirs], { folded: [spam, later, elsewhere, early] });
+    assert.deepEqual([result.review.count, result.review.record], [2, mine]);
+    assert.equal(notify([mine], { folded: [spam, later], threadSeen: { since: 1000, seen: { [mine.key]: 9999 } } }).review.count, 2);
+    assert.equal(notify([mine], { folded: [spam] }).newComments.count, 0);
+    assert.equal(notify([mine]).review.count, 0);
+});
+
+test('on first run, existing comments notify nothing', () => {
+    const mine = rec(A, U1), theirs = rec(B, U2), myComment = at(comment(A, 1, theirs.key, theirs.key), 100);
+    const library = [mine, theirs, myComment, at(comment(B, 2, mine.key, mine.key), 200), at(comment(C, 3, theirs.key, myComment.key), 300)];
+    const result = notify(library, { folded: [at(comment(C, 4, mine.key, mine.key), 400)], threadSeen: { since: 5000, seen: {} } });
+    assert.deepEqual([result.review.count, result.replies.count, result.newComments.count], [0, 0, 0]);
+});
+
+test('Works marks never notify', () => {
+    const mine = rec(A, U1);
+    assert.deepEqual(Object.values(notify([mine, at(mark(B, mine.key), 1500)])).map(entry => entry.count), [0, 0, 0]);
 });

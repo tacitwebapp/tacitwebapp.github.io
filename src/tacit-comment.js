@@ -108,6 +108,26 @@ export function foldedComments(pending) {
     });
 }
 
+export function commentNotifications({ library, folded = [], selfKeys, threadSeen }) {
+    const records = new Map(library.filter(item => isRecord(item.content)).map(item => [item.key, item]));
+    const mine = new Set([...records.values()].filter(item => selfKeys.has(authorOf(item.key))).map(item => item.key));
+    const comments = library.filter(item => isValidComment(item.content, item.key) && records.has(item.content.root));
+    const ownComments = new Set(comments.filter(item => selfKeys.has(item.event.pubkey)).map(item => item.key));
+    const after = (item, cutoff) => item.receivedAt / 1000 > cutoff;
+    const received = item => after(item, Math.max(threadSeen.since, threadSeen.seen[item.content.root] ?? 0));
+    const tally = items => {
+        const newest = items.reduce((best, item) => !best || item.receivedAt > best.receivedAt ? item : best, null);
+        return { count: items.length, record: newest ? records.get(newest.content.root) : null };
+    };
+    const others = comments.filter(item => !selfKeys.has(item.event.pubkey) && received(item));
+    const replies = others.filter(item => ownComments.has(item.content.parent));
+    return {
+        review: tally(folded.filter(item => isValidComment(item.content, item.key) && mine.has(item.content.root) && after(item, threadSeen.since))),
+        replies: tally(replies),
+        newComments: tally(others.filter(item => mine.has(item.content.root) && !replies.includes(item))),
+    };
+}
+
 export const shownCount = nodes => nodes.reduce((total, node) => total + (node.stub || node.folded ? 0 : 1) + shownCount(node.children), 0);
 
 export function flattenThread(nodes, { maxIndent, collapsed = {} }, parent = null) {

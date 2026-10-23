@@ -6,7 +6,7 @@ import { createLocalSigner, createExtensionSigner, pickSource, retireKey, genera
 import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache } from './tacit-sync.js';
 import { filterFeed, highlightParts } from './tacit-feed.js';
 import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit, shareBlocker, relationsOf, findOwnInsight, groupInsights, cascadeTargets, incomingInsightCard, feedBadges, isWellFormedInsight, DEFAULT_PROMPT_LIMIT, validPromptLimit, planInsightPrompts, insightPromptCards, importInsightRows, applyToDraft, updateInsightDraft } from './tacit-insight.js';
-import { isRecord, isComment, COMMENT_BODY_MAX, worksD, buildWorksTemplate, buildCommentTemplate, buildCommentEdit, buildThread, flattenThread, shownCount, foldedComments, worksCount, cascadeTargets as discussionTargets, fullViewIdOf, resolveFullView } from './tacit-comment.js';
+import { isRecord, isComment, COMMENT_BODY_MAX, worksD, buildWorksTemplate, buildCommentTemplate, buildCommentEdit, buildThread, flattenThread, shownCount, foldedComments, commentNotifications, worksCount, cascadeTargets as discussionTargets, fullViewIdOf, resolveFullView } from './tacit-comment.js';
 import { rankBySimilarity, candidatesFor, LINK_TOP_N } from './tacit-similarity.js';
 import { buildBackup, parseBackup, restoreBackup, backupDue, DEFAULT_BACKUP_REMINDER } from './tacit-backup.js';
 import { parseRoute, buildRoute } from './tacit-route.js';
@@ -71,7 +71,7 @@ export function registerTacitApp(Alpine) {
         bellOpen: false, nameDraft: '', resolveName: null, importKeyText: '', importAck: false, trustForm: { status: '', key: '', error: '' }, identityMessage: '', backupSummary: '', theme: localStorage.getItem('tacit.theme') || '', toasts: [],
         pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], authorNames: {}, directoryPeers: {}, subjectCache: {}, ready: false,
         feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null, sheetOpen: false, fullViewId: '', fullViewPick: '', commentDraft: '', replyTo: '', replyDraft: '', threadWide: false, threadCollapsed: {}, commentMax: COMMENT_BODY_MAX, linkForm: blankLink(), relations: RELATIONS,
-        folded: [], foldedOpen: {},
+        folded: [], foldedOpen: {}, threadSeen: { since: 0, seen: {} },
         authorOptions: [{ value: '', label: 'All' }, { value: 'mine', label: 'Mine' }, { value: 'trusted', label: 'Trusted' }, { value: 'others', label: 'Others' }],
         get subjectOptions() {
             const rows = [...this.settings.subjects, ...this.discover.filter(row => !this.hasSubject(row.slug))];
@@ -95,7 +95,13 @@ export function registerTacitApp(Alpine) {
         importView: 'import', importViews: [{ id: 'import', label: 'Import', icon: 'download' }, { id: 'review', label: 'Review', icon: 'eye' }],
         get reviewCount() { return this.drafts.length + this.incoming.reduce((total, group) => total + group.records.length, 0); },
         get nameNudge() { return nameNudgeActive(this.settings, this.pubkey); },
-        get notificationCount() { return this.reviewCount + (this.nameNudge ? 1 : 0); },
+        get commentNotes() { return commentNotifications({ library: this.library, folded: this.folded, selfKeys: this.selfKeys, threadSeen: this.threadSeen }); },
+        get notificationCount() { const notes = this.commentNotes; return this.reviewCount + notes.review.count + notes.replies.count + notes.newComments.count + (this.nameNudge ? 1 : 0); },
+        openNotification(note) { this.bellOpen = false; this.openFullView(note.record); },
+        markSeen(recordKey) {
+            this.threadSeen = { ...this.threadSeen, seen: { ...this.threadSeen.seen, [recordKey]: Math.floor(Date.now() / 1000) } };
+            try { localStorage.setItem('tacit.threadSeen', JSON.stringify(this.threadSeen)); } catch (_) { /* blocked: seen times last for this session */ }
+        },
         openReview() { this.bellOpen = false; this.activeTab = 'import'; this.importView = 'review'; },
         openNameSetting() {
             this.bellOpen = false; this.activeTab = 'identity';
@@ -348,6 +354,12 @@ export function registerTacitApp(Alpine) {
                 await this.activateSigner('local');
             }
             if (this.settings.authorName && !this.settings.namePromptedKey) { this.settings.namePromptedKey = this.pubkey; this.saveSettings(); }
+            const seen = readJson('tacit.threadSeen', null);
+            if (Number.isFinite(seen?.since) && seen.seen && typeof seen.seen === 'object') this.threadSeen = seen;
+            else {
+                this.threadSeen = { since: Math.floor(Date.now() / 1000), seen: {} };
+                try { localStorage.setItem('tacit.threadSeen', JSON.stringify(this.threadSeen)); } catch (_) { /* blocked: first-run time lasts for this session */ }
+            }
             const saved = readJson('tacit.selectedSubject', null);
             if (saved?.slug) { this.rememberedSubject = saved; this.selectedSlug = saved.slug; }
             else this.selectedSlug = this.settings.subjects[0]?.slug || '';
@@ -623,6 +635,7 @@ export function registerTacitApp(Alpine) {
         refreshFullView() {
             if (!this.fullViewId || !this.ready) return;
             const item = this.fullView.item;
+            if (item) this.markSeen(item.key);
             if (item && item.key !== this.detailItem?.key) { this.commentDraft = ''; this.replyTo = ''; this.replyDraft = ''; }
             if (item && (item.key !== this.detailItem?.key || item.event.id !== this.detailItem.event.id || item.visibility !== this.detailItem.visibility)) this.detailItem = item;
             if (fullViewFocused === this.fullViewId) return;
