@@ -11,7 +11,8 @@ Tacit is a static, serverless browser app (GitHub Pages). A user:
 2. **imports** the LLM output (JSON/CSV, as a file or pasted text) as **drafts**;
 3. reviews each draft, then either keeps it as a **local record** or publishes it as a **shared record**;
 4. exchanges shared records peer-to-peer with everyone who subscribes to the same **subject room**;
-5. relates records in a subject with **insights** (conflicts, supersedes and so on), either by hand or through an **insight prompt** run in an outside LLM, and sees them on the **Tacit Map** (§6.4, §7.6, §10.9, §10.10).
+5. relates records in a subject with **insights** (conflicts, supersedes and so on), either by hand or through an **insight prompt** run in an outside LLM, and sees them on the **Tacit Map** (§6.4, §7.6, §10.9, §10.10);
+6. marks a shared record **Works** when it worked for them, and discusses it in a **thread** of nested **comments**, shown in the record's **full view** (§7.7, §7.8, §10.12, §10.13).
 
 Every record that is kept is a **signed record**: a Nostr event signed by the author's **identity**. A **peer** that **relays** a record cannot change it without breaking the signature. Incoming records from **trusted authors** go straight into the library; records from **unknown authors** go through the **review queue**.
 
@@ -72,6 +73,8 @@ Plain ES modules, no bundler. `index.html` loads `src/tacit-main.js` as `type="m
 | `tacit-backup.js` | Backup export and import | builder and parser pure |
 | `tacit-ui.js` | Interface helpers: author avatar, keyboard shortcut resolver, toast queue, theme resolver (§10.4–10.6, §10.1) | yes |
 | `tacit-insight.js` | Insights: short IDs, insight prompt batches, JSON rows to insight drafts and disagreements, insight templates, visibility, grouping, feed badges, cascade on delete (§6.4, §7.6) | yes |
+| `tacit-comment.js` | Comments and Works marks: templates, validity, building a thread with stubs and depth, Works counts, unread counts for notifications, cascade on delete (§7.7, §7.8, §10.11–§10.13) | yes |
+| `tacit-route.js` | Hash routes for tabs, their views and the full view (§10.13) | yes |
 | `tacit-map.js` | Tacit Map layout: positions and the Cytoscape element list for one subject (§10.10). Drawing is done by Cytoscape in `tacit-app.js` | yes |
 | `vendor/` | Pinned third-party builds, the bundled font, plus `VERSIONS.md` | – |
 | `tests/*.test.js` | Unit tests | – |
@@ -266,9 +269,12 @@ For each event received in subject room *R*:
 6. A tombstone exists for `key` with `created_at >=` the event's → drop.
 7. The library holds `key` with `created_at >=` the event's → drop (duplicate or older version).
 8. Author is trusted, or self (§5.4) → upsert into the library as `shared`, and relay it to the current peers in *R*.
-9. Otherwise (unknown author) → upsert into the review queue, grouped by author. If that author already has **50** pending records, drop and log `Review queue full for <npub-short>`.
+9. Otherwise (unknown author), by the prefix of the event's `d` tag:
+   - `tacit-works-` (a **Works mark**, §7.8): if its content is a valid Works mark, upsert into the library as `shared` and relay it to the current peers in *R*; otherwise drop. Works marks never enter the review queue.
+   - `tacit-comment-` (a **comment**, §7.7): upsert into `pending` as a **folded comment** and do not relay it. If that author already has **200** folded comments, drop and log `Comment queue full for <npub-short>`.
+   - Anything else: upsert into the review queue, grouped by author. If that author already has **50** pending records, drop and log `Review queue full for <npub-short>`. Folded comments do not count toward this cap.
 
-Per decision Q18, events are **not** checked for subject/room match, timestamp sanity, content shape or size. See §12 for the accepted risks.
+Per decision Q18, events are **not** checked for subject/room match, timestamp sanity, content shape or size. The one exception is an unknown author's Works mark (step 9), whose content is checked because it skips review. See §12 for the accepted risks.
 
 ### 7.4 Local actions
 
@@ -355,14 +361,99 @@ No other type is accepted, from the JSON, the form or a peer.
 | Delete | Own insight (current key) | As §7.4 Delete |
 | Hide | Another author's insight | As §7.4 Hide |
 
+### 7.7 Comments
+
+A **comment** is one author's signed text about a shared record, or a **reply** to another comment on it. Each comment is its own event. The **thread** is built on each device from the comments it holds, and is never stored or sent as one object.
+
+**Comment event**
+
+```js
+{
+  kind: 30078,
+  created_at: <unix seconds>,
+  tags: [
+    ['d', 'tacit-comment-' + uuid],        // stays the same across edits
+    ['subject', '<record subject label>'],
+    ['author_name', '<name>'],             // optional, as §7.1
+  ],
+  content: JSON.stringify({
+    schemaVersion: 1,
+    type: 'comment',
+    root: '<pubkey:d>',                    // the record the thread belongs to
+    parent: '<pubkey:d>',                  // the record itself, or a comment with the same root
+    body: '…',                             // plain text, 1–2000 characters
+    postedAt: <unix seconds>,              // set when first signed, kept across edits
+  }),
+}
+```
+
+- A comment is a record event as far as sync is concerned (§7.2–§7.5), except that an unknown author's comment becomes a **folded comment** instead of entering the review queue (§7.3 step 9).
+- A comment is **valid** when its content has the fields above, `root` is a record key, `parent` is `root` or the key of a comment with the same `root`, `body` is 1–2000 characters, and following `parent` links never leads back to the comment. An invalid comment is kept but never shown. Every comment in a cycle of parents is invalid.
+- The body is shown as plain text with text bindings only (§12).
+
+**Rules**
+- **Shared records only.** Comments can be made only on a record that is `shared` in the user's library. On a local record the comment controls are not shown, and the record detail says "Share this record to discuss it". A comment is always shared; there are no local comments.
+- **Visible thread.** A thread is shown only when its root record is in the library. Otherwise its comments are kept and relayed as usual, as for insights (§7.6).
+- **Stubs.** A comment whose parent is not shown keeps its place. The parent is drawn as a **stub**: "Comment deleted" when there is a tombstone for it, "Comment hidden" when it is hidden or its author is blocked, and "Earlier comment not received yet" otherwise. A stub with no shown comment below it is not drawn.
+- **Order.** Siblings are ordered by `postedAt`, oldest first. An edited comment keeps its place and shows "edited" when `created_at` is later than `postedAt`.
+- **Cascade on delete.** Deleting one of the user's records also deletes the user's own comments (current key) on it, with one deletion event per comment, sent. Other authors' comments on it are kept but not shown. The delete confirmation counts them with the insights: "This also deletes N of your insights and M of your comments". Deleting a comment never deletes its replies.
+- **Previous keys.** Comments signed by a previous key are read-only, like records.
+
+**Folded comments**
+- An unknown author's comment is stored in `pending` (`kind: 'incoming-comment'`) and is not relayed. The thread draws it in its place, collapsed: "Comment from <author label>, unknown author", with **Show**, **Accept**, **Trust author**, **Block author** and **Hide**.
+- **Accept** moves it to the library as `shared` and sends it to *R*. **Trust author** also moves all of that author's other folded comments (§7.5). **Block author** removes them. **Hide** removes it and adds its key to `hidden`.
+- Replies to a folded comment are drawn under it, whether it is expanded or not.
+- Folded comments are not listed in Import & Review.
+
+**Local actions on comments**
+
+| Action | Applies to | Effect |
+|---|---|---|
+| Comment | Shared record | Sign with `parent = root` → library as `shared` → send to *R* |
+| Reply | Shown or folded comment on a shared record | Accept the comment first if it is folded. Sign with `parent` = that comment → library as `shared` → send to *R* |
+| Edit | Own comment (current key) | Change the body; re-sign with the same `d` and `postedAt` and a newer `created_at`; send |
+| Delete | Own comment (current key) | As §7.4 Delete. Peers holding replies to it show a stub |
+| Hide | Another author's comment | As §7.4 Hide. Its replies stay under a stub |
+| Accept / Trust author / Block author | Folded comment | As above |
+
+### 7.8 Works marks
+
+A **Works mark** is one author's signed statement that a record worked for them. There is no negative mark; a failure is explained in a comment.
+
+```js
+{
+  kind: 30078,
+  created_at: <unix seconds>,
+  tags: [
+    ['d', 'tacit-works-<record uuid>'],     // the uuid in the record's d tag
+    ['subject', '<record subject label>'],
+    ['author_name', '<name>'],              // optional, as §7.1
+  ],
+  content: JSON.stringify({
+    schemaVersion: 1,
+    type: 'works',
+    target: '<pubkey:d>',                   // the record's full key
+  }),
+}
+```
+
+- **One mark per author per record.** The `d` is built from the record's uuid, so marking again is an edit of the same mark.
+- A mark is **valid** when its content has the fields above and the uuid in `target` matches the uuid in the mark's own `d`. An invalid mark is kept but not counted; an unknown author's invalid mark is dropped on receive (§7.3 step 9).
+- A Works mark goes through §7.2–§7.5 like a record, except that it never enters the review queue (§7.3 step 9).
+- **Shared records only**, as for comments. The Works control is not shown on a local record.
+- **Toggle.** **Works** signs a mark → library as `shared` → send to *R*. Selecting it again un-marks: a deletion event, tombstone and send (§7.2). Marking again later signs a mark with the same `d` and a newer `created_at`, which the older tombstone does not stop (§7.3 step 6).
+- **Own record.** An author can mark their own record. The control shows it as marked, but the mark is not counted.
+- **Works count.** For a record in the library, *N* is the number of distinct authors with a valid mark on it in the library, leaving out the record's author. *T* is how many of those are trusted or self (§5.4). It is shown as "Works for N (T)" when *N* > 0, with the tooltip "N people say this worked for them; T of them you trust". *T* is shown even when it is 0.
+- **Cascade on delete.** Deleting one of the user's records also deletes the user's own mark on it.
+
 ## 8. Storage
 
 ### 8.1 IndexedDB `tacit`, version 1
 
 | Store | keyPath | Indexes | Value |
 |---|---|---|---|
-| `library` | `key` | `subjectSlug`, `pubkey`, `visibility` | `{ key, event, visibility, subjectSlug, receivedFrom?, receivedAt }`. Holds records and insights; an insight's content has `type: 'insight'` |
-| `pending` | `id` | `pubkey`, `kind` (`draft` / `incoming` / `insight-draft`) | Drafts: `{ id, kind:'draft', content, warnings[], createdAt }`. Incoming records and insights: `{ id: key, kind:'incoming', event, pubkey, receivedFrom, receivedAt }`. Insight drafts: `{ id, kind:'insight-draft', content, warnings[], createdAt }` with `content` as in §7.6 |
+| `library` | `key` | `subjectSlug`, `pubkey`, `visibility` | `{ key, event, visibility, subjectSlug, receivedFrom?, receivedAt }`. Holds records, insights, comments and Works marks; their content has `type: 'insight'`, `'comment'` or `'works'` |
+| `pending` | `id` | `pubkey`, `kind` (`draft` / `incoming` / `insight-draft` / `incoming-comment`) | Drafts: `{ id, kind:'draft', content, warnings[], createdAt }`. Incoming records and insights: `{ id: key, kind:'incoming', event, pubkey, receivedFrom, receivedAt }`. Insight drafts: `{ id, kind:'insight-draft', content, warnings[], createdAt }` with `content` as in §7.6. Folded comments: `{ id: key, kind:'incoming-comment', event, pubkey, receivedFrom, receivedAt }` |
 | `tombstones` | `key` | – | `{ key, created_at, event }` |
 | `trust` | `pubkey` | `status` | `{ pubkey, status, nickname?, authorName? }` |
 | `hidden` | `key` | – | `{ key, hiddenAt }` |
@@ -375,10 +466,11 @@ No other type is accepted, from the JSON, the form or a peer.
 | `tacit.previousKeys` | `string[]` of public keys |
 | `tacit.settings` | `{ signerPreference, relays: string[], subjects: Subject[], insightPromptLimit?, authorName?, namePromptedKey?, nameNudgeDismissedKey? }` (limit default 30, §6.4). The two `*Key` fields hold the public key whose name prompt was answered, and whose name reminder was dismissed (§5.1, §10.11). |
 | `tacit.theme` | `'light'` or `'dark'`. Absent means follow the system (§10.1) |
+| `tacit.threadSeen` | `{ since: <unix seconds>, seen: { [recordKey]: <unix seconds> } }`. `since` is set the first time the app runs with comments; nothing received before it counts as new. `seen` is when the user last opened each record's full view (§10.11) |
 
 `Subject = { label, slug, subscribed: boolean, password?: string }`. Passwords are stored in plain text, the same as the key.
 
-Everything that reads the library as records leaves insights out: the Feed, the import duplicate check (§6.2), the directory `sharedCount` (§9.4) and the record counts. Backup includes insights with the library (§11.1).
+Everything that reads the library as records leaves insights, comments and Works marks out: the Feed, the import duplicate check (§6.2), the directory `sharedCount` (§9.4) and the record counts. Backup includes insights, comments and Works marks with the library (§11.1).
 
 ## 9. Network
 
@@ -396,13 +488,13 @@ Everything that reads the library as records leaves insights out: the Feed, the 
 - Sharing to an unsubscribed subject subscribes to it, joins the room, then sends.
 
 ### 9.3 Sync action `syncTacit` (subject rooms)
-- Payload: an array of signed events (kind 30078 and kind 5). Insights are kind 30078 events and travel the same way.
+- Payload: an array of signed events (kind 30078 and kind 5). Insights, comments and Works marks are kind 30078 events and travel the same way.
 - When a peer joins *R*: send it every `library` record with `visibility = 'shared'` and `subjectSlug = slug(R)`, plus the tombstones for that subject.
 - When a record is shared, edited, deleted or accepted: send it to the current peers in *R*.
-- Never sent: `local` records, drafts, pending incoming records, or records from other subjects.
+- Never sent: `local` records, drafts, pending incoming records, folded comments, or records from other subjects.
 
 ### 9.4 Directory action `announce`
-- Payload: `[{ label, slug, sharedCount }]` (`sharedCount` counts shared records, not insights) for the user's **subscribed, non-private** subjects. Unsigned, and treated as hints only.
+- Payload: `[{ label, slug, sharedCount }]` (`sharedCount` counts shared records, not insights, comments or Works marks) for the user's **subscribed, non-private** subjects. Unsigned, and treated as hints only.
 - Sent to each peer that joins the directory, and again to everyone when subscriptions change.
 - On receive: keep entries whose `label` is a string of at most 80 characters and whose `slug === slugify(label)`, at most 100 per peer. Keep them per peer id, and drop that peer's entries when it leaves.
 - Subject cache: every valid entry received is also saved locally (`tacit.subjectCache`, keyed by slug with `label`, `sharedCount`, `seenAt`), so it survives the announcing peer leaving and a reload. `seenAt` is when the subject was last announced by a peer that subscribes to it; a relayed entry carries its original `seenAt` and never refreshes it. Entries older than 7 days are dropped, and at most 200 are kept (newest first).
@@ -416,7 +508,7 @@ Everything that reads the library as records leaves insights out: the Feed, the 
 
 | Tab | Contents |
 |---|---|
-| **Feed** | The library. Filters: subject; author (all / mine / trusted / others); visibility (local / shared); text search over `information_chunks` and `actionable_workflows`. A row shows the subject label, a two-line preview of the information chunk, author avatar and label (nickname, the name the author shared, or short npub), verified badge, `created_at` and visibility. Tapping a row opens the record detail (§10.3), which shows the full record, warnings and the actions of §7.4. |
+| **Feed** | The library. Filters: subject; author (all / mine / trusted / others); visibility (local / shared); text search over `information_chunks` and `actionable_workflows`. A row shows the subject label, a two-line preview of the information chunk, author avatar and label (nickname, the name the author shared, or short npub), verified badge, `created_at` and visibility. Tapping a row opens the record detail (§10.3), which shows the full record, warnings and the actions of §7.4. A row also shows the Works count and comment count (§10.12). |
 | **Extract** | §6.1 |
 | **Import & Review** | Import panel (§6.2). Review queue: drafts first, then incoming records and insights grouped by author, with bulk actions, trust/block buttons and a per-author count. Drafts can be edited before storing. An incoming insight card shows the relation, its direction, the rationale and both records; a record the user does not hold shows as "t:xxxx — not in your library". |
 | **Insights** | §6.4: subject, record selection, insight prompts, insight import, insight drafts, manual link form, insight list |
@@ -449,6 +541,7 @@ The redesign changes presentation and navigation only. Data, signing, sync and s
 - It holds the actions of §7.4 that apply to the record (Share, Edit, Delete, Hide, Trust author, Block author), keeping their current class names.
 - A **Relations** section lists the record's visible insights, grouped by relation type, each with the other record (short ID and preview), author and rationale, and the insight actions of §7.6. A **Link…** action creates an insight with this record as A (§6.4).
 - The record's short ID is shown.
+- On a shared record: a **Works** button (pressed when the user has marked it) with the Works count, the number of comments, and an **Open** button to the full view (§7.8, §10.13). On a local record these are replaced by "Share this record to discuss it".
 - Closes with a Close button, `Esc`, or a tap outside it. Closing returns focus to the row that opened it. Deleting or hiding closes it.
 - Record text is shown with text bindings only, never as HTML (§12).
 
@@ -497,6 +590,7 @@ Each empty list shows a short title, one sentence on what goes here, and one but
 | Insights | Subject has fewer than 2 records | Go to Extract |
 | Insights | Subject has records but no visible insights | None; points to record selection and the link form |
 | Tacit Map | Subject has no records | Go to Extract |
+| Full view | Record has no comments | None; says "No comments yet" above the comment field |
 
 ### 10.8 Accessibility
 
@@ -523,12 +617,33 @@ Each empty list shows a short title, one sentence on what goes here, and one but
 
 ### 10.11 Notifications
 
-- The header bell opens a popover. Its badge counts the unread items: the review count (drafts plus incoming records) plus 1 while the name reminder is active.
+- The header bell opens a popover. Its badge counts the unread items: the review count (drafts plus incoming records), plus the three comment counts below, plus 1 while the name reminder is active.
 - The popover lists the active items. When there are none it says "Nothing to show".
   - **Review (N)**, shown when N > 0. Review opens Import & Review on the review queue.
+  - **Comments to review (N)**: folded comments on the user's records (current or previous key).
+  - **Replies to you (N)**: comments in the library whose parent is one of the user's comments, received after that record's `seen` time.
+  - **New comments on your records (N)**: other authors' comments in the library on the user's records, received after that record's `seen` time and not already counted as replies.
+  - Each comment item is shown when N > 0 and opens the full view of the record with the newest such comment. "Received after" compares `receivedAt`, never `created_at`, and nothing received before `tacit.threadSeen.since` counts (§8.2). Opening a full view sets that record's `seen` time to now. Works marks never notify.
   - **Set your name**, shown while the reminder is active. Set name opens the Identity tab with the Name field focused. Dismiss removes the reminder and lowers the badge by 1.
 - The name reminder is active when no name is set, the user answered the name prompt (§5.1), and has not dismissed the reminder. Saving a name removes it. Dismissing is stored per public key, so an identity switch or import brings it back.
 - Escape, a click outside, or choosing an item closes the popover.
+
+### 10.12 Works and comments in the Feed
+
+- A Feed row shows "Works for N (T)" when N > 0, and "Comments N" when N > 0, next to the insight badges (§10.9). The comment count counts shown comments in the library; folded comments are not counted.
+- No sort or filter uses them yet.
+
+### 10.13 Full view
+
+- A page of its own for one record at `#/tacit/<8 hex of the short ID>`. `tacit-route.js` parses it as `{ tab: 'tacit', id }`. It is not a navigation destination; the Feed stays selected in the navigation.
+- Opened from the record detail's **Open** button, from a notification (§10.11), or by visiting the URL. A **Back** control returns to the previous route, or to the Feed when the page was opened directly.
+- The short ID is resolved against the library. No match shows "Not in your library yet". More than one match shows a list of the matches (author and preview) to pick from.
+- Shows the record as the record detail does (§10.3), with its actions, Relations and the Works button and count, then the thread, with a comment field for a new top-level comment.
+- Each comment shows the author avatar and label, the time (`postedAt`), "edited" when it applies, the body, and its actions (§7.7). **Reply** opens a field under that comment; one reply field is open at a time.
+- **Nesting.** Each level of replies is indented one step, up to 4 levels below 900 px and 8 from 900 px up. Deeper replies stay at the last level and start with "↳ replying to <author label>".
+- Any comment with replies can be collapsed to "▸ N replies". Collapsed state lasts for the session.
+- Folded comments and stubs are drawn as §7.7.
+- On open, focus moves to the page heading.
 
 ## 11. Backup and existing data
 
@@ -546,6 +661,7 @@ Each empty list shows a short title, one sentence on what goes here, and one but
 }
 ```
 
+- `records` holds every library event: records, insights, comments and Works marks. Folded comments, like other pending items, are not included.
 - The backup **excludes** the private key, which has its own export, and subject passwords.
 - On import: every event goes through `verifyEvent`. Records merge per §7.3 steps 5–7, with visibility from the file; failures are counted and reported. Tombstones and trust entries merge (existing trust entries win on conflict). Subjects are merged by slug.
 
@@ -569,12 +685,18 @@ Each empty list shows a short title, one sentence on what goes here, and one but
 | A trusted author marks good records as superseded or conflicting | **Partial**: the badge opens the insight with its author and rationale; the user can hide it or block the author |
 | An insight reveals that a local record exists | **Mitigated**: an insight can be shared only when both records are shared (§7.6) |
 | Insight prompts send record text to an outside LLM | **By design**, as with extraction; the author is never included |
+| Fake identities inflate a Works count | **Partial**: the count shows how many marks come from trusted authors, "Works for N (T)"; blocking removes an author's marks |
+| Works marks skip review, so an unknown author's events are relayed without review | **Mitigated**: an unknown author's mark is kept only when its content is a valid Works mark (§7.3 step 9), and there is one per author per record |
+| Comment spam from unknown authors | **Mitigated**: folded and not relayed until accepted; 200 per author; block |
+| A deleted or edited comment's earlier text stays with peers who already received it | **By design**, as for records |
+| Crafted comments whose parents form a cycle | **Mitigated**: comments in a cycle are invalid and never shown (§7.7) |
 
 ## 13. Testing
 
 - `package.json` (dev only, `"type": "module"`) with `npm test` → `node --test tests/`.
 - Unit tests cover: JSON/CSV parsers, paste format detection, import validation and warnings, `slugify`, prompt builder, building and verifying record and deletion events (including a tampered `content` failing `verifyEvent`), the merge decisions in §7.3 (driven by in-memory state), backup build and parse, and the interface helpers in `tacit-ui.js` (§10): avatar derivation is deterministic, in range and different for different keys; the shortcut resolver handles `/`, `g` sequences, the 1.5 s timeout, and ignores editable targets and modifier keys; the toast queue caps at three, merges duplicates and expires by time; the theme resolver maps a stored value and the system setting to the effective scheme and cycles System, Light, Dark.
 - Insights (`tacit-insight.js`): short ID derivation and resolution (no match, ambiguous match); batch split covers every pair, respects the limit and the prompt count formula; prompt contents (record blocks, no author, skip list of own pairs only); JSON rows to drafts with each rejection reason, rationale shortening, the `supersedes a newer record` warning, duplicates, disagreements and Accept; insight template with deterministic `d` and sorted symmetric pairs; visible-insight filter; grouping by pair and relation; Feed badges; cascade on delete; the "shared needs shared" check. Existing seams: `decideIncoming` treats insight events like records; `filterFeed`, `buildDrafts` and `announcementFor` leave insights out.
+- Comments and Works marks (`tacit-comment.js`): comment and mark templates (Works `d` from the record uuid); validity (bad `root` or `parent`, parent in another thread, body length, parent cycles, Works `d` and `target` mismatch); thread building: nesting, sibling order by `postedAt`, "edited", stubs with each reason, stubs with nothing below not drawn, folded comments in place; Works counts (distinct authors, own mark not counted, trusted split); notification counts with `since` and `seen`; cascade on delete. Router: `#/tacit/<id>` parses and builds. Existing seams: `decideIncoming` sends an unknown author's valid Works mark to the library, drops an invalid one, and sends an unknown author's comment to `pending` as folded, with its own cap; `filterFeed`, `buildDrafts` and `announcementFor` leave comments and marks out.
 - Name prompt and reminder (`tacit-ui.js`): the prompt is needed until it is answered for the active public key, and again after a key change; the reminder is active only with no name, after an answer and before dismissal.
 - Tacit Map (`tacit-map.js`): deterministic positions, specialty grouping with "General", linked records adjacent, grouped edges with counts and classes, Linked only. Cytoscape drawing is checked by hand.
 - Visual and interaction checks for the redesign are manual, in a browser, in the slice 12 standalone test. The existing unit tests must stay green with no edits other than the selector updates in §10.1.
@@ -586,6 +708,10 @@ Each empty list shows a short title, one sentence on what goes here, and one but
   5. A edits a shared record; B ends up with only the newer version. A deletes it; B removes it and does not bring it back after re-joining.
   6. A private subject with password P: C without P cannot connect.
   7. Directory: B sees S in Discover, with A's peer count.
+  8. A comments on a shared record, then goes offline. B, with A unknown, sees it folded in the full view. C joins with only B online and does not get it until B accepts it.
+  9. A and B reply to each other 6 levels deep. At 390 px the replies stop indenting at level 4 and show "↳ replying to".
+  10. A deletes a comment that has replies. B sees "Comment deleted" with the replies in place.
+  11. A, B and C mark D's record Works, and B trusts only A. B sees "Works for 3 (2)". A un-marks; B sees "Works for 2 (1)".
 
 ## 14. Delivery phases
 
@@ -617,6 +743,12 @@ Each empty list shows a short title, one sentence on what goes here, and one but
 - Insight prompt: record selection, insight prompts with batches, import, insight drafts, disagreements
 - Tacit Map with vendored Cytoscape (needs manual insights only)
 
+**Phase 5: Works and comments (§7.7, §7.8, §10.11–§10.13)**
+- Works marks: events, toggle, Works count in the record detail and the Feed
+- Full view route
+- Comments: events, folded comments, threads with stubs and nesting, edit, delete, hide, cascade on delete
+- Comment notifications
+
 ## 15. Acceptance criteria
 
 - [ ] No network request goes to a third-party script or stylesheet host when the page loads.
@@ -644,6 +776,12 @@ Each empty list shows a short title, one sentence on what goes here, and one but
 - [ ] Phase 4: deleting a record deletes the deleter's insights on it, on every peer.
 - [ ] Phase 4: a superseded record is faded in the Feed and on the map.
 - [ ] Phase 4: the Tacit Map draws the same layout after a reload, and the page still loads nothing from a third-party host.
+- [ ] Phase 5: a comment by A on a shared record reaches B. While A is unknown to B it is folded and B does not relay it; after Accept, B relays it.
+- [ ] Phase 5: replies nest to any depth, and when two peers reply to the same comment at the same time, both end up with both replies.
+- [ ] Phase 5: deleting a comment leaves its replies in place under a stub on every peer.
+- [ ] Phase 5: a local record has no Works or comment controls.
+- [ ] Phase 5: "Works for N (T)" is the same on every peer with the same marks and trust list; an author's mark on their own record is not counted; un-marking lowers it on every peer.
+- [ ] Phase 5: `#/tacit/<id>` opens the full view after a reload, and Back returns to where it was opened from.
 
 ## 16. Open items
 

@@ -138,6 +138,40 @@ _Avoid_: Outdated record, obsolete record
 A radial picture of one subject: the subject in the centre, its specialties around it, its records on the outer ring, and visible insights as edges between records.
 _Avoid_: Graph, mind map (outside casual use), network view
 
+## Discussion
+
+**Works mark**:
+An author's signed statement that a record worked for them. At most one per author per record, always shared, and only possible on a shared record.
+_Avoid_: Like, vote, upvote, endorsement
+
+**Works count**:
+How many authors marked a record as Works, shown as "Works for N (T)", where T is how many of them the user trusts. An author's mark on their own record is not counted.
+_Avoid_: Likes, score, rating
+
+**Comment**:
+An author's signed text about a shared record, or a reply to another comment on it. Each comment is its own signed event that names its parent.
+_Avoid_: Post, note, message
+
+**Reply**:
+A comment whose parent is another comment. Replies nest to any depth.
+_Avoid_: Sub-comment, child comment
+
+**Thread**:
+All comments on one record, arranged as a tree by their parents. Each device builds it from the comments it holds; it is never stored or sent as one object.
+_Avoid_: Discussion, conversation, comment tree (outside technical contexts)
+
+**Folded comment**:
+A comment from an unknown author, shown collapsed in its place in the thread and not relayed until the user accepts it or trusts its author.
+_Avoid_: Pending comment, hidden comment
+
+**Stub**:
+A placeholder in a thread for a comment that is not shown (deleted, hidden, blocked, or not received yet), drawn so that its replies keep their place.
+_Avoid_: Ghost, tombstone (that is the deletion record)
+
+**Full view**:
+A page of its own for one record, at `#/tacit/<short ID>`, holding the record, its relations, its Works count and its whole thread.
+_Avoid_: Full screen, detail page, record detail (that is the sheet)
+
 ## Identity and trust
 
 **Identity**:
@@ -177,7 +211,7 @@ An author who is neither trusted nor blocked. Their records go to review.
 _Avoid_: Stranger, untrusted author
 
 **Notification**:
-An item in the header bell's popover that needs the user's attention: records waiting for review, or the reminder to set an author name. The badge counts them.
+An item in the header bell's popover that needs the user's attention: records waiting for review, folded comments on the user's records, replies to the user, new comments on the user's records, or the reminder to set an author name. The badge counts them.
 _Avoid_: Alert, message
 
 ## Network
