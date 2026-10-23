@@ -1,7 +1,7 @@
 # 52 — Full view: a routed page for one record
 
 Type: AFK
-**Status:** TODO
+**Status:** DONE
 **Label:** ready-for-agent
 
 ## Parent
@@ -20,13 +20,13 @@ A **Back** control returns to the previous route, or to the Feed when the page w
 
 ## Acceptance criteria
 
-- [ ] **Open** in the record detail goes to `#/tacit/<id>` and shows the record, its actions, Relations and Works.
-- [ ] Reloading on that URL shows the same view.
-- [ ] Back returns to where the view was opened from. When the page was opened directly, Back goes to the Feed.
-- [ ] An unknown id shows "Not in your library yet". An ambiguous id shows a pick list.
+- [x] **Open** in the record detail goes to `#/tacit/<id>` and shows the record, its actions, Relations and Works.
+- [x] Reloading on that URL shows the same view.
+- [x] Back returns to where the view was opened from. When the page was opened directly, Back goes to the Feed.
+- [x] An unknown id shows "Not in your library yet". An ambiguous id shows a pick list.
 - [ ] Focus moves to the heading on open, and every control is keyboard-operable.
 - [ ] Usable at 390 px and 1280 px in both schemes, with no horizontal scrolling.
-- [ ] Route tests cover parsing, building and a malformed id. `npm test` passes.
+- [x] Route tests cover parsing, building and a malformed id. `npm test` passes.
 
 ## Blocked by
 
