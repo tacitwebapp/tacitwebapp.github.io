@@ -23,10 +23,13 @@ export function resolveTheme(stored, systemDark) {
     return systemDark ? 'dark' : 'light';
 }
 
-export function nextTheme(stored) {
-    if (stored === 'light') return 'dark';
-    if (stored === 'dark') return null;
-    return 'light';
+export const HUES = [
+    { id: 'blue', label: 'Blue' }, { id: 'teal', label: 'Teal' }, { id: 'green', label: 'Green' },
+    { id: 'amber', label: 'Amber' }, { id: 'rose', label: 'Rose' }, { id: 'violet', label: 'Violet' },
+];
+
+export function hueOf(value) {
+    return HUES.some(hue => hue.id === value) ? value : '';
 }
 
 export function needsNamePrompt(settings, pubkey) {

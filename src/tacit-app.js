@@ -10,7 +10,7 @@ import { isRecord, isComment, COMMENT_BODY_MAX, worksD, buildWorksTemplate, buil
 import { rankBySimilarity, candidatesFor, LINK_TOP_N } from './tacit-similarity.js';
 import { buildBackup, parseBackup, restoreBackup, backupDue, DEFAULT_BACKUP_REMINDER } from './tacit-backup.js';
 import { parseRoute, buildRoute } from './tacit-route.js';
-import { avatarFor, nextTheme, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition, needsNamePrompt, nameNudgeActive } from './tacit-ui.js';
+import { avatarFor, HUES, hueOf, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition, needsNamePrompt, nameNudgeActive } from './tacit-ui.js';
 import { buildMap, buildStyle, linkedOnlyByDefault, RELATION_STYLE } from './tacit-map.js';
 import cytoscape from '../vendor/cytoscape.esm.js';
 import * as store from './tacit-store.js';
@@ -42,7 +42,7 @@ function drawMap(app, elements) {
         const restyle = () => cy?.style(buildStyle(mapColors()));
         const media = matchMedia('(prefers-color-scheme: dark)'), observer = new MutationObserver(restyle);
         media.addEventListener('change', restyle);
-        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-hue'] });
         mapUnwatch = () => { media.removeEventListener('change', restyle); observer.disconnect(); };
         cy.fit(undefined, 30);
     } else {
@@ -69,7 +69,7 @@ export function registerTacitApp(Alpine) {
         activeTab: 'feed', inputTypeLabels: TacitInputTypeLabels, selectedInputType: 'txt', inputLink: '', selectedSlug: '', specialty: '', customPrompt: null, promptEditing: false, promptDraft: '',
         settings: { relays: [], subjects: [] }, rememberedSubject: null, newSubject: '', subjectError: '',
         pubkey: '', previousKeys: [], signer: null, extensionAvailable: false, switchAck: false, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
-        bellOpen: false, nameDraft: '', resolveName: null, importKeyText: '', importAck: false, trustForm: { status: '', key: '', error: '' }, identityMessage: '', backupSummary: '', theme: localStorage.getItem('tacit.theme') || '', toasts: [],
+        bellOpen: false, nameDraft: '', resolveName: null, importKeyText: '', importAck: false, trustForm: { status: '', key: '', error: '' }, identityMessage: '', backupSummary: '', theme: localStorage.getItem('tacit.theme') || '', hue: hueOf(localStorage.getItem('tacit.hue')) || 'blue', subjectHues: Object.fromEntries(Object.entries(readJson('tacit.subjectHues', {})).filter(([, hue]) => hueOf(hue))), toasts: [],
         pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], authorNames: {}, directoryPeers: {}, subjectCache: {}, ready: false,
         feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null, sheetOpen: false, fullViewId: '', fullViewPick: '', commentDraft: '', replyTo: '', replyDraft: '', threadWide: false, threadCollapsed: {}, commentMax: COMMENT_BODY_MAX, linkForm: blankLink(), relations: RELATIONS,
         folded: [], foldedOpen: {}, threadSeen: { since: 0, seen: {} },
@@ -472,12 +472,23 @@ export function registerTacitApp(Alpine) {
             input.value = this.settings.authorName || '';
             this.toast(this.settings.authorName ? 'Name saved' : 'Name cleared');
         },
-        get themeIcon() { return { light: 'sun', dark: 'moon' }[this.theme] || 'monitor'; },
-        get themeLabel() { return { light: 'Light', dark: 'Dark' }[this.theme] || 'System'; },
-        cycleTheme() {
-            this.theme = nextTheme(this.theme) || '';
-            try { if (this.theme) localStorage.setItem('tacit.theme', this.theme); else localStorage.removeItem('tacit.theme'); } catch (_) {}
-            if (this.theme) document.documentElement.dataset.theme = this.theme; else delete document.documentElement.dataset.theme;
+        hues: HUES,
+        setScheme(scheme) {
+            this.theme = scheme;
+            try { if (scheme) localStorage.setItem('tacit.theme', scheme); else localStorage.removeItem('tacit.theme'); } catch (_) {}
+            if (scheme) document.documentElement.dataset.theme = scheme; else delete document.documentElement.dataset.theme;
+        },
+        setHue(hue) {
+            this.hue = hue;
+            try { localStorage.setItem('tacit.hue', hue); } catch (_) {}
+            document.documentElement.dataset.hue = hue;
+        },
+        subjectHue(slug) { return this.subjectHues[slug] || null; },
+        setSubjectHue(slug, hue) {
+            const next = { ...this.subjectHues };
+            if (hueOf(hue)) next[slug] = hue; else delete next[slug];
+            this.subjectHues = next;
+            try { localStorage.setItem('tacit.subjectHues', JSON.stringify(next)); } catch (_) {}
         },
         toast(text, failure = false) { this.toasts = addToast(this.toasts, { text, failure }, Date.now()); },
         dismissToast(id) { this.toasts = dismissToast(this.toasts, id); },
