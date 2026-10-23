@@ -1,7 +1,7 @@
 # 57 — Comment notifications
 
 Type: AFK
-**Status:** TODO
+**Status:** DONE
 **Label:** ready-for-agent
 
 ## Parent
@@ -21,14 +21,14 @@ The comment module gains `commentNotifications`, which returns three counts and,
 
 ## Acceptance criteria
 
-- [ ] On first run with existing comments, the bell shows no comment items.
+- [x] On first run with existing comments, the bell shows no comment items.
 - [ ] A reply to the user's comment raises "Replies to you". Opening that record's full view clears it.
-- [ ] Another author's comment on the user's record raises "New comments on your records", unless it is a reply to the user, which is counted once, as a reply.
+- [x] Another author's comment on the user's record raises "New comments on your records", unless it is a reply to the user, which is counted once, as a reply.
 - [ ] A folded comment on the user's record raises "Comments to review" until it is accepted, hidden or its author is blocked.
-- [ ] A comment with a past or future `created_at` is judged by when it was received.
-- [ ] Each item opens the full view of the record with the newest matching comment.
-- [ ] Works marks never change the bell.
-- [ ] Unit tests for `commentNotifications` (`since`, `seen` per record, `receivedAt`, no double counting). `npm test` passes.
+- [x] A comment with a past or future `created_at` is judged by when it was received.
+- [x] Each item opens the full view of the record with the newest matching comment.
+- [x] Works marks never change the bell.
+- [x] Unit tests for `commentNotifications` (`since`, `seen` per record, `receivedAt`, no double counting). `npm test` passes.
 
 ## Blocked by
 
