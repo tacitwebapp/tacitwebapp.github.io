@@ -1,7 +1,7 @@
 # 53 — Comments and nested replies
 
 Type: AFK
-**Status:** TODO
+**Status:** DONE
 **Label:** ready-for-agent
 
 ## Parent
@@ -26,15 +26,15 @@ Comments on a record not in the library are kept and relayed but not shown. The 
 ## Acceptance criteria
 
 - [ ] On a shared record, a user can comment and reply to any comment at any depth, and peers in the room receive them.
-- [ ] Two peers replying to the same comment at the same time both end up with both replies.
-- [ ] Siblings are ordered oldest first by `postedAt`.
-- [ ] A reply that arrives before its parent sits under "Earlier comment not received yet" and moves under the real parent when it arrives.
-- [ ] Comments with a bad root or parent, a parent in another thread, a body outside 1–2000 characters, or a parent cycle are never shown.
-- [ ] A local record has no comment controls.
+- [x] Two peers replying to the same comment at the same time both end up with both replies.
+- [x] Siblings are ordered oldest first by `postedAt`.
+- [x] A reply that arrives before its parent sits under "Earlier comment not received yet" and moves under the real parent when it arrives.
+- [x] Comments with a bad root or parent, a parent in another thread, a body outside 1–2000 characters, or a parent cycle are never shown.
+- [x] A local record has no comment controls.
 - [ ] An unknown author's comment is stored as folded, not relayed, not in Import & Review, and capped at 200 per author.
-- [ ] The sheet and Feed rows show the comment count.
-- [ ] Comments are left out of the record readers and round-trip through backup.
-- [ ] Unit tests for the template, validity, `buildThread` (nesting, order, the not-received stub, pruning, cycles) and the `decideIncoming` fold branch with its cap. `npm test` passes.
+- [x] The sheet and Feed rows show the comment count.
+- [x] Comments are left out of the record readers and round-trip through backup.
+- [x] Unit tests for the template, validity, `buildThread` (nesting, order, the not-received stub, pruning, cycles) and the `decideIncoming` fold branch with its cap. `npm test` passes.
 
 ## Blocked by
 
