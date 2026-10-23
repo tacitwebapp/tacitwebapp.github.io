@@ -1,4 +1,4 @@
-import { RECORD_KIND, cleanAuthorName } from './tacit-events.js';
+import { RECORD_KIND, buildEditTemplate, cleanAuthorName } from './tacit-events.js';
 import { isInsight } from './tacit-insight.js';
 
 const dOf = key => key.slice(key.indexOf(':') + 1);
@@ -56,6 +56,9 @@ export const buildCommentTemplate = ({ root, parent, body, subject }, now = Math
     tags: [['d', `tacit-comment-${uuid}`], ['subject', subject], ...(cleanAuthorName(authorName) ? [['author_name', cleanAuthorName(authorName)]] : [])],
     content: JSON.stringify({ schemaVersion: 1, type: 'comment', root, parent, body, postedAt: now }),
 });
+
+export const buildCommentEdit = (event, body, now = Math.floor(Date.now() / 1000), authorName = '') =>
+    buildEditTemplate(event, { ...JSON.parse(event.content), body }, now, authorName);
 
 const authorOf = key => key.slice(0, key.indexOf(':'));
 
