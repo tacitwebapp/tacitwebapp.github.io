@@ -1,4 +1,4 @@
-import { isInsight } from './tacit-insight.js';
+import { isRecord } from './tacit-comment.js';
 
 export function highlightParts(text, search = '') {
     const value = String(text ?? '');
@@ -12,7 +12,7 @@ export function filterFeed(library, { subject = '', author = '', visibility = ''
     const needle = search.trim().toLowerCase();
     const authorGroup = pubkey => selfKeys.has(pubkey) ? 'mine' : trustedKeys.has(pubkey) ? 'trusted' : 'others';
     return library.filter(item =>
-        !isInsight(item.content)
+        isRecord(item.content)
         && (!subject || item.subjectSlug === subject)
         && (!author || authorGroup(item.event.pubkey) === author)
         && (!visibility || item.visibility === visibility)

@@ -6,6 +6,7 @@ import { createLocalSigner, createExtensionSigner, pickSource, retireKey, genera
 import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache } from './tacit-sync.js';
 import { filterFeed, highlightParts } from './tacit-feed.js';
 import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit, shareBlocker, relationsOf, findOwnInsight, groupInsights, cascadeTargets, incomingInsightCard, feedBadges, isWellFormedInsight, DEFAULT_PROMPT_LIMIT, validPromptLimit, planInsightPrompts, insightPromptCards, importInsightRows, applyToDraft, updateInsightDraft } from './tacit-insight.js';
+import { isRecord, worksD, buildWorksTemplate, worksCount, cascadeTargets as discussionTargets } from './tacit-comment.js';
 import { rankBySimilarity, candidatesFor, LINK_TOP_N } from './tacit-similarity.js';
 import { buildBackup, parseBackup, restoreBackup, backupDue, DEFAULT_BACKUP_REMINDER } from './tacit-backup.js';
 import { parseRoute, buildRoute } from './tacit-route.js';
@@ -82,7 +83,7 @@ export function registerTacitApp(Alpine) {
         get signerLabel() { return this.extensionActive ? 'extension' : 'local key'; },
         get npub() { return this.pubkey ? encodeNpub(this.pubkey) : ''; },
         get feedItems() { return filterFeed(this.library, this.feedFilters, { selfKeys: this.selfKeys, trustedKeys: new Set(this.trust.filter(entry => entry.status === 'trusted').map(entry => entry.pubkey)) }); },
-        get records() { return this.library.filter(item => !isInsight(item.content)); },
+        get records() { return this.library.filter(item => isRecord(item.content)); },
         get feedSubjects() { return [...new Map([...this.records.map(item => [item.subjectSlug, item.content.subject]), ...this.settings.subjects.map(subject => [subject.slug, subject.label])]).entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1]))); },
         get selfKeys() { return new Set([this.pubkey, ...this.previousKeys]); },
         insightFilters: { relation: '', author: '' }, expandedInsights: {}, tabLink: { insight: null, a: '', b: '', relation: 'conflicts', rationale: '' },
@@ -124,7 +125,7 @@ export function registerTacitApp(Alpine) {
         get promptCards() { return insightPromptCards(this.selectedRecords, this.promptLimit, { library: this.library, drafts: this.insightDrafts, pubkey: this.pubkey }); },
         get subjectInsightDrafts() { return this.insightDrafts.filter(draft => this.records.find(item => item.key === draft.content.from)?.subjectSlug === this.selectedSlug); },
         selectAllRecords() { this.selectedKeys = Object.fromEntries(this.insightRecords.map(item => [item.key, true])); },
-        recordOf(key) { return this.library.find(item => item.key === key && !isInsight(item.content)); },
+        recordOf(key) { return this.library.find(item => item.key === key && isRecord(item.content)); },
         setPromptLimit(text) {
             const value = Number(text);
             if (!text.trim() || !validPromptLimit(value)) { this.promptLimitError = 'Use an even number from 4 to 200'; return; }
@@ -611,6 +612,19 @@ export function registerTacitApp(Alpine) {
         get detailRelations() { return this.detailItem ? relationsOf(this.library, this.detailItem.key) : []; },
         get feedBadgeMap() { return feedBadges(this.library); },
         badgesOf(item) { return this.feedBadgeMap.get(item.key) ?? { superseded: false, conflicts: 0 }; },
+        worksOf(item) { return worksCount(item.key, this.library, { selfKeys: this.selfKeys, trustedKeys: new Set(this.trust.filter(entry => entry.status === 'trusted').map(entry => entry.pubkey)) }); },
+        worksTip(item) { const { n, t } = this.worksOf(item); return `${n} people say this worked for them; ${t} of them you trust`; },
+        async toggleWorks(item) {
+            const key = `${this.pubkey}:${worksD(item.key)}`;
+            const own = this.library.find(entry => entry.key === key);
+            if (own) { await this.removeItem(own); await this.reload(); return; }
+            if (item.visibility !== 'shared' || !await this.askName()) return;
+            const after = this.tombstones.find(entry => entry.key === key)?.created_at;
+            const event = await this.signer.signEvent(buildWorksTemplate({ target: item.key, subject: item.content.subject, after }, undefined, this.settings.authorName));
+            const saved = { key: recordKey(event), event, visibility: 'shared', subjectSlug: item.subjectSlug, receivedAt: Date.now() };
+            await store.put('library', saved); await this.reload();
+            this.publish(saved);
+        },
         async openRelations(item, el) {
             await this.openDetail(item, el);
             document.querySelector('#record-detail .relations')?.scrollIntoView({ block: 'start' });
@@ -673,11 +687,13 @@ export function registerTacitApp(Alpine) {
         },
         async deleteRecord(item) {
             const targets = isInsight(item.content) ? { insights: [], drafts: [] } : cascadeTargets(this.library, await store.getAll('pending'), this.pubkey, item.key);
+            const discussion = isInsight(item.content) ? [] : discussionTargets(item.key, this.library, this.pubkey);
             if (targets.insights.length && !confirm(`Delete this record? This also deletes ${targets.insights.length} of your insights.`)) return false;
             try {
                 await this.removeItem(item);
                 for (const draft of targets.drafts) await store.remove('pending', draft.id);
                 for (const insight of targets.insights) await this.removeItem(insight);
+                for (const entry of discussion) await this.removeItem(entry);
             } finally { await this.reload(); }
             this.toast(targets.insights.length ? `Record deleted with ${targets.insights.length} of your insights` : `${isInsight(item.content) ? 'Insight' : 'Record'} deleted`);
             return true;
