@@ -1,7 +1,7 @@
 # 56 — Edit, delete and hide comments, with stubs
 
 Type: AFK
-**Status:** TODO
+**Status:** DONE
 **Label:** ready-for-agent
 
 ## Parent
@@ -28,10 +28,10 @@ The comment lifecycle, plus stubs that keep replies in place.
 - [ ] Editing a comment updates it on every peer, keeps its position, and shows "edited".
 - [ ] Deleting a comment that has replies leaves "Comment deleted" with the replies in place on every peer, and the comment doesn't come back on re-join.
 - [ ] Hiding or blocking leaves "Comment hidden" with the replies in place, for this user only.
-- [ ] A deleted or hidden comment with no shown replies leaves no stub.
+- [x] A deleted or hidden comment with no shown replies leaves no stub.
 - [ ] Comments by a previous key show no Edit or Delete.
 - [ ] Deleting a record deletes the user's own comments on it on every peer, and the confirmation counts them.
-- [ ] Unit tests: edit template keeps `d` and `postedAt`; `buildThread` stub reasons and pruning; cascade targets (own comments and mark only, current key only). `npm test` passes.
+- [x] Unit tests: edit template keeps `d` and `postedAt`; `buildThread` stub reasons and pruning; cascade targets (own comments and mark only, current key only). `npm test` passes.
 
 ## Blocked by
 
