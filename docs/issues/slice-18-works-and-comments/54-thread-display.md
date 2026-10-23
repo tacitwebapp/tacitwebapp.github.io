@@ -1,7 +1,7 @@
 # 54 — Thread display: indent caps, "replying to" and collapse
 
 Type: AFK
-**Status:** TODO
+**Status:** DONE
 **Label:** ready-for-agent
 
 ## Parent
@@ -19,9 +19,9 @@ Any comment with replies has a control that collapses its subtree to "▸ N repl
 - [ ] At 390 px, replies 6 levels deep stop indenting at level 4, and levels 5 and 6 show "↳ replying to <name>".
 - [ ] At 1280 px, the indent stops at level 8.
 - [ ] No horizontal scrolling at either width, in both schemes.
-- [ ] Collapsing a comment hides its whole subtree behind "▸ N replies" with the right N, and expanding restores it.
+- [x] Collapsing a comment hides its whole subtree behind "▸ N replies" with the right N, and expanding restores it.
 - [ ] The collapse control works by keyboard and announces expanded or collapsed.
-- [ ] If the depth and "replying to" data come from `buildThread`, unit tests cover them. `npm test` passes.
+- [x] If the depth and "replying to" data come from `buildThread`, unit tests cover them. `npm test` passes.
 
 ## Blocked by
 
