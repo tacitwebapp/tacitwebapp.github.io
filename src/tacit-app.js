@@ -6,7 +6,7 @@ import { createLocalSigner, createExtensionSigner, pickSource, retireKey, genera
 import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache } from './tacit-sync.js';
 import { filterFeed, highlightParts } from './tacit-feed.js';
 import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit, shareBlocker, relationsOf, findOwnInsight, groupInsights, cascadeTargets, incomingInsightCard, feedBadges, isWellFormedInsight, DEFAULT_PROMPT_LIMIT, validPromptLimit, planInsightPrompts, insightPromptCards, importInsightRows, applyToDraft, updateInsightDraft } from './tacit-insight.js';
-import { isRecord, worksD, buildWorksTemplate, worksCount, cascadeTargets as discussionTargets, fullViewIdOf, resolveFullView } from './tacit-comment.js';
+import { isRecord, isComment, COMMENT_BODY_MAX, worksD, buildWorksTemplate, buildCommentTemplate, buildThread, shownCount, worksCount, cascadeTargets as discussionTargets, fullViewIdOf, resolveFullView } from './tacit-comment.js';
 import { rankBySimilarity, candidatesFor, LINK_TOP_N } from './tacit-similarity.js';
 import { buildBackup, parseBackup, restoreBackup, backupDue, DEFAULT_BACKUP_REMINDER } from './tacit-backup.js';
 import { parseRoute, buildRoute } from './tacit-route.js';
@@ -70,7 +70,7 @@ export function registerTacitApp(Alpine) {
         pubkey: '', previousKeys: [], signer: null, extensionAvailable: false, switchAck: false, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
         bellOpen: false, nameDraft: '', resolveName: null, importKeyText: '', importAck: false, trustForm: { status: '', key: '', error: '' }, identityMessage: '', backupSummary: '', theme: localStorage.getItem('tacit.theme') || '', toasts: [],
         pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], authorNames: {}, directoryPeers: {}, subjectCache: {}, ready: false,
-        feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null, sheetOpen: false, fullViewId: '', fullViewPick: '', linkForm: blankLink(), relations: RELATIONS,
+        feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null, sheetOpen: false, fullViewId: '', fullViewPick: '', commentDraft: '', replyTo: '', replyDraft: '', commentMax: COMMENT_BODY_MAX, linkForm: blankLink(), relations: RELATIONS,
         authorOptions: [{ value: '', label: 'All' }, { value: 'mine', label: 'Mine' }, { value: 'trusted', label: 'Trusted' }, { value: 'others', label: 'Others' }],
         get subjectOptions() {
             const rows = [...this.settings.subjects, ...this.discover.filter(row => !this.hasSubject(row.slug))];
@@ -618,6 +618,7 @@ export function registerTacitApp(Alpine) {
         refreshFullView() {
             if (!this.fullViewId || !this.ready) return;
             const item = this.fullView.item;
+            if (item && item.key !== this.detailItem?.key) { this.commentDraft = ''; this.replyTo = ''; this.replyDraft = ''; }
             if (item && (item.key !== this.detailItem?.key || item.event.id !== this.detailItem.event.id || item.visibility !== this.detailItem.visibility)) this.detailItem = item;
             if (fullViewFocused === this.fullViewId) return;
             fullViewFocused = this.fullViewId;
@@ -664,6 +665,32 @@ export function registerTacitApp(Alpine) {
             await store.put('library', saved); await this.reload();
             this.publish(saved);
         },
+        commentsOf(item) { return shownCount(buildThread(item.key, { library: this.library })); },
+        get threadRows() {
+            if (!this.detailItem) return [];
+            const thread = buildThread(this.detailItem.key, {
+                library: this.library, tombstones: Object.fromEntries(this.tombstones.map(entry => [entry.key, entry.created_at])),
+                hiddenKeys: new Set(this.hiddenKeys), blockedKeys: new Set(this.trust.filter(entry => entry.status === 'blocked').map(entry => entry.pubkey)),
+            });
+            const flatten = nodes => nodes.flatMap(node => [node, ...flatten(node.children)]);
+            return flatten(thread);
+        },
+        stubText(row) { return { deleted: 'Comment deleted', hidden: 'Comment hidden', missing: 'Earlier comment not received yet' }[row.stub]; },
+        openReply(row) {
+            this.replyTo = row.key; this.replyDraft = '';
+            this.$nextTick(() => [...document.querySelectorAll('.reply-field')].find(field => field.offsetParent)?.focus());
+        },
+        async postComment(parentKey, body) {
+            const text = body.trim(), root = this.detailItem;
+            if (!text || text.length > COMMENT_BODY_MAX || root?.visibility !== 'shared' || !await this.askName()) return false;
+            const event = await this.signer.signEvent(buildCommentTemplate({ root: root.key, parent: parentKey, body: text, subject: root.content.subject }, undefined, this.settings.authorName));
+            const saved = { key: recordKey(event), event, visibility: 'shared', subjectSlug: root.subjectSlug, receivedAt: Date.now() };
+            await store.put('library', saved); await this.reload();
+            this.publish(saved);
+            return true;
+        },
+        async submitComment() { if (await this.postComment(this.detailItem.key, this.commentDraft)) this.commentDraft = ''; },
+        async submitReply(row) { if (await this.postComment(row.key, this.replyDraft)) { this.replyTo = ''; this.replyDraft = ''; } },
         async openRelations(item, el) {
             await this.openDetail(item, el);
             document.querySelector('#record-detail .relations')?.scrollIntoView({ block: 'start' });
@@ -727,7 +754,9 @@ export function registerTacitApp(Alpine) {
         async deleteRecord(item) {
             const targets = isInsight(item.content) ? { insights: [], drafts: [] } : cascadeTargets(this.library, await store.getAll('pending'), this.pubkey, item.key);
             const discussion = isInsight(item.content) ? [] : discussionTargets(item.key, this.library, this.pubkey);
-            if (targets.insights.length && !confirm(`Delete this record? This also deletes ${targets.insights.length} of your insights.`)) return false;
+            const comments = discussion.filter(entry => isComment(entry.content)).length;
+            const also = [targets.insights.length && `${targets.insights.length} of your insights`, comments && `${comments} of your comments`].filter(Boolean).join(' and ');
+            if (also && !confirm(`Delete this record? This also deletes ${also}.`)) return false;
             try {
                 await this.removeItem(item);
                 for (const draft of targets.drafts) await store.remove('pending', draft.id);
@@ -762,22 +791,28 @@ export function registerTacitApp(Alpine) {
             const held = Object.fromEntries(this.library.map(item => [item.key, item.event]));
             const pendingIncoming = Object.fromEntries(this.incoming.flatMap(group => group.records).map(item => [item.id, item.event]));
             const pendingCounts = Object.fromEntries(this.incoming.map(group => [group.pubkey, group.records.length]));
+            const foldedCounts = {};
+            for (const item of (await store.getAll('pending')).filter(entry => entry.kind === 'incoming-comment')) {
+                pendingIncoming[item.id] = item.event;
+                foldedCounts[item.pubkey] = (foldedCounts[item.pubkey] ?? 0) + 1;
+            }
             const tombstones = Object.fromEntries(this.tombstones.map(item => [item.key, item.created_at]));
             const hiddenKeys = new Set(this.hiddenKeys);
             const trustedPubkeys = new Set([...this.selfKeys, ...this.trust.filter(entry => entry.status === 'trusted').map(entry => entry.pubkey)]);
             const blockedPubkeys = new Set(this.trust.filter(entry => entry.status === 'blocked').map(entry => entry.pubkey));
             let changed = false;
             for (const event of events) {
-                const decision = decideIncoming(event, { held, pendingIncoming, pendingCount: pendingCounts[event.pubkey] ?? 0, hiddenKeys, tombstones, trustedPubkeys, blockedPubkeys });
+                const decision = decideIncoming(event, { held, pendingIncoming, pendingCount: pendingCounts[event.pubkey] ?? 0, foldedCount: foldedCounts[event.pubkey] ?? 0, hiddenKeys, tombstones, trustedPubkeys, blockedPubkeys });
                 if (decision.reason === 'tampered') { console.warn(`Rejected tampered record from peer ${peerId.slice(0, 6)}`); this.logSync(`Rejected tampered record from peer ${peerId.slice(0, 6)}`); }
                 if (decision.reason === 'queue-full') this.logSync(`Review queue full for ${shortKey(event.pubkey)}`);
+                if (decision.reason === 'comment-queue-full') this.logSync(`Comment queue full for ${shortKey(event.pubkey)}`);
                 if (decision.action === 'delete') {
                     await store.put('tombstones', { key: decision.key, created_at: event.created_at, event });
                     tombstones[decision.key] = event.created_at;
                     if (decision.removeHeld) {
                         await store.remove('library', decision.key); await store.remove('pending', decision.key);
                         delete held[decision.key];
-                        if (pendingIncoming[decision.key]) { delete pendingIncoming[decision.key]; pendingCounts[event.pubkey]--; }
+                        if (pendingIncoming[decision.key]) { delete pendingIncoming[decision.key]; (decision.key.startsWith(`${event.pubkey}:tacit-comment-`) ? foldedCounts : pendingCounts)[event.pubkey]--; }
                     }
                 } else if (decision.action === 'accept') {
                     await store.put('library', { key: recordKey(event), event, visibility: 'shared', subjectSlug: slug, receivedFrom: peerId, receivedAt: Date.now() });
@@ -786,6 +821,11 @@ export function registerTacitApp(Alpine) {
                     const key = recordKey(event);
                     await store.put('pending', { id: key, kind: 'incoming', event, subjectSlug: slug, pubkey: event.pubkey, receivedFrom: peerId, receivedAt: Date.now() });
                     if (!pendingIncoming[key]) pendingCounts[event.pubkey] = (pendingCounts[event.pubkey] ?? 0) + 1;
+                    pendingIncoming[key] = event;
+                } else if (decision.action === 'fold') {
+                    const key = recordKey(event);
+                    await store.put('pending', { id: key, kind: 'incoming-comment', event, subjectSlug: slug, pubkey: event.pubkey, receivedFrom: peerId, receivedAt: Date.now() });
+                    if (!pendingIncoming[key]) foldedCounts[event.pubkey] = (foldedCounts[event.pubkey] ?? 0) + 1;
                     pendingIncoming[key] = event;
                 } else continue;
                 changed = true;

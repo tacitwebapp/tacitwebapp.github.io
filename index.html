@@ -53,10 +53,11 @@
                     <span class="avatar" aria-hidden="true" :style="avatarStyle(item.event.pubkey)" :class="{ 'avatar-neutral': avatarOf(item.event.pubkey).neutral }" x-text="avatarOf(item.event.pubkey).initial"></span>
                     <span class="min-w-0 flex-1">
                         <span class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted"><span class="font-semibold uppercase tracking-wide text-accent" x-text="item.content.subject"></span><span x-show="item.content.specialty" x-text="item.content.specialty"></span><span x-text="authorLabel(item.event.pubkey)"></span><span class="rounded-ctl bg-success-soft px-1.5 font-semibold text-success">verified</span><span x-text="item.visibility"></span><span x-text="formatDate(item.event.created_at)"></span></span>
-                        <span x-show="badgesOf(item).superseded || badgesOf(item).conflicts || worksOf(item).n" class="feed-badges mt-1 flex flex-wrap items-center gap-1 text-xs font-semibold">
+                        <span x-show="badgesOf(item).superseded || badgesOf(item).conflicts || worksOf(item).n || commentsOf(item)" class="feed-badges mt-1 flex flex-wrap items-center gap-1 text-xs font-semibold">
                             <span x-show="badgesOf(item).superseded" role="link" tabindex="0" class="badge-superseded rounded-ctl bg-warn-soft px-1.5 text-warn" @click.stop="openRelations(item, $el.closest('button'))" @keydown.enter.stop.prevent="openRelations(item, $el.closest('button'))" @keydown.space.stop.prevent="openRelations(item, $el.closest('button'))">Superseded</span>
                             <span x-show="badgesOf(item).conflicts" role="link" tabindex="0" class="badge-conflicts rounded-ctl bg-warn-soft px-1.5 text-warn" @click.stop="openRelations(item, $el.closest('button'))" @keydown.enter.stop.prevent="openRelations(item, $el.closest('button'))" @keydown.space.stop.prevent="openRelations(item, $el.closest('button'))" x-text="`Conflicts (${badgesOf(item).conflicts})`"></span>
                             <span x-show="worksOf(item).n" class="badge-works rounded-ctl bg-success-soft px-1.5 text-success" :data-tip="worksTip(item)" x-text="`Works for ${worksOf(item).n} (${worksOf(item).t})`"></span>
+                            <span x-show="commentsOf(item)" class="badge-comments rounded-ctl bg-accent-soft px-1.5 text-accent" x-text="`Comments ${commentsOf(item)}`"></span>
                         </span>
                         <span class="mt-1 line-clamp-2 break-words text-sm text-ink" :class="{ italic: badgesOf(item).superseded }"><template x-for="(part, index) in highlightParts(item.content.information_chunks)" :key="index"><span :class="part.hit ? 'search-hit' : ''" x-text="part.text"></span></template></span>
                     </span>
@@ -419,7 +420,7 @@
                 <div x-show="detailItem.content.actionable_workflows" class="border-l-2 border-accent pl-3 text-sm text-muted"><strong class="text-ink">Action:</strong> <span class="whitespace-pre-wrap break-words"><template x-for="(part, index) in highlightParts(detailItem.content.actionable_workflows)" :key="index"><span :class="part.hit ? 'search-hit' : ''" x-text="part.text"></span></template></span></div>
                 <ul x-show="detailItem.warnings && detailItem.warnings.length" class="rounded-ctl bg-warn-soft p-3 text-sm text-warn"><template x-for="warning in detailItem.warnings || []"><li x-text="warning"></li></template></ul>
                 <div class="works flex flex-wrap items-center gap-2 text-sm">
-                    <template x-if="detailItem.visibility === 'shared'"><span class="flex flex-wrap items-center gap-2"><button data-icon="check" type="button" class="works-toggle btn-secondary" :class="{ 'bg-accent-soft text-accent': worksOf(detailItem).mine }" :aria-pressed="worksOf(detailItem).mine ? 'true' : 'false'" @click="toggleWorks(detailItem)">Works</button><span x-show="worksOf(detailItem).n" tabindex="0" class="works-count text-muted" :data-tip="worksTip(detailItem)" x-text="`Works for ${worksOf(detailItem).n} (${worksOf(detailItem).t})`"></span></span></template>
+                    <template x-if="detailItem.visibility === 'shared'"><span class="flex flex-wrap items-center gap-2"><button data-icon="check" type="button" class="works-toggle btn-secondary" :class="{ 'bg-accent-soft text-accent': worksOf(detailItem).mine }" :aria-pressed="worksOf(detailItem).mine ? 'true' : 'false'" @click="toggleWorks(detailItem)">Works</button><span x-show="worksOf(detailItem).n" tabindex="0" class="works-count text-muted" :data-tip="worksTip(detailItem)" x-text="`Works for ${worksOf(detailItem).n} (${worksOf(detailItem).t})`"></span><span x-show="commentsOf(detailItem)" class="comments-count text-muted" x-text="`Comments ${commentsOf(detailItem)}`"></span></span></template>
                     <p x-show="detailItem.visibility !== 'shared'" class="discuss-hint text-muted">Share this record to discuss it</p>
                 </div>
                 <div class="flex flex-wrap items-center justify-end gap-2">
@@ -465,6 +466,28 @@
                     </div></template>
                 </section>
             </div></div></template>
+            <template x-if="fullViewReady && detailItem.visibility === 'shared'"><section class="thread group mt-4 flex flex-col gap-3 p-5" aria-label="Comments">
+                <h3 class="text-sm font-semibold uppercase tracking-wide text-muted">Comments</h3>
+                <p x-show="threadRows.length === 0" class="no-comments text-sm text-muted">No comments yet</p>
+                <ul class="flex flex-col gap-3">
+                    <template x-for="row in threadRows" :key="row.key"><li class="thread-row flex flex-col gap-1" :style="`padding-left: ${row.depth * 1.25}rem`">
+                        <p x-show="row.stub" class="comment-stub text-sm italic text-muted" x-text="stubText(row)"></p>
+                        <template x-if="!row.stub"><div class="thread-comment flex flex-col gap-1">
+                            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted"><span class="avatar" aria-hidden="true" :style="avatarStyle(row.item.event.pubkey)" :class="{ 'avatar-neutral': avatarOf(row.item.event.pubkey).neutral }" x-text="avatarOf(row.item.event.pubkey).initial"></span><span class="comment-author" x-text="authorLabel(row.item.event.pubkey)"></span><span x-text="formatDate(row.item.content.postedAt)"></span><span x-show="row.edited">edited</span></div>
+                            <p class="comment-body whitespace-pre-wrap break-words text-sm text-ink" x-text="row.item.content.body"></p>
+                            <div><button type="button" class="comment-reply btn-secondary" :aria-expanded="replyTo === row.key ? 'true' : 'false'" @click="openReply(row)">Reply</button></div>
+                            <form x-show="replyTo === row.key" @submit.prevent="submitReply(row)" class="reply-form flex flex-col gap-2">
+                                <textarea x-model="replyDraft" rows="2" :maxlength="commentMax" aria-label="Your reply" class="reply-field field"></textarea>
+                                <div class="flex flex-wrap justify-end gap-2"><button type="button" class="btn-secondary" @click="replyTo = ''">Cancel</button><button type="submit" class="reply-post btn-primary" :disabled="!replyDraft.trim()">Reply</button></div>
+                            </form>
+                        </div></template>
+                    </li></template>
+                </ul>
+                <form @submit.prevent="submitComment()" class="comment-form flex flex-col gap-2">
+                    <textarea x-model="commentDraft" rows="3" :maxlength="commentMax" aria-label="Add a comment" placeholder="Add a comment" class="comment-field field"></textarea>
+                    <div class="flex flex-wrap justify-end gap-2"><button type="submit" class="comment-post btn-primary" :disabled="!commentDraft.trim()">Comment</button></div>
+                </form>
+            </section></template>
         </section>
         </main>
         <dialog id="record-detail" @close="detailClosed()" @click="$event.target === $el && closeDetail()" x-effect="syncDetail()" aria-label="Record detail" class="m-0 mt-auto max-h-[85vh] w-full max-w-[720px] overflow-y-auto rounded-card border border-line bg-surface p-0 text-ink backdrop:bg-ink/40 desk:m-auto">
@@ -474,7 +497,7 @@
                 <div x-show="detailItem.content.actionable_workflows" class="border-l-2 border-accent pl-3 text-sm text-muted"><strong class="text-ink">Action:</strong> <span class="whitespace-pre-wrap break-words"><template x-for="(part, index) in highlightParts(detailItem.content.actionable_workflows)" :key="index"><span :class="part.hit ? 'search-hit' : ''" x-text="part.text"></span></template></span></div>
                 <ul x-show="detailItem.warnings && detailItem.warnings.length" class="rounded-ctl bg-warn-soft p-3 text-sm text-warn"><template x-for="warning in detailItem.warnings || []"><li x-text="warning"></li></template></ul>
                 <div class="works flex flex-wrap items-center gap-2 text-sm">
-                    <template x-if="detailItem.visibility === 'shared'"><span class="flex flex-wrap items-center gap-2"><button data-icon="check" type="button" class="works-toggle btn-secondary" :class="{ 'bg-accent-soft text-accent': worksOf(detailItem).mine }" :aria-pressed="worksOf(detailItem).mine ? 'true' : 'false'" @click="toggleWorks(detailItem)">Works</button><span x-show="worksOf(detailItem).n" tabindex="0" class="works-count text-muted" :data-tip="worksTip(detailItem)" x-text="`Works for ${worksOf(detailItem).n} (${worksOf(detailItem).t})`"></span></span></template>
+                    <template x-if="detailItem.visibility === 'shared'"><span class="flex flex-wrap items-center gap-2"><button data-icon="check" type="button" class="works-toggle btn-secondary" :class="{ 'bg-accent-soft text-accent': worksOf(detailItem).mine }" :aria-pressed="worksOf(detailItem).mine ? 'true' : 'false'" @click="toggleWorks(detailItem)">Works</button><span x-show="worksOf(detailItem).n" tabindex="0" class="works-count text-muted" :data-tip="worksTip(detailItem)" x-text="`Works for ${worksOf(detailItem).n} (${worksOf(detailItem).t})`"></span><span x-show="commentsOf(detailItem)" class="comments-count text-muted" x-text="`Comments ${commentsOf(detailItem)}`"></span></span></template>
                     <p x-show="detailItem.visibility !== 'shared'" class="discuss-hint text-muted">Share this record to discuss it</p>
                     <button data-icon="maximize" type="button" class="open-full-view btn-secondary" @click="openFullView(detailItem)">Open</button>
                 </div>

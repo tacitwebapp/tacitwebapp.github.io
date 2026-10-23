@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildWorksTemplate, isValidWorks, worksCount, cascadeTargets, fullViewIdOf, resolveFullView } from '../src/tacit-comment.js';
+import { buildWorksTemplate, isValidWorks, worksCount, cascadeTargets, fullViewIdOf, resolveFullView, buildCommentTemplate, isValidComment, buildThread, shownCount, isRecord } from '../src/tacit-comment.js';
 import { decideIncoming, announcementFor } from '../src/tacit-sync.js';
 import { filterFeed } from '../src/tacit-feed.js';
 import { buildDrafts, existingRecords } from '../src/tacit-import.js';
@@ -162,4 +162,199 @@ test('full view ignores insights and Works marks', () => {
     const insight = { key: `${B}:tacit-link-${U1}-${U2}`, visibility: 'shared', event: { pubkey: B }, content: { type: 'insight', relation: 'conflicts', from: record.key, to: rec(A, U2).key } };
     assert.deepEqual(resolveFullView([mark, insight, record], '3f9a1c2e').matches, [record]);
     assert.equal(resolveFullView([mark, insight], '3f9a1c2e').status, 'missing');
+});
+
+const CU = n => `${String(n).padStart(8, '0')}-5555-4555-8555-555555555555`;
+const comment = (pubkey, n, root, parent, extra = {}) => ({
+    key: `${pubkey}:tacit-comment-${CU(n)}`, subjectSlug: 'pest', visibility: 'shared', event: { pubkey, created_at: 300 + n },
+    content: { schemaVersion: 1, type: 'comment', root, parent, body: `body ${n}`, postedAt: 300 + n }, ...extra,
+});
+const shape = nodes => nodes.map(node => [node.key, node.depth, shape(node.children)]);
+
+test('comment template: d is tacit-comment- plus a uuid, content carries root, parent, body and postedAt', () => {
+    const root = rec(B, U1).key;
+    const template = buildCommentTemplate({ root, parent: root, body: 'Only on clay soil', subject: 'Pest' }, 500, 'Ann', U2);
+    assert.equal(template.kind, 30078);
+    assert.equal(template.created_at, 500);
+    assert.deepEqual(template.tags, [['d', `tacit-comment-${U2}`], ['subject', 'Pest'], ['author_name', 'Ann']]);
+    assert.deepEqual(JSON.parse(template.content), { schemaVersion: 1, type: 'comment', root, parent: root, body: 'Only on clay soil', postedAt: 500 });
+    assert.match(buildCommentTemplate({ root, parent: root, body: 'x', subject: 'Pest' }, 500).tags[0][1], /^tacit-comment-[0-9a-f-]{36}$/);
+});
+
+test('a comment is valid with its fields present, a root or comment parent and a body of 1 to 2000 characters', () => {
+    const root = rec(B, U1).key, key = comment(A, 1, root, root).key, parentKey = comment(B, 2, root, root).key;
+    const good = { schemaVersion: 1, type: 'comment', root, parent: root, body: 'ok', postedAt: 300 };
+    assert.equal(isValidComment(good, key), true);
+    assert.equal(isValidComment({ ...good, parent: parentKey }, key), true);
+    assert.equal(isValidComment({ ...good, body: 'x'.repeat(2000) }, key), true);
+    assert.equal(isValidComment({ ...good, body: 'x'.repeat(2001) }, key), false);
+    assert.equal(isValidComment({ ...good, body: '' }, key), false);
+    assert.equal(isValidComment({ ...good, body: 7 }, key), false);
+    assert.equal(isValidComment({ ...good, root: 'nonsense' }, key), false);
+    assert.equal(isValidComment({ ...good, root: `${B}:tacit-link-${U1}` }, key), false);
+    assert.equal(isValidComment({ ...good, parent: 'nonsense' }, key), false);
+    assert.equal(isValidComment({ ...good, parent: rec(B, U2).key }, key), false);
+    assert.equal(isValidComment({ ...good, parent: undefined }, key), false);
+    assert.equal(isValidComment({ ...good, postedAt: 'now' }, key), false);
+    assert.equal(isValidComment({ ...good, postedAt: undefined }, key), false);
+    assert.equal(isValidComment({ ...good, type: 'works' }, key), false);
+    assert.equal(isValidComment(good, rec(A, U2).key), false);
+    assert.equal(isValidComment(null, key), false);
+});
+
+test('buildThread nests replies at any depth, oldest first, with the depth of each node', () => {
+    const root = rec(D, U1);
+    const c1 = comment(A, 1, root.key, root.key), c2 = comment(B, 2, root.key, root.key, { content: { ...comment(B, 2, root.key, root.key).content, postedAt: 250 } });
+    const r1 = comment(C, 3, root.key, c1.key), r2 = comment(A, 4, root.key, r1.key), r3 = comment(B, 5, root.key, r2.key), r1b = comment(E, 6, root.key, c1.key);
+    const library = [root, r3, r1b, c1, r2, c2, r1];
+    const thread = buildThread(root.key, { library });
+    assert.deepEqual(shape(thread), [
+        [c2.key, 0, []],
+        [c1.key, 0, [[r1.key, 1, [[r2.key, 2, [[r3.key, 3, []]]]]], [r1b.key, 1, []]]],
+    ]);
+    assert.equal(thread[1].item, c1);
+    assert.deepEqual(thread.map(node => node.stub), [null, null]);
+});
+
+test('two peers replying to the same comment both keep their replies', () => {
+    const root = rec(D, U1), c1 = comment(A, 1, root.key, root.key);
+    const first = comment(B, 2, root.key, c1.key), second = comment(C, 3, root.key, c1.key);
+    assert.deepEqual(buildThread(root.key, { library: [root, c1, second, first] })[0].children.map(node => node.key), [first.key, second.key]);
+});
+
+test('an edited comment keeps its place and is flagged edited', () => {
+    const root = rec(D, U1), c1 = comment(A, 1, root.key, root.key), c2 = comment(B, 2, root.key, root.key);
+    const edited = { ...c1, event: { ...c1.event, created_at: 900 } };
+    const thread = buildThread(root.key, { library: [root, edited, c2] });
+    assert.deepEqual(thread.map(node => [node.key, node.edited]), [[c1.key, true], [c2.key, false]]);
+});
+
+test('a reply whose parent has not arrived sits under a not-received stub and moves under the real parent when it arrives', () => {
+    const root = rec(D, U1), c1 = comment(A, 1, root.key, root.key);
+    const reply = comment(B, 2, root.key, c1.key), deeper = comment(C, 3, root.key, reply.key);
+    const early = buildThread(root.key, { library: [root, reply, deeper] });
+    assert.equal(early.length, 1);
+    assert.deepEqual([early[0].key, early[0].stub, early[0].item, early[0].depth], [c1.key, 'missing', null, 0]);
+    assert.deepEqual(shape(early[0].children), [[reply.key, 1, [[deeper.key, 2, []]]]]);
+    assert.deepEqual(shape(buildThread(root.key, { library: [root, reply, deeper, c1] })), [[c1.key, 0, [[reply.key, 1, [[deeper.key, 2, []]]]]]]);
+});
+
+test('a stub says why its comment is not shown: deleted, hidden or blocked author, otherwise not received', () => {
+    const root = rec(D, U1), gone = comment(A, 1, root.key, root.key), hidden = comment(B, 2, root.key, root.key), banned = comment(C, 3, root.key, root.key), unknown = comment(E, 4, root.key, root.key);
+    const replies = [gone, hidden, banned, unknown].map((parent, index) => comment(D, 10 + index, root.key, parent.key));
+    const thread = buildThread(root.key, { library: [root, ...replies], tombstones: { [gone.key]: 400 }, hiddenKeys: new Set([hidden.key]), blockedKeys: new Set([C]) });
+    assert.deepEqual(thread.map(node => [node.key, node.stub]), [[gone.key, 'deleted'], [hidden.key, 'hidden'], [banned.key, 'hidden'], [unknown.key, 'missing']]);
+});
+
+test('a held comment that is deleted, hidden or from a blocked author is not shown, and its replies sit under a stub', () => {
+    const root = rec(D, U1), gone = comment(A, 1, root.key, root.key), hidden = comment(B, 2, root.key, root.key), banned = comment(C, 3, root.key, root.key), newer = comment(E, 4, root.key, root.key);
+    const replies = [gone, hidden, banned].map((parent, index) => comment(D, 10 + index, root.key, parent.key));
+    const options = { library: [root, gone, hidden, banned, newer, ...replies], tombstones: { [gone.key]: gone.event.created_at, [newer.key]: newer.event.created_at - 1 }, hiddenKeys: new Set([hidden.key]), blockedKeys: new Set([C]) };
+    assert.deepEqual(buildThread(root.key, options).map(node => [node.key, node.stub]), [[newer.key, null], [gone.key, 'deleted'], [hidden.key, 'hidden'], [banned.key, 'hidden']]);
+});
+
+test('comments with a bad root, a bad parent, a parent in another thread, a bad body or a parent cycle are never shown', () => {
+    const root = rec(D, U1), other = rec(D, U2), elsewhere = comment(A, 1, other.key, other.key);
+    const ok = comment(A, 2, root.key, root.key);
+    const badBody = comment(B, 3, root.key, root.key, { content: { ...comment(B, 3, root.key, root.key).content, body: 'x'.repeat(2001) } });
+    const badParent = comment(B, 4, root.key, root.key, { content: { ...comment(B, 4, root.key, root.key).content, parent: 'junk' } });
+    const crossThread = comment(B, 5, root.key, elsewhere.key);
+    const wrongRoot = comment(B, 6, other.key, other.key);
+    const loopA = comment(C, 7, root.key, comment(C, 8, root.key, root.key).key), loopB = comment(C, 8, root.key, loopA.key);
+    const selfLoop = comment(C, 9, root.key, comment(C, 9, root.key, root.key).key);
+    const library = [root, other, elsewhere, ok, badBody, badParent, crossThread, wrongRoot, loopA, loopB, selfLoop];
+    assert.deepEqual(shape(buildThread(root.key, { library })), [[ok.key, 0, []]]);
+    assert.deepEqual(shape(buildThread(other.key, { library })), [[elsewhere.key, 0, []], [wrongRoot.key, 0, []]]);
+});
+
+test('a comment on a record the library does not hold is not shown, and appears once the record arrives', () => {
+    const root = rec(D, U1), c1 = comment(A, 1, root.key, root.key);
+    assert.deepEqual(buildThread(root.key, { library: [c1] }), []);
+    assert.deepEqual(buildThread(root.key, { library: [c1, { ...root, content: { type: 'works' } }] }), []);
+    assert.deepEqual(shape(buildThread(root.key, { library: [c1, root] })), [[c1.key, 0, []]]);
+});
+
+test('folded comments are placed in the tree flagged folded, with replies under them', () => {
+    const root = rec(D, U1), c1 = comment(A, 1, root.key, root.key);
+    const spam = comment(B, 2, root.key, root.key), reply = comment(C, 3, root.key, spam.key);
+    const thread = buildThread(root.key, { library: [root, c1, reply], folded: [spam] });
+    assert.deepEqual(thread.map(node => [node.key, node.folded]), [[c1.key, false], [spam.key, true]]);
+    assert.deepEqual(shape(thread[1].children), [[reply.key, 1, []]]);
+    assert.equal(thread[1].children[0].folded, false);
+});
+
+test('the shown count leaves out stubs and folded comments', () => {
+    const root = rec(D, U1), c1 = comment(A, 1, root.key, root.key), spam = comment(B, 2, root.key, root.key);
+    const orphan = comment(C, 3, root.key, comment(C, 4, root.key, root.key).key), reply = comment(E, 5, root.key, c1.key);
+    assert.equal(shownCount(buildThread(root.key, { library: [root, c1, orphan, reply], folded: [spam] })), 3);
+    assert.equal(shownCount([]), 0);
+});
+
+test('a comment is not a record: Feed, sharedCount, the import duplicate check and full view leave it out', () => {
+    const one = rec(A, U1), two = rec(A, U2), c1 = comment(B, 1, one.key, one.key);
+    assert.equal(isRecord(c1.content), false);
+    const ctx = { selfKeys: new Set([A]), trustedKeys: new Set() };
+    assert.deepEqual(filterFeed([one, c1, two], {}, ctx).map(item => item.key), [one.key, two.key]);
+    assert.deepEqual(filterFeed([one, c1, two], { author: 'others' }, ctx), []);
+    assert.equal(announcementFor([{ label: 'Pest', slug: 'pest', subscribed: true }], [one, c1, two])[0].sharedCount, 2);
+    const existing = existingRecords([one.content, { ...c1.content, subject: 'Pest', information_chunks: 'undefined' }]);
+    assert.deepEqual(existing, [{ slug: 'pest', chunk: 'chunk 3f9a' }]);
+    assert.equal(resolveFullView([c1], '00000001').status, 'missing');
+});
+
+test('cascade targets include the current key\'s comments on the deleted record, but not other keys\', other records\' or others\' comments', () => {
+    const record = rec(B, U1), other = rec(B, U2);
+    const mineA = comment(A, 1, record.key, record.key), mineB = comment(A, 2, record.key, mineA.key), theirs = comment(C, 3, record.key, record.key);
+    const previous = comment(D, 4, record.key, record.key), elsewhere = comment(A, 5, other.key, other.key), myMark = mark(A, record.key);
+    const library = [record, other, mineA, mineB, theirs, previous, elsewhere, myMark];
+    assert.deepEqual(cascadeTargets(record.key, library, A).map(item => item.key).sort(), [mineA.key, mineB.key, myMark.key].sort());
+    assert.deepEqual(cascadeTargets(record.key, [record, theirs, previous], A), []);
+});
+
+const signComment = (root, parent, now, body = 'hello') => signer.signEvent(buildCommentTemplate({ root, parent, body, subject: 'Pest' }, now));
+
+test('decideIncoming folds an unknown author\'s comment, but accepts a trusted or own author\'s', async () => {
+    const root = rec(B, U1).key, event = await signComment(root, root, 100);
+    const base = { held: {}, trustedPubkeys: new Set() };
+    assert.deepEqual(decideIncoming(event, base), { action: 'fold' });
+    assert.deepEqual(decideIncoming(event, { ...base, pendingCount: 50 }), { action: 'fold' });
+    assert.deepEqual(decideIncoming(event, { ...base, trustedPubkeys: new Set([event.pubkey]) }), { action: 'accept' });
+});
+
+test('folded comments are capped at 200 per author, separately from the 50 review cap', async () => {
+    const root = rec(B, U1).key, event = await signComment(root, root, 100);
+    const base = { held: {}, trustedPubkeys: new Set() };
+    assert.equal(decideIncoming(event, { ...base, foldedCount: 199 }).action, 'fold');
+    assert.deepEqual(decideIncoming(event, { ...base, foldedCount: 200 }), { action: 'drop', reason: 'comment-queue-full' });
+    assert.equal(decideIncoming(event, { ...base, pendingCount: 50 }).action, 'fold');
+    const review = await signer.signEvent({ kind: 30078, created_at: 100, tags: [['d', `tacit-entry-${U2}`], ['subject', 'Pest']], content: JSON.stringify({ subject: 'Pest', information_chunks: 'x' }) });
+    assert.equal(decideIncoming(review, { ...base, foldedCount: 200 }).action, 'review');
+    assert.deepEqual(decideIncoming(review, { ...base, pendingCount: 50 }), { action: 'drop', reason: 'queue-full' });
+});
+
+test('a newer version of an already folded comment is still folded at the cap', async () => {
+    const root = rec(B, U1).key, older = await signComment(root, root, 100), key = recordKey(older);
+    const newer = await signer.signEvent({ ...buildCommentTemplate({ root, parent: root, body: 'hello again', subject: 'Pest' }, 101), tags: older.tags });
+    assert.equal(recordKey(newer), key);
+    assert.deepEqual(decideIncoming(newer, { held: {}, trustedPubkeys: new Set(), pendingIncoming: { [key]: older }, foldedCount: 200 }), { action: 'fold' });
+});
+
+test('comments still drop when blocked, hidden, tombstoned or older', async () => {
+    const root = rec(B, U1).key, event = await signComment(root, root, 100), key = recordKey(event);
+    const base = { held: {}, trustedPubkeys: new Set() };
+    assert.equal(decideIncoming(event, { ...base, blockedPubkeys: new Set([event.pubkey]) }).reason, 'blocked');
+    assert.equal(decideIncoming(event, { ...base, hiddenKeys: new Set([key]) }).reason, 'hidden');
+    assert.equal(decideIncoming(event, { ...base, tombstones: { [key]: 100 } }).reason, 'tombstoned');
+    assert.equal(decideIncoming(event, { ...base, held: { [key]: event } }).reason, 'duplicate-or-older');
+    assert.equal(decideIncoming(event, { ...base, pendingIncoming: { [key]: event } }).reason, 'duplicate-or-older');
+});
+
+test('comments and their deletion tombstones round-trip through backup', async () => {
+    const root = rec(B, U1).key, kept = await signComment(root, root, 100), removed = await signComment(root, root, 100, 'bye');
+    const deletion = await signer.signEvent(buildDeletionTemplate(removed, 200));
+    const item = event => ({ key: recordKey(event), event, visibility: 'shared', subjectSlug: 'pest', content: JSON.parse(event.content) });
+    const backup = parseBackup(JSON.stringify(buildBackup({ library: [item(kept)], tombstones: [{ key: recordKey(removed), created_at: 200, event: deletion }], trust: [], subjects: [] })));
+    const plan = restoreBackup(backup, { library: [], tombstones: [], trust: [], hiddenKeys: [], subjects: [] }, 5000);
+    assert.deepEqual(plan.puts.library.map(r => [r.key, r.event.id, r.visibility, r.subjectSlug]), [[recordKey(kept), kept.id, 'shared', 'pest']]);
+    assert.deepEqual(plan.puts.tombstones.map(entry => entry.key), [recordKey(removed)]);
 });

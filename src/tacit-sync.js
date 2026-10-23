@@ -7,12 +7,13 @@ export const APP_ID = 'com.tacit-sync.v1';
 export const roomId = slug => `subject:${slug}`;
 export const DIRECTORY_ROOM = 'directory';
 export const PENDING_CAP = 50;
+export const FOLDED_CAP = 200;
 export const SUBJECT_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 export const SUBJECT_CACHE_CAP = 200;
 
 const isJsonObject = text => { try { const value = JSON.parse(text); return value !== null && typeof value === 'object' && !Array.isArray(value); } catch (_) { return false; } };
 
-export function decideIncoming(event, { held, pendingIncoming = {}, pendingCount = 0, trustedPubkeys, blockedPubkeys = new Set(), hiddenKeys = new Set(), tombstones = {} }) {
+export function decideIncoming(event, { held, pendingIncoming = {}, pendingCount = 0, foldedCount = 0, trustedPubkeys, blockedPubkeys = new Set(), hiddenKeys = new Set(), tombstones = {} }) {
     if (!isValidSignature(event)) return { action: 'drop', reason: 'tampered' };
     if (blockedPubkeys.has(event.pubkey)) return { action: 'drop', reason: 'blocked' };
     if (event.kind === DELETION_KIND) {
@@ -31,6 +32,7 @@ export function decideIncoming(event, { held, pendingIncoming = {}, pendingCount
     if (current && current.created_at >= event.created_at) return { action: 'drop', reason: 'duplicate-or-older' };
     if (trustedPubkeys.has(event.pubkey)) return { action: 'accept' };
     if (key.startsWith(`${event.pubkey}:tacit-works-`)) return isValidWorks(JSON.parse(event.content), key) ? { action: 'accept' } : { action: 'drop', reason: 'bad-works' };
+    if (key.startsWith(`${event.pubkey}:tacit-comment-`)) return !pendingIncoming[key] && foldedCount >= FOLDED_CAP ? { action: 'drop', reason: 'comment-queue-full' } : { action: 'fold' };
     if (!pendingIncoming[key] && pendingCount >= PENDING_CAP) return { action: 'drop', reason: 'queue-full' };
     return { action: 'review' };
 }
