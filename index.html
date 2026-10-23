@@ -473,8 +473,16 @@
                     <template x-for="row in threadRows" :key="row.key"><li class="thread-row flex flex-col gap-1" :style="`padding-left: ${row.depth * 1.25}rem`">
                         <p x-show="row.stub" class="comment-stub text-sm italic text-muted" x-text="stubText(row)"></p>
                         <template x-if="!row.stub"><div class="thread-comment flex flex-col gap-1">
-                            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted"><span class="avatar" aria-hidden="true" :style="avatarStyle(row.item.event.pubkey)" :class="{ 'avatar-neutral': avatarOf(row.item.event.pubkey).neutral }" x-text="avatarOf(row.item.event.pubkey).initial"></span><span class="comment-author" x-text="authorLabel(row.item.event.pubkey)"></span><span x-text="formatDate(row.item.content.postedAt)"></span><span x-show="row.edited">edited</span></div>
-                            <p class="comment-body whitespace-pre-wrap break-words text-sm text-ink" x-text="row.item.content.body"></p>
+                            <p x-show="row.folded && !foldedOpen[row.key]" class="folded-label text-sm italic text-muted" x-text="`Comment from ${authorLabel(row.item.event.pubkey)}, unknown author`"></p>
+                            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted" x-show="!row.folded || foldedOpen[row.key]"><span class="avatar" aria-hidden="true" :style="avatarStyle(row.item.event.pubkey)" :class="{ 'avatar-neutral': avatarOf(row.item.event.pubkey).neutral }" x-text="avatarOf(row.item.event.pubkey).initial"></span><span class="comment-author" x-text="authorLabel(row.item.event.pubkey)"></span><span x-text="formatDate(row.item.content.postedAt)"></span><span x-show="row.edited">edited</span></div>
+                            <p x-show="!row.folded || foldedOpen[row.key]" class="comment-body whitespace-pre-wrap break-words text-sm text-ink" x-text="row.item.content.body"></p>
+                            <div x-show="row.folded" class="folded-actions flex flex-wrap gap-2">
+                                <button type="button" x-show="!foldedOpen[row.key]" class="folded-show btn-secondary" @click="toggleFolded(row)">Show</button>
+                                <button data-icon="check" type="button" class="folded-accept btn-success" @click="acceptIncoming(row.item)">Accept</button>
+                                <button type="button" class="folded-trust btn-secondary" @click="trustAuthor(row.item.event.pubkey)">Trust author</button>
+                                <button type="button" class="folded-block btn-danger" @click="blockAuthor(row.item.event.pubkey)">Block author</button>
+                                <button data-icon="eye-off" type="button" class="folded-hide btn-secondary" @click="hideFolded(row)">Hide</button>
+                            </div>
                             <div><button type="button" class="comment-reply btn-secondary" :aria-expanded="replyTo === row.key ? 'true' : 'false'" @click="openReply(row)">Reply</button></div>
                             <form x-show="replyTo === row.key" @submit.prevent="submitReply(row)" class="reply-form flex flex-col gap-2">
                                 <textarea x-model="replyDraft" rows="2" :maxlength="commentMax" aria-label="Your reply" class="reply-field field"></textarea>

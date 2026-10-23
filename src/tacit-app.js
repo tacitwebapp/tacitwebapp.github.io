@@ -6,7 +6,7 @@ import { createLocalSigner, createExtensionSigner, pickSource, retireKey, genera
 import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache } from './tacit-sync.js';
 import { filterFeed, highlightParts } from './tacit-feed.js';
 import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit, shareBlocker, relationsOf, findOwnInsight, groupInsights, cascadeTargets, incomingInsightCard, feedBadges, isWellFormedInsight, DEFAULT_PROMPT_LIMIT, validPromptLimit, planInsightPrompts, insightPromptCards, importInsightRows, applyToDraft, updateInsightDraft } from './tacit-insight.js';
-import { isRecord, isComment, COMMENT_BODY_MAX, worksD, buildWorksTemplate, buildCommentTemplate, buildThread, shownCount, worksCount, cascadeTargets as discussionTargets, fullViewIdOf, resolveFullView } from './tacit-comment.js';
+import { isRecord, isComment, COMMENT_BODY_MAX, worksD, buildWorksTemplate, buildCommentTemplate, buildThread, shownCount, foldedComments, worksCount, cascadeTargets as discussionTargets, fullViewIdOf, resolveFullView } from './tacit-comment.js';
 import { rankBySimilarity, candidatesFor, LINK_TOP_N } from './tacit-similarity.js';
 import { buildBackup, parseBackup, restoreBackup, backupDue, DEFAULT_BACKUP_REMINDER } from './tacit-backup.js';
 import { parseRoute, buildRoute } from './tacit-route.js';
@@ -71,6 +71,7 @@ export function registerTacitApp(Alpine) {
         bellOpen: false, nameDraft: '', resolveName: null, importKeyText: '', importAck: false, trustForm: { status: '', key: '', error: '' }, identityMessage: '', backupSummary: '', theme: localStorage.getItem('tacit.theme') || '', toasts: [],
         pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], authorNames: {}, directoryPeers: {}, subjectCache: {}, ready: false,
         feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null, sheetOpen: false, fullViewId: '', fullViewPick: '', commentDraft: '', replyTo: '', replyDraft: '', commentMax: COMMENT_BODY_MAX, linkForm: blankLink(), relations: RELATIONS,
+        folded: [], foldedOpen: {},
         authorOptions: [{ value: '', label: 'All' }, { value: 'mine', label: 'Mine' }, { value: 'trusted', label: 'Trusted' }, { value: 'others', label: 'Others' }],
         get subjectOptions() {
             const rows = [...this.settings.subjects, ...this.discover.filter(row => !this.hasSubject(row.slug))];
@@ -423,11 +424,12 @@ export function registerTacitApp(Alpine) {
             const groups = {};
             pending.filter(item => item.kind === 'incoming').forEach(item => { const content = parseContent(item.event); if (content && (!isInsight(content) || isWellFormedInsight(content, item.id))) (groups[item.pubkey] ??= []).push({ ...item, content }); });
             this.incoming = Object.entries(groups).map(([pubkey, records]) => ({ pubkey, records }));
+            this.folded = foldedComments(pending);
             this.trust = await store.getAll('trust');
             this.hiddenKeys = (await store.getAll('hidden')).map(item => item.key);
             this.tombstones = await store.getAll('tombstones');
             this.library = (await store.getAll('library')).sort((a, b) => b.event.created_at - a.event.created_at).map(item => ({ ...item, content: parseContent(item.event) })).filter(item => item.content);
-            this.authorNames = latestAuthorNames([...this.library, ...pending.filter(item => item.kind === 'incoming')].map(item => item.event));
+            this.authorNames = latestAuthorNames([...this.library, ...pending.filter(item => item.kind === 'incoming' || item.kind === 'incoming-comment')].map(item => item.event));
             this.refreshFullView();
         },
         editPrompt() { this.promptDraft = this.customPrompt ?? DEFAULT_TACIT_PROMPT; this.promptEditing = true; },
@@ -669,14 +671,15 @@ export function registerTacitApp(Alpine) {
         get threadRows() {
             if (!this.detailItem) return [];
             const thread = buildThread(this.detailItem.key, {
-                library: this.library, tombstones: Object.fromEntries(this.tombstones.map(entry => [entry.key, entry.created_at])),
+                library: this.library, folded: this.folded, tombstones: Object.fromEntries(this.tombstones.map(entry => [entry.key, entry.created_at])),
                 hiddenKeys: new Set(this.hiddenKeys), blockedKeys: new Set(this.trust.filter(entry => entry.status === 'blocked').map(entry => entry.pubkey)),
             });
             const flatten = nodes => nodes.flatMap(node => [node, ...flatten(node.children)]);
             return flatten(thread);
         },
         stubText(row) { return { deleted: 'Comment deleted', hidden: 'Comment hidden', missing: 'Earlier comment not received yet' }[row.stub]; },
-        openReply(row) {
+        async openReply(row) {
+            if (row.folded) await this.acceptIncoming(row.item);
             this.replyTo = row.key; this.replyDraft = '';
             this.$nextTick(() => [...document.querySelectorAll('.reply-field')].find(field => field.offsetParent)?.focus());
         },
@@ -837,6 +840,11 @@ export function registerTacitApp(Alpine) {
             await store.put('library', record); await store.remove('pending', item.id); await this.reload();
             this.publish(record); this.toast('Accepted');
         },
+        toggleFolded(row) { this.foldedOpen[row.key] = !this.foldedOpen[row.key]; },
+        async hideFolded(row) {
+            await store.put('hidden', { key: row.key, hiddenAt: Date.now() }); await store.remove('pending', row.key); await this.reload();
+            this.toast('Comment hidden');
+        },
         async discardIncoming(item) { await store.remove('pending', item.id); await this.reload(); },
         async acceptGroup(group) { for (const item of group.records) await this.acceptIncoming(item); },
         async discardGroup(group) { for (const item of group.records) await store.remove('pending', item.id); await this.reload(); },
@@ -860,6 +868,7 @@ export function registerTacitApp(Alpine) {
             const group = this.incoming.find(entry => entry.pubkey === pubkey);
             await this.reload();
             for (const item of group?.records || []) await this.acceptIncoming(item);
+            for (const item of this.folded.filter(entry => entry.event.pubkey === pubkey)) await this.acceptIncoming(item);
             this.toast('Author trusted');
         },
         async blockAuthor(pubkey) {

@@ -99,4 +99,10 @@ export function buildThread(rootKey, { library, folded = [], tombstones = {}, hi
 
 const byPosted = (a, b) => a.postedAt - b.postedAt || (a.key < b.key ? -1 : 1);
 
+export function foldedComments(pending) {
+    return pending.filter(item => item.kind === 'incoming-comment').flatMap(item => {
+        try { return [{ ...item, key: item.id, visibility: 'shared', content: JSON.parse(item.event.content) }]; } catch (_) { return []; }
+    });
+}
+
 export const shownCount = nodes => nodes.reduce((total, node) => total + (node.stub || node.folded ? 0 : 1) + shownCount(node.children), 0);

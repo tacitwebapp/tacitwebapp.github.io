@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildWorksTemplate, isValidWorks, worksCount, cascadeTargets, fullViewIdOf, resolveFullView, buildCommentTemplate, isValidComment, buildThread, shownCount, isRecord } from '../src/tacit-comment.js';
+import { buildWorksTemplate, isValidWorks, worksCount, cascadeTargets, fullViewIdOf, resolveFullView, buildCommentTemplate, isValidComment, buildThread, shownCount, isRecord, foldedComments } from '../src/tacit-comment.js';
 import { decideIncoming, announcementFor } from '../src/tacit-sync.js';
 import { filterFeed } from '../src/tacit-feed.js';
 import { buildDrafts, existingRecords } from '../src/tacit-import.js';
@@ -281,6 +281,19 @@ test('folded comments are placed in the tree flagged folded, with replies under 
     assert.deepEqual(thread.map(node => [node.key, node.folded]), [[c1.key, false], [spam.key, true]]);
     assert.deepEqual(shape(thread[1].children), [[reply.key, 1, []]]);
     assert.equal(thread[1].children[0].folded, false);
+});
+
+test('folded comments are read from the pending store as thread items, skipping other kinds and unreadable events', () => {
+    const root = rec(D, U1), spam = comment(B, 2, root.key, root.key);
+    const pending = [
+        { id: spam.key, kind: 'incoming-comment', event: { ...spam.event, content: JSON.stringify(spam.content) }, subjectSlug: 'pest', pubkey: B, receivedFrom: 'peer', receivedAt: 7 },
+        { id: `${B}:tacit-entry-${U2}`, kind: 'incoming', event: { pubkey: B, content: '{}' }, pubkey: B },
+        { id: `${B}:tacit-comment-bad`, kind: 'incoming-comment', event: { pubkey: B, content: 'not json' }, pubkey: B },
+    ];
+    const folded = foldedComments(pending);
+    assert.deepEqual(folded.map(item => item.key), [spam.key]);
+    assert.equal(folded[0].content.body, spam.content.body);
+    assert.deepEqual(buildThread(root.key, { library: [root], folded }).map(node => [node.key, node.folded]), [[spam.key, true]]);
 });
 
 test('the shown count leaves out stubs and folded comments', () => {
