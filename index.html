@@ -303,7 +303,7 @@
                                     <div class="flex flex-wrap justify-end gap-2">
                                         <template x-if="insight.event.pubkey === pubkey"><span class="flex flex-wrap gap-2"><button data-icon="pencil" type="button" class="edit-insight btn-secondary" @click="editTabLink(insight)">Edit</button><button data-icon="trash" type="button" class="delete-insight btn-danger" @click="deleteRecord(insight)">Delete</button></span></template>
                                         <button data-icon="share" type="button" x-show="insight.visibility === 'local' && insight.event.pubkey === pubkey" class="share-insight btn-success" @click="shareRecord(insight)">Share</button>
-                                        <button data-icon="eye-off" type="button" x-show="!selfKeys.has(insight.event.pubkey)" class="hide-insight btn-secondary" @click="hideRecord(insight)">Hide</button>
+                                        <button data-icon="eye-off" type="button" x-show="!selfKeys.has(insight.event.pubkey)" class="hide-insight btn-link" @click="hideRecord(insight)">Hide</button>
                                     </div>
                                 </div></template>
                             </div>
@@ -420,15 +420,23 @@
                 <p class="whitespace-pre-wrap break-words text-base text-ink"><template x-for="(part, index) in highlightParts(detailItem.content.information_chunks)" :key="index"><span :class="part.hit ? 'search-hit' : ''" x-text="part.text"></span></template></p>
                 <div x-show="detailItem.content.actionable_workflows" class="border-l-2 border-accent pl-3 text-sm text-muted"><strong class="text-ink">Action:</strong> <span class="whitespace-pre-wrap break-words"><template x-for="(part, index) in highlightParts(detailItem.content.actionable_workflows)" :key="index"><span :class="part.hit ? 'search-hit' : ''" x-text="part.text"></span></template></span></div>
                 <ul x-show="detailItem.warnings && detailItem.warnings.length" class="rounded-ctl bg-warn-soft p-3 text-sm text-warn"><template x-for="warning in detailItem.warnings || []"><li x-text="warning"></li></template></ul>
-                <div class="works flex flex-wrap items-center gap-2 text-sm">
+                <div class="works flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                     <template x-if="detailItem.visibility === 'shared'"><span class="flex flex-wrap items-center gap-2"><button data-icon="check" type="button" class="works-toggle btn-secondary" :class="{ 'bg-accent-soft text-accent': worksOf(detailItem).mine }" :aria-pressed="worksOf(detailItem).mine ? 'true' : 'false'" @click="toggleWorks(detailItem)">Works</button><span x-show="worksOf(detailItem).n" tabindex="0" class="works-count text-muted" :data-tip="worksTip(detailItem)" x-text="`Works for ${worksOf(detailItem).n} (${worksOf(detailItem).t})`"></span><span x-show="commentsOf(detailItem)" class="comments-count text-muted" x-text="`Comments ${commentsOf(detailItem)}`"></span></span></template>
                     <p x-show="detailItem.visibility !== 'shared'" class="discuss-hint text-muted">Share this record to discuss it</p>
-                </div>
-                <div class="flex flex-wrap items-center justify-end gap-2">
-                    <template x-if="detailItem.visibility === 'local' && detailItem.event.pubkey === pubkey"><button data-icon="share" type="button" class="btn-success" @click="shareRecord(detailItem)">Share</button></template>
-                    <template x-if="detailItem.event.pubkey === pubkey"><span class="flex flex-wrap gap-2"><button data-icon="pencil" type="button" class="edit-record btn-secondary" @click="editRecord(detailItem)">Edit</button><button data-icon="trash" type="button" class="delete-record btn-danger" @click="deleteRecord(detailItem).then(deleted => deleted && leaveFullView())">Delete</button></span></template>
-                    <template x-if="!selfKeys.has(detailItem.event.pubkey)"><span class="flex flex-wrap gap-2"><button data-icon="eye-off" type="button" class="hide-record btn-secondary" @click="hideRecord(detailItem); leaveFullView()">Hide</button><button data-icon="shield-check" type="button" x-show="statusOf(detailItem.event.pubkey) !== 'trusted'" class="trust-author btn-secondary" @click="trustAuthor(detailItem.event.pubkey)">Trust author</button><button data-icon="ban" type="button" class="block-author btn-danger" @click="blockAuthor(detailItem.event.pubkey); leaveFullView()">Block author</button><button data-icon="copy" type="button" class="copy-key btn-secondary" @click="copyKey(detailItem.event.pubkey)">Copy key</button></span></template>
-                    <button data-icon="plus" type="button" class="link-record btn-secondary" @click="openLink()">Link…</button>
+                    <div class="ml-auto flex flex-wrap items-center gap-1">
+                        <template x-if="detailItem.visibility === 'local' && detailItem.event.pubkey === pubkey"><button data-icon="share" type="button" class="btn-success" @click="shareRecord(detailItem)">Share</button></template>
+                        <template x-if="detailItem.event.pubkey === pubkey"><span class="flex items-center gap-1"><button data-icon="pencil" type="button" class="edit-record btn-link" @click="editRecord(detailItem)">Edit</button><button data-icon="trash" type="button" class="delete-record btn-link-danger" @click="deleteRecord(detailItem).then(deleted => deleted && leaveFullView())">Delete</button></span></template>
+                        <button data-icon="link" type="button" class="link-record icon-btn" aria-label="Link to another record" title="Link to another record" @click="openLink()"></button>
+                        <template x-if="!selfKeys.has(detailItem.event.pubkey)"><div class="relative" x-data="{ menu: false }" @click.outside="menu = false" @keydown.escape="if (menu) { menu = false; $event.preventDefault(); $event.stopPropagation(); }">
+                            <button data-icon="ellipsis" type="button" class="record-menu icon-btn" aria-haspopup="menu" :aria-expanded="menu" aria-label="More actions" title="More actions" @click="menu = !menu"></button>
+                            <div x-show="menu" style="display: none;" role="menu" class="menu" @click="menu = false">
+                                <button data-icon="eye-off" type="button" role="menuitem" class="hide-record menu-item" @click="hideRecord(detailItem); leaveFullView()">Hide</button>
+                                <button data-icon="shield-check" type="button" role="menuitem" x-show="statusOf(detailItem.event.pubkey) !== 'trusted'" class="trust-author menu-item" @click="trustAuthor(detailItem.event.pubkey)">Trust author</button>
+                                <button data-icon="ban" type="button" role="menuitem" class="block-author menu-item-danger" @click="blockAuthor(detailItem.event.pubkey); leaveFullView()">Block author</button>
+                                <button data-icon="copy" type="button" role="menuitem" class="copy-key menu-item" @click="copyKey(detailItem.event.pubkey)">Copy key</button>
+                            </div>
+                        </div></template>
+                    </div>
                 </div>
                 <form x-show="linkForm.open" @submit.prevent class="link-form flex flex-col gap-3 rounded-ctl border border-line p-3">
                     <template x-if="linkForm.open"><div class="flex flex-col gap-3">
@@ -461,7 +469,7 @@
                             <div class="flex flex-wrap justify-end gap-2">
                                 <template x-if="entry.insight.event.pubkey === pubkey"><span class="flex flex-wrap gap-2"><button data-icon="pencil" type="button" class="edit-insight btn-secondary" @click="editLink(entry.insight)">Edit</button><button data-icon="trash" type="button" class="delete-insight btn-danger" @click="deleteRecord(entry.insight)">Delete</button></span></template>
                                 <button data-icon="share" type="button" x-show="entry.insight.visibility === 'local' && entry.insight.event.pubkey === pubkey" class="share-insight btn-success" @click="shareRecord(entry.insight)">Share</button>
-                                <button data-icon="eye-off" type="button" x-show="!selfKeys.has(entry.insight.event.pubkey)" class="hide-insight btn-secondary" @click="hideRecord(entry.insight)">Hide</button>
+                                <button data-icon="eye-off" type="button" x-show="!selfKeys.has(entry.insight.event.pubkey)" class="hide-insight btn-link" @click="hideRecord(entry.insight)">Hide</button>
                             </div>
                         </div></template>
                     </div></template>
@@ -479,13 +487,13 @@
                             <p x-show="row.replyingTo" class="comment-replying-to text-xs text-muted break-words" x-text="row.replyingTo ? `↳ replying to ${authorLabel(row.replyingTo)}` : ''"></p>
                             <p x-show="!row.folded || foldedOpen[row.key]" class="comment-body whitespace-pre-wrap break-words text-sm text-ink" x-text="row.item.content.body"></p>
                             <div x-show="row.folded" class="folded-actions flex flex-wrap gap-2">
-                                <button type="button" x-show="!foldedOpen[row.key]" class="folded-show btn-secondary" @click="toggleFolded(row)">Show</button>
+                                <button type="button" x-show="!foldedOpen[row.key]" class="folded-show btn-link" @click="toggleFolded(row)">Show</button>
                                 <button data-icon="check" type="button" class="folded-accept btn-success" @click="acceptIncoming(row.item)">Accept</button>
                                 <button type="button" class="folded-trust btn-secondary" @click="trustAuthor(row.item.event.pubkey)">Trust author</button>
                                 <button type="button" class="folded-block btn-danger" @click="blockAuthor(row.item.event.pubkey)">Block author</button>
                                 <button data-icon="eye-off" type="button" class="folded-hide btn-secondary" @click="hideFolded(row)">Hide</button>
                             </div>
-                            <div class="flex flex-wrap gap-2"><button type="button" class="comment-reply btn-secondary" :aria-expanded="replyTo === row.key ? 'true' : 'false'" @click="openReply(row)">Reply</button><button x-show="row.replies" type="button" class="comment-collapse btn-secondary" :aria-expanded="row.collapsed ? 'false' : 'true'" @click="toggleThread(row)" x-text="`${row.collapsed ? '▸' : '▾'} ${repliesText(row)}`"></button><template x-if="row.item.event.pubkey === pubkey"><span class="flex flex-wrap gap-2"><button data-icon="pencil" type="button" class="comment-edit btn-secondary" @click="editComment(row)">Edit</button><button data-icon="trash" type="button" class="comment-delete btn-danger" @click="deleteComment(row)">Delete</button></span></template><button data-icon="eye-off" type="button" x-show="!row.folded && !selfKeys.has(row.item.event.pubkey)" class="comment-hide btn-secondary" @click="hideComment(row)">Hide</button></div>
+                            <div class="flex flex-wrap gap-2"><button type="button" class="comment-reply btn-link" :aria-expanded="replyTo === row.key ? 'true' : 'false'" @click="openReply(row)">Reply</button><button x-show="row.replies" type="button" class="comment-collapse btn-link" :aria-expanded="row.collapsed ? 'false' : 'true'" @click="toggleThread(row)" x-text="`${row.collapsed ? '▸' : '▾'} ${repliesText(row)}`"></button><template x-if="row.item.event.pubkey === pubkey"><span class="flex flex-wrap gap-2"><button data-icon="pencil" type="button" class="comment-edit btn-link" @click="editComment(row)">Edit</button><button data-icon="trash" type="button" class="comment-delete btn-link-danger" @click="deleteComment(row)">Delete</button></span></template><button data-icon="eye-off" type="button" x-show="!row.folded && !selfKeys.has(row.item.event.pubkey)" class="comment-hide btn-link" @click="hideComment(row)">Hide</button></div>
                             <form x-show="replyTo === row.key" @submit.prevent="submitReply(row)" class="reply-form flex flex-col gap-2">
                                 <textarea x-model="replyDraft" rows="2" :maxlength="commentMax" aria-label="Your reply" class="reply-field field"></textarea>
                                 <div class="flex flex-wrap justify-end gap-2"><button type="button" class="btn-secondary" @click="replyTo = ''">Cancel</button><button type="submit" class="reply-post btn-primary" :disabled="!replyDraft.trim()">Reply</button></div>
@@ -506,17 +514,26 @@
                 <p class="whitespace-pre-wrap break-words text-base text-ink"><template x-for="(part, index) in highlightParts(detailItem.content.information_chunks)" :key="index"><span :class="part.hit ? 'search-hit' : ''" x-text="part.text"></span></template></p>
                 <div x-show="detailItem.content.actionable_workflows" class="border-l-2 border-accent pl-3 text-sm text-muted"><strong class="text-ink">Action:</strong> <span class="whitespace-pre-wrap break-words"><template x-for="(part, index) in highlightParts(detailItem.content.actionable_workflows)" :key="index"><span :class="part.hit ? 'search-hit' : ''" x-text="part.text"></span></template></span></div>
                 <ul x-show="detailItem.warnings && detailItem.warnings.length" class="rounded-ctl bg-warn-soft p-3 text-sm text-warn"><template x-for="warning in detailItem.warnings || []"><li x-text="warning"></li></template></ul>
-                <div class="works flex flex-wrap items-center gap-2 text-sm">
-                    <template x-if="detailItem.visibility === 'shared'"><span class="flex flex-wrap items-center gap-2"><button data-icon="check" type="button" class="works-toggle btn-secondary" :class="{ 'bg-accent-soft text-accent': worksOf(detailItem).mine }" :aria-pressed="worksOf(detailItem).mine ? 'true' : 'false'" @click="toggleWorks(detailItem)">Works</button><span x-show="worksOf(detailItem).n" tabindex="0" class="works-count text-muted" :data-tip="worksTip(detailItem)" x-text="`Works for ${worksOf(detailItem).n} (${worksOf(detailItem).t})`"></span><span x-show="commentsOf(detailItem)" class="comments-count text-muted" x-text="`Comments ${commentsOf(detailItem)}`"></span></span></template>
+                <div class="works flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                    <template x-if="detailItem.visibility === 'shared'"><span class="flex flex-wrap items-center gap-2"><button data-icon="check" type="button" class="works-toggle btn-secondary" :class="{ 'bg-accent-soft text-accent': worksOf(detailItem).mine }" :aria-pressed="worksOf(detailItem).mine ? 'true' : 'false'" @click="toggleWorks(detailItem)">Works</button><span x-show="worksOf(detailItem).n" tabindex="0" class="works-count text-muted" :data-tip="worksTip(detailItem)" x-text="`Works for ${worksOf(detailItem).n} (${worksOf(detailItem).t})`"></span><button x-show="commentsOf(detailItem)" type="button" class="comments-count btn-link" @click="openFullView(detailItem)" x-text="`Comments ${commentsOf(detailItem)}`"></button></span></template>
                     <p x-show="detailItem.visibility !== 'shared'" class="discuss-hint text-muted">Share this record to discuss it</p>
-                    <button data-icon="maximize" type="button" class="open-full-view btn-secondary" @click="openFullView(detailItem)">Open</button>
-                </div>
-                <div class="flex flex-wrap items-center justify-end gap-2">
-                    <template x-if="detailItem.visibility === 'local' && detailItem.event.pubkey === pubkey"><button data-icon="share" type="button" class="btn-success" @click="shareRecord(detailItem)">Share</button></template>
-                    <template x-if="detailItem.event.pubkey === pubkey"><span class="flex flex-wrap gap-2"><button data-icon="pencil" type="button" class="edit-record btn-secondary" @click="editRecord(detailItem)">Edit</button><button data-icon="trash" type="button" class="delete-record btn-danger" @click="deleteRecord(detailItem).then(deleted => deleted && closeDetail())">Delete</button></span></template>
-                    <template x-if="!selfKeys.has(detailItem.event.pubkey)"><span class="flex flex-wrap gap-2"><button data-icon="eye-off" type="button" class="hide-record btn-secondary" @click="hideRecord(detailItem); closeDetail()">Hide</button><button data-icon="shield-check" type="button" x-show="statusOf(detailItem.event.pubkey) !== 'trusted'" class="trust-author btn-secondary" @click="trustAuthor(detailItem.event.pubkey)">Trust author</button><button data-icon="ban" type="button" class="block-author btn-danger" @click="blockAuthor(detailItem.event.pubkey); closeDetail()">Block author</button><button data-icon="copy" type="button" class="copy-key btn-secondary" @click="copyKey(detailItem.event.pubkey)">Copy key</button></span></template>
-                    <button data-icon="plus" type="button" class="link-record btn-secondary" @click="openLink()">Link…</button>
-                    <button data-icon="x" type="button" class="btn-secondary" @click="closeDetail()">Close</button>
+                    <button data-icon="maximize" type="button" class="open-full-view btn-link" @click="openFullView(detailItem)">Open</button>
+                    <div class="ml-auto flex flex-wrap items-center gap-1">
+                        <template x-if="detailItem.visibility === 'local' && detailItem.event.pubkey === pubkey"><button data-icon="share" type="button" class="btn-success" @click="shareRecord(detailItem)">Share</button></template>
+                        <template x-if="detailItem.event.pubkey === pubkey"><span class="flex items-center gap-1"><button data-icon="pencil" type="button" class="edit-record btn-link" @click="editRecord(detailItem)">Edit</button><button data-icon="trash" type="button" class="delete-record btn-link-danger" @click="deleteRecord(detailItem).then(deleted => deleted && closeDetail())">Delete</button></span></template>
+                        <button x-show="detailItem.visibility === 'shared'" data-icon="message-square-plus" type="button" class="add-comment icon-btn" aria-label="Add comment" title="Add comment" @click="commentOnRecord(detailItem)"></button>
+                        <button data-icon="link" type="button" class="link-record icon-btn" aria-label="Link to another record" title="Link to another record" @click="openLink()"></button>
+                        <template x-if="!selfKeys.has(detailItem.event.pubkey)"><div class="relative" x-data="{ menu: false }" @click.outside="menu = false" @keydown.escape="if (menu) { menu = false; $event.preventDefault(); $event.stopPropagation(); }">
+                            <button data-icon="ellipsis" type="button" class="record-menu icon-btn" aria-haspopup="menu" :aria-expanded="menu" aria-label="More actions" title="More actions" @click="menu = !menu"></button>
+                            <div x-show="menu" style="display: none;" role="menu" class="menu" @click="menu = false">
+                                <button data-icon="eye-off" type="button" role="menuitem" class="hide-record menu-item" @click="hideRecord(detailItem); closeDetail()">Hide</button>
+                                <button data-icon="shield-check" type="button" role="menuitem" x-show="statusOf(detailItem.event.pubkey) !== 'trusted'" class="trust-author menu-item" @click="trustAuthor(detailItem.event.pubkey)">Trust author</button>
+                                <button data-icon="ban" type="button" role="menuitem" class="block-author menu-item-danger" @click="blockAuthor(detailItem.event.pubkey); closeDetail()">Block author</button>
+                                <button data-icon="copy" type="button" role="menuitem" class="copy-key menu-item" @click="copyKey(detailItem.event.pubkey)">Copy key</button>
+                            </div>
+                        </div></template>
+                        <button data-icon="x" type="button" class="close-detail icon-btn" aria-label="Close" title="Close" @click="closeDetail()"></button>
+                    </div>
                 </div>
                 <form x-show="linkForm.open" @submit.prevent class="link-form flex flex-col gap-3 rounded-ctl border border-line p-3">
                     <template x-if="linkForm.open"><div class="flex flex-col gap-3">
@@ -549,7 +566,7 @@
                             <div class="flex flex-wrap justify-end gap-2">
                                 <template x-if="entry.insight.event.pubkey === pubkey"><span class="flex flex-wrap gap-2"><button data-icon="pencil" type="button" class="edit-insight btn-secondary" @click="editLink(entry.insight)">Edit</button><button data-icon="trash" type="button" class="delete-insight btn-danger" @click="deleteRecord(entry.insight)">Delete</button></span></template>
                                 <button data-icon="share" type="button" x-show="entry.insight.visibility === 'local' && entry.insight.event.pubkey === pubkey" class="share-insight btn-success" @click="shareRecord(entry.insight)">Share</button>
-                                <button data-icon="eye-off" type="button" x-show="!selfKeys.has(entry.insight.event.pubkey)" class="hide-insight btn-secondary" @click="hideRecord(entry.insight)">Hide</button>
+                                <button data-icon="eye-off" type="button" x-show="!selfKeys.has(entry.insight.event.pubkey)" class="hide-insight btn-link" @click="hideRecord(entry.insight)">Hide</button>
                             </div>
                         </div></template>
                     </div></template>
@@ -566,7 +583,7 @@
                     <div class="flex flex-wrap justify-end gap-2">
                         <template x-if="insight.event.pubkey === pubkey"><span class="flex flex-wrap gap-2"><button data-icon="pencil" type="button" class="edit-insight btn-secondary" @click="editEdgeInsight(insight)">Edit</button><button data-icon="trash" type="button" class="delete-insight btn-danger" @click="deleteRecord(insight)">Delete</button></span></template>
                         <button data-icon="share" type="button" x-show="insight.visibility === 'local' && insight.event.pubkey === pubkey" class="share-insight btn-success" @click="shareRecord(insight)">Share</button>
-                        <button data-icon="eye-off" type="button" x-show="!selfKeys.has(insight.event.pubkey)" class="hide-insight btn-secondary" @click="hideRecord(insight)">Hide</button>
+                        <button data-icon="eye-off" type="button" x-show="!selfKeys.has(insight.event.pubkey)" class="hide-insight btn-link" @click="hideRecord(insight)">Hide</button>
                     </div>
                 </div></template>
                 <button data-icon="x" type="button" class="btn-secondary self-end" @click="closeEdgeSheet()">Close</button>

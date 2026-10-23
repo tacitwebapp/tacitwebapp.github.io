@@ -55,6 +55,7 @@ const shortIdOfItem = item => shortIdOf(item.key);
 const blankLink = () => ({ open: false, insight: null, relation: 'conflicts', search: '', otherKey: '', direction: 'forward', rationale: '' });
 let detailOpener = null;
 let fullViewFocused = '';
+let focusCommentOnOpen = false;
 let shortcutOpener = null;
 let keyState = { pendingG: null };
 let directory;
@@ -640,8 +641,11 @@ export function registerTacitApp(Alpine) {
             if (item && (item.key !== this.detailItem?.key || item.event.id !== this.detailItem.event.id || item.visibility !== this.detailItem.visibility)) this.detailItem = item;
             if (fullViewFocused === this.fullViewId) return;
             fullViewFocused = this.fullViewId;
-            this.$nextTick(() => document.getElementById('full-view-heading')?.focus());
+            const comment = focusCommentOnOpen;
+            focusCommentOnOpen = false;
+            this.$nextTick(() => (comment && document.querySelector('#full-view .comment-field') || document.getElementById('full-view-heading'))?.focus());
         },
+        commentOnRecord(item) { focusCommentOnOpen = true; this.openFullView(item); },
         async openDetail(item, el) {
             detailOpener = el; this.detailItem = item; this.sheetOpen = true;
             await this.$nextTick();
