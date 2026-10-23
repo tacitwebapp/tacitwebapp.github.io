@@ -28,8 +28,39 @@ export const HUES = [
     { id: 'amber', label: 'Amber' }, { id: 'rose', label: 'Rose' }, { id: 'violet', label: 'Violet' },
 ];
 
+const HEX_COLOUR = /^#[0-9a-f]{6}$/i;
+
 export function hueOf(value) {
+    if (typeof value === 'string' && HEX_COLOUR.test(value)) return value.toLowerCase();
     return HUES.some(hue => hue.id === value) ? value : '';
+}
+
+export const isCustomHue = value => HEX_COLOUR.test(value);
+
+const luminance = rgb => {
+    const [r, g, b] = rgb.map(c => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+const contrast = (a, b) => { const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+const mix = (a, b, t) => a.map((c, i) => Math.round(c * t + b[i] * (1 - t)));
+const reach = (rgb, target, background) => {
+    for (let step = 0; step <= 20; step++) {
+        const candidate = mix(target, rgb, step / 20);
+        if (contrast(candidate, background) >= 4.5) return candidate;
+    }
+    return target;
+};
+
+const LIGHT_SURFACE = [255, 255, 255], DARK_SURFACE = [28, 29, 34], DARK_INK = [16, 17, 20];
+
+export function customHueStyle(hex) {
+    const rgb = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+    const ink = accent => contrast(accent, [255, 255, 255]) >= contrast(accent, DARK_INK) ? [255, 255, 255] : DARK_INK;
+    const light = reach(rgb, [0, 0, 0], LIGHT_SURFACE), dark = reach(rgb, [255, 255, 255], DARK_SURFACE);
+    return Object.entries({
+        'hue-accent-l': light, 'hue-ink-l': ink(light), 'hue-soft-l': mix(rgb, LIGHT_SURFACE, 0.12),
+        'hue-accent-d': dark, 'hue-ink-d': ink(dark), 'hue-soft-d': mix(rgb, DARK_SURFACE, 0.22),
+    }).map(([name, channels]) => `--${name}: ${channels.join(' ')}`).join('; ');
 }
 
 export function needsNamePrompt(settings, pubkey) {

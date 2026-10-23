@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { avatarFor, resolveTheme, hueOf, HUES, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition, needsNamePrompt, nameNudgeActive } from '../src/tacit-ui.js';
+import { avatarFor, resolveTheme, hueOf, isCustomHue, customHueStyle, HUES, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition, needsNamePrompt, nameNudgeActive } from '../src/tacit-ui.js';
 
 const keyOf = n => n.toString(16).padStart(2, '0').repeat(32);
 const sampleKeys = ['3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d', '79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798', 'fa984bd7dbb282f07e16e7ae87b26a2a7b9b90b7246a44771f0cf5ae58018f52', 'e8f32e723decf4051aefac8e2c93c9c5b214313817cdb01a1494b917c8436b35', '0000000000000000000000000000000000000000000000000000000000000001'];
@@ -211,4 +211,19 @@ test('the name reminder needs an answered prompt, no name and no dismissal', () 
 test('a dismissed name reminder returns for a new key once that key is prompted', () => {
     const settings = { namePromptedKey: 'b', nameNudgeDismissedKey: 'a' };
     assert.equal(nameNudgeActive(settings, 'b'), true);
+});
+
+test('hueOf accepts six-digit hex colours and lowercases them', () => {
+    assert.equal(hueOf('#7C3AED'), '#7c3aed');
+    for (const value of ['#fff', '7c3aed', '#7c3aedff', '#gggggg', 'url(x)']) assert.equal(hueOf(value), '');
+    assert.equal(isCustomHue('#7c3aed'), true);
+    assert.equal(isCustomHue('blue'), false);
+});
+
+test('customHueStyle gives readable accents for light and dark surfaces', () => {
+    const vars = Object.fromEntries(customHueStyle('#ffff00').split('; ').map(part => { const [name, value] = part.split(': '); return [name.slice(2), value.split(' ').map(Number)]; }));
+    const lum = rgb => { const [r, g, b] = rgb.map(c => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    assert.ok(1.05 / (lum(vars['hue-accent-l']) + 0.05) >= 4.5);
+    assert.ok((lum(vars['hue-accent-d']) + 0.05) / (lum([28, 29, 34]) + 0.05) >= 4.5);
+    assert.deepEqual(Object.keys(vars), ['hue-accent-l', 'hue-ink-l', 'hue-soft-l', 'hue-accent-d', 'hue-ink-d', 'hue-soft-d']);
 });

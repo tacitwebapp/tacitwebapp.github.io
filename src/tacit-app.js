@@ -10,7 +10,7 @@ import { isRecord, isComment, COMMENT_BODY_MAX, worksD, buildWorksTemplate, buil
 import { rankBySimilarity, candidatesFor, LINK_TOP_N } from './tacit-similarity.js';
 import { buildBackup, parseBackup, restoreBackup, backupDue, DEFAULT_BACKUP_REMINDER } from './tacit-backup.js';
 import { parseRoute, buildRoute } from './tacit-route.js';
-import { avatarFor, HUES, hueOf, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition, needsNamePrompt, nameNudgeActive } from './tacit-ui.js';
+import { avatarFor, HUES, hueOf, isCustomHue, customHueStyle, addToast, dismissToast, expireToasts, resolveShortcut, tipPosition, needsNamePrompt, nameNudgeActive } from './tacit-ui.js';
 import { buildMap, buildStyle, linkedOnlyByDefault, RELATION_STYLE } from './tacit-map.js';
 import cytoscape from '../vendor/cytoscape.esm.js';
 import * as store from './tacit-store.js';
@@ -24,6 +24,7 @@ let mapUnwatch = null;
 let edgeOpener = null;
 const MAP_TOKENS = { ink: 'ink', muted: 'muted', surface: 'surface', line: 'line', accent: 'accent', accentInk: 'accent-ink', accentSoft: 'accent-soft', danger: 'danger', success: 'success', warn: 'warn' };
 const tokenColor = token => `rgb(${getComputedStyle(document.documentElement).getPropertyValue(`--c-${token}`).trim().split(/\s+/).join(', ')})`;
+const DEFAULT_CUSTOM_HUE = '#7c3aed';
 const mapColors = () => Object.fromEntries(Object.entries(MAP_TOKENS).map(([name, token]) => [name, tokenColor(token)]));
 
 function destroyMap() {
@@ -42,7 +43,7 @@ function drawMap(app, elements) {
         const restyle = () => cy?.style(buildStyle(mapColors()));
         const media = matchMedia('(prefers-color-scheme: dark)'), observer = new MutationObserver(restyle);
         media.addEventListener('change', restyle);
-        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-hue'] });
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-hue', 'style'] });
         mapUnwatch = () => { media.removeEventListener('change', restyle); observer.disconnect(); };
         cy.fit(undefined, 30);
     } else {
@@ -479,9 +480,23 @@ export function registerTacitApp(Alpine) {
             if (scheme) document.documentElement.dataset.theme = scheme; else delete document.documentElement.dataset.theme;
         },
         setHue(hue) {
-            this.hue = hue;
-            try { localStorage.setItem('tacit.hue', hue); } catch (_) {}
-            document.documentElement.dataset.hue = hue;
+            this.hue = hue = hueOf(hue);
+            const style = this.hueStyle(hue);
+            try {
+                localStorage.setItem('tacit.hue', hue);
+                if (style) localStorage.setItem('tacit.hueStyle', style); else localStorage.removeItem('tacit.hueStyle');
+            } catch (_) {}
+            document.documentElement.dataset.hue = this.hueAttr(hue);
+            document.documentElement.style.cssText = style;
+        },
+        isCustomHue,
+        hueAttr(hue) { return isCustomHue(hue) ? 'custom' : hue || null; },
+        hueStyle(hue) { return isCustomHue(hue) ? customHueStyle(hue) : ''; },
+        customHueValue(hue) { return isCustomHue(hue) ? hue : DEFAULT_CUSTOM_HUE; },
+        chooseSubjectHue(slug, select) {
+            if (select.value !== 'custom') return this.setSubjectHue(slug, select.value);
+            this.setSubjectHue(slug, this.customHueValue(this.subjectHue(slug)));
+            this.$nextTick(() => { try { select.nextElementSibling.showPicker(); } catch (_) {} });
         },
         subjectHue(slug) { return this.subjectHues[slug] || null; },
         setSubjectHue(slug, hue) {
