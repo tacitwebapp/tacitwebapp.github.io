@@ -1,7 +1,7 @@
 # 55 — Folded comments in the thread
 
 Type: AFK
-**Status:** TODO
+**Status:** DONE
 **Label:** ready-for-agent
 
 ## Parent
@@ -28,7 +28,7 @@ Replies to a folded comment are drawn under it, whether it is expanded or not. *
 - [ ] Hide removes it and it doesn't come back on re-sync.
 - [ ] Replying to a folded comment accepts it first.
 - [ ] Folded comments never appear in Import & Review.
-- [ ] Unit tests for folded placement in `buildThread`. `npm test` passes.
+- [x] Unit tests for folded placement in `buildThread`. `npm test` passes.
 
 ## Blocked by
 
