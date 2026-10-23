@@ -72,6 +72,9 @@
                 <div class="row desk:min-w-0 desk:flex-1 desk:!border-t-0"><label for="input-type" class="field-label mb-0 w-28 shrink-0 desk:w-auto">Input type</label><select id="input-type" x-model="selectedInputType" class="field"><template x-for="(label, value) in inputTypeLabels" :key="value"><option :value="value" :selected="value === selectedInputType" x-text="label"></option></template></select></div>
                 <div class="row desk:min-w-0 desk:flex-1 desk:!border-t-0"><label for="specialty" class="field-label mb-0 w-28 shrink-0 desk:w-auto">Specialty</label><input id="specialty" type="text" x-model="specialty" placeholder="Optional, e.g. Kitchen Garden" class="field"><button type="button" class="help" aria-label="About specialty" data-tip="Narrows what the prompt extracts within the subject. It does not change which room records go to, and it is not saved.">?</button></div>
             </div>
+            <div id="input-link-group" class="group mt-4"x-show="selectedInputType === 'youtube-link' || selectedInputType === 'website-link'">
+                <div class="row"><label for="input-link" class="field-label mb-0 w-28 shrink-0">Link</label><input id="input-link" type="url" x-model="inputLink" :placeholder="selectedInputType === 'youtube-link' ? 'https://www.youtube.com/watch?v=...' : 'https://example.com/article'" class="field"></div>
+            </div>
             <h3 class="group-title">New subject</h3>
             <div class="group">
                 <div class="row"><input id="new-subject" type="text" x-model="newSubject" @keyup.enter="createSubject" placeholder="Create a subject" aria-label="New subject name" class="field"><button data-icon="plus" id="create-subject" @click="createSubject" class="btn-primary shrink-0">Create subject</button></div>
@@ -79,10 +82,10 @@
             <p class="group-note text-danger" x-show="subjectError" x-text="subjectError"></p>
             <h3 class="group-title">Prompt</h3>
             <div class="group">
-                <div class="row flex-wrap gap-2" x-show="!promptEditing"><button data-icon="copy" id="copy-prompt" @click="copy(dynamicPrompt, 'Prompt')" class="btn-secondary">Copy prompt</button><button data-icon="pencil" id="edit-prompt" type="button" @click="editPrompt()" class="btn-secondary">Edit</button><span id="prompt-custom-badge" x-show="customPrompt" class="text-sm text-muted">Edited prompt</span></div>
+                <div class="row flex-wrap justify-end gap-2" x-show="!promptEditing"><span id="prompt-custom-badge" x-show="customPrompt" class="text-sm text-muted">Edited prompt</span><button data-icon="pencil" id="edit-prompt" type="button" @click="editPrompt()" class="btn-secondary">Edit</button><button data-icon="copy" id="copy-prompt" @click="copy(dynamicPrompt, 'Prompt')" class="btn-secondary">Copy prompt</button></div>
                 <div class="row" x-show="!promptEditing"><div class="w-full whitespace-pre-wrap break-words rounded-ctl bg-surface2 p-3 font-mono text-sm text-ink" x-text="dynamicPrompt"></div></div>
                 <div class="row" x-show="promptEditing"><textarea id="prompt-editor" x-model="promptDraft" rows="20" aria-label="Extraction prompt" class="field font-mono"></textarea></div>
-                <div class="row flex-wrap gap-2" x-show="promptEditing"><button type="button" id="save-prompt" class="btn-primary" @click="savePrompt()">Save</button><button type="button" id="cancel-prompt" class="btn-secondary" @click="promptEditing = false">Cancel</button><button type="button" id="reset-prompt" class="btn-secondary" @click="resetPrompt()">Reset to default</button></div>
+                <div class="row flex-wrap justify-end gap-2" x-show="promptEditing"><button type="button" id="save-prompt" class="btn-primary" @click="savePrompt()">Save</button><button type="button" id="cancel-prompt" class="btn-secondary" @click="promptEditing = false">Cancel</button><button type="button" id="reset-prompt" class="btn-secondary" @click="resetPrompt()">Reset to default</button></div>
             </div>
             <p id="prompt-local-note" class="group-note" x-show="promptEditing">Your edited prompt is stored only in this browser. It is never shared over the network or included in backups. The Input Type, Input Parsing Instructions, subject and specialty lines are filled in automatically, so keep those lines in place.</p>
             <p id="youtube-transcript-hint" class="group-note" x-show="selectedInputType === 'youtube-link'">If your LLM cannot read YouTube links, get the transcript yourself: open the video, expand the description, click "Show transcript", and copy the text. Then switch Input type to "Text file (.txt)", copy the prompt again, and paste it with the transcript.</p>
@@ -104,7 +107,7 @@
             <div class="group">
                 <div class="row"><input id="import-file" type="file" @change="importFile" :disabled="!selectedSubject" accept=".json,.csv,application/json,text/csv" aria-label="Import file" class="field flex items-center py-1.5 text-muted file:mr-3 file:min-h-[36px] file:rounded-ctl file:border-0 file:bg-accent-soft file:px-3 file:text-sm file:font-semibold file:text-accent disabled:opacity-50"></div>
                 <div class="row"><textarea id="import-paste" x-model="pasteText" rows="5" placeholder="Or paste JSON or CSV here" aria-label="Pasted JSON or CSV" class="field font-mono"></textarea></div>
-                <div class="row"><button data-icon="download" id="import-paste-button" @click="importPasted" :disabled="!selectedSubject || !pasteText.trim()" class="btn-primary">Import pasted text</button></div>
+                <div class="row justify-end"><button data-icon="download" id="import-paste-button" @click="importPasted" :disabled="!selectedSubject || !pasteText.trim()" class="btn-primary">Import pasted text</button></div>
             </div>
             <p class="group-note text-warn" x-show="!selectedSubject">Select a subject to enable import.</p>
             </div>
@@ -117,7 +120,7 @@
                     <p class="break-words text-sm font-medium" x-text="draft.content.information_chunks"></p>
                     <p x-show="draft.content.actionable_workflows" class="break-words text-sm text-muted" x-text="draft.content.actionable_workflows"></p>
                     <ul><template x-for="warning in draft.warnings"><li class="text-xs text-warn" x-text="warning"></li></template></ul>
-                    <div class="mt-1 flex flex-wrap gap-2">
+                    <div class="mt-1 flex flex-wrap justify-end gap-2">
                         <button data-icon="save" class="store-draft btn-secondary" @click="storeDraft(draft)">Store locally</button>
                         <button data-icon="share" class="share-draft btn-success" @click="shareDraft(draft)">Share</button>
                         <button data-icon="pencil" class="btn-secondary" @click="editDraft(draft)">Edit</button>
@@ -128,7 +131,7 @@
             <template x-for="group in incoming" :key="group.pubkey"><div class="incoming-group">
                 <h3 class="group-title flex items-center gap-2 break-words normal-case"><span class="avatar" aria-hidden="true" :style="avatarStyle(group.pubkey)" :class="{ 'avatar-neutral': avatarOf(group.pubkey).neutral }" x-text="avatarOf(group.pubkey).initial"></span><span x-text="`${authorLabel(group.pubkey)} (${group.records.length})`"></span></h3>
                 <div class="group">
-                    <div class="row flex-wrap"><button data-icon="check" class="accept-all btn-success" @click="acceptGroup(group)">Accept all</button><button data-icon="trash" class="discard-all btn-danger" @click="discardGroup(group)">Discard all</button><button data-icon="shield-check" class="trust-author btn-secondary" @click="trustAuthor(group.pubkey)">Trust author</button><button data-icon="ban" class="block-author btn-danger" @click="blockAuthor(group.pubkey)">Block author</button><button data-icon="copy" class="copy-key btn-secondary" @click="copyKey(group.pubkey)">Copy key</button></div>
+                    <div class="row flex-wrap justify-end"><button data-icon="check" class="accept-all btn-success" @click="acceptGroup(group)">Accept all</button><button data-icon="trash" class="discard-all btn-danger" @click="discardGroup(group)">Discard all</button><button data-icon="shield-check" class="trust-author btn-secondary" @click="trustAuthor(group.pubkey)">Trust author</button><button data-icon="ban" class="block-author btn-danger" @click="blockAuthor(group.pubkey)">Block author</button><button data-icon="copy" class="copy-key btn-secondary" @click="copyKey(group.pubkey)">Copy key</button></div>
                     <template x-for="item in group.records" :key="item.id"><article class="incoming row flex-col items-stretch gap-1">
                         <span class="flex items-center gap-2 text-xs font-semibold text-accent"><span class="avatar" aria-hidden="true" :style="avatarStyle(item.event.pubkey)" :class="{ 'avatar-neutral': avatarOf(item.event.pubkey).neutral }" x-text="avatarOf(item.event.pubkey).initial"></span><span x-text="item.content.subject"></span></span>
                         <p x-show="!isInsight(item.content)" class="break-words text-sm font-medium" x-text="item.content.information_chunks"></p>
@@ -143,7 +146,7 @@
                                 <p x-show="end.preview === null" class="text-muted" x-text="`${end.shortId} — not in your library`"></p>
                             </div></template>
                         </div></template>
-                        <div class="mt-1 flex flex-wrap gap-2"><button data-icon="check" class="accept-incoming btn-success" @click="acceptIncoming(item)">Accept</button><button data-icon="trash" class="btn-danger" @click="discardIncoming(item)">Discard</button></div>
+                        <div class="mt-1 flex flex-wrap justify-end gap-2"><button data-icon="check" class="accept-incoming btn-success" @click="acceptIncoming(item)">Accept</button><button data-icon="trash" class="btn-danger" @click="discardIncoming(item)">Discard</button></div>
                     </article></template>
                 </div>
             </div></template>
@@ -164,7 +167,7 @@
                         <div class="row desk:min-w-0 desk:flex-1"><label for="insight-record-author" class="field-label mb-0 w-28 shrink-0 desk:w-auto">Author</label><select id="insight-record-author" x-model="insightRecordFilters.author" class="field"><option value="">All</option><template x-for="option in authorOptions.slice(1)" :key="option.value"><option :value="option.value" x-text="option.label"></option></template></select></div>
                         <div class="row desk:min-w-0 desk:flex-1"><label for="insight-record-visibility" class="field-label mb-0 w-28 shrink-0 desk:w-auto">Visibility</label><select id="insight-record-visibility" x-model="insightRecordFilters.visibility" class="field"><option value="">All</option><option value="shared">Shared</option><option value="local">Local</option></select></div>
                     </div>
-                    <div class="row flex-wrap border-t border-line"><button data-icon="check" type="button" id="select-all-records" class="btn-secondary" :disabled="!insightRecords.length" @click="selectAllRecords()">Select all</button><button data-icon="x" type="button" id="clear-selection" class="btn-secondary" :disabled="!selectedRecords.length" @click="selectedKeys = {}">Clear</button><span id="selected-count" class="text-sm text-muted" x-text="`${selectedRecords.length} selected, ${insightRecords.length} shown`"></span></div>
+                    <div class="row flex-wrap justify-end border-t border-line"><button data-icon="check" type="button" id="select-all-records" class="btn-secondary" :disabled="!insightRecords.length" @click="selectAllRecords()">Select all</button><button data-icon="x" type="button" id="clear-selection" class="btn-secondary" :disabled="!selectedRecords.length" @click="selectedKeys = {}">Clear</button><span id="selected-count" class="mr-auto text-sm text-muted" x-text="`${selectedRecords.length} selected, ${insightRecords.length} shown`"></span></div>
                     <div id="insight-record-list" class="max-h-80 divide-y divide-line overflow-y-auto border-t border-line">
                         <p id="insight-records-none" x-show="!insightRecords.length" class="row text-sm text-muted">No records match the filters.</p>
                         <template x-for="item in insightRecords" :key="item.key"><div class="insight-record row flex-wrap items-start gap-3 text-sm">
@@ -194,7 +197,7 @@
                 <div class="group">
                     <div class="row"><input id="insight-import-file" type="file" @change="importInsightFile" accept=".json,application/json" aria-label="Insight JSON file" class="field flex items-center py-1.5 text-muted file:mr-3 file:min-h-[36px] file:rounded-ctl file:border-0 file:bg-accent-soft file:px-3 file:text-sm file:font-semibold file:text-accent"></div>
                     <div class="row"><textarea id="insight-import-paste" x-model="insightPaste" rows="5" placeholder="Or paste the LLM's JSON here" aria-label="Pasted insight JSON" class="field font-mono"></textarea></div>
-                    <div class="row"><button data-icon="download" type="button" id="insight-import-button" class="btn-primary" :disabled="!insightPaste.trim()" @click="importInsightPasted()">Import pasted JSON</button></div>
+                    <div class="row justify-end"><button data-icon="download" type="button" id="insight-import-button" class="btn-primary" :disabled="!insightPaste.trim()" @click="importInsightPasted()">Import pasted JSON</button></div>
                     <template x-if="insightImport"><div id="insight-import-summary" class="flex flex-col">
                         <p x-show="insightImport.error" class="row text-sm text-danger" x-text="insightImport.error"></p>
                         <p x-show="!insightImport.error" class="row text-sm font-semibold" x-text="`${insightImport.drafts.length} drafts, ${insightImport.disagreements.length} disagreements, ${insightImport.rejected.length} rejected, ${insightImport.duplicates} duplicates`"></p>
@@ -204,16 +207,16 @@
                             <p x-text="`Yours: ${relations[entry.existing.relation].label}${relations[entry.existing.relation].directed ? ` (${shortIdOf(entry.existing.from)} to ${shortIdOf(entry.existing.to)})` : ''}`"></p>
                             <p x-text="`Proposed: ${relations[entry.proposed.relation].label}${relations[entry.proposed.relation].directed ? ` (${shortIdOf(entry.proposed.from)} to ${shortIdOf(entry.proposed.to)})` : ''}`"></p>
                             <p class="whitespace-pre-wrap break-words text-muted" x-text="entry.proposed.rationale"></p>
-                            <div><button data-icon="check" type="button" class="accept-disagreement btn-success" @click="acceptDisagreement(entry)">Accept</button></div>
+                            <div class="flex justify-end"><button data-icon="check" type="button" class="accept-disagreement btn-success" @click="acceptDisagreement(entry)">Accept</button></div>
                         </div></template>
                     </div></template>
                 </div>
                 <template x-if="subjectInsightDrafts.length"><div id="insight-drafts">
                     <h3 class="group-title">Insight drafts</h3>
                     <div class="group">
-                        <div class="row flex-wrap"><button data-icon="save" type="button" id="store-all-insights" class="btn-secondary" @click="saveAllInsightDrafts('local')">Store all</button><button data-icon="share" type="button" id="share-all-insights" class="btn-success" @click="saveAllInsightDrafts('shared')">Share all</button><button data-icon="trash" type="button" id="discard-all-insights" class="btn-danger" @click="discardAllInsightDrafts()">Discard all</button></div>
+                        <div class="row flex-wrap justify-end"><button data-icon="save" type="button" id="store-all-insights" class="btn-secondary" @click="saveAllInsightDrafts('local')">Store all</button><button data-icon="share" type="button" id="share-all-insights" class="btn-success" @click="saveAllInsightDrafts('shared')">Share all</button><button data-icon="trash" type="button" id="discard-all-insights" class="btn-danger" @click="discardAllInsightDrafts()">Discard all</button></div>
                         <template x-for="draft in subjectInsightDrafts" :key="draft.id"><article class="insight-draft row flex-col items-stretch gap-2 text-sm">
-                            <div class="flex flex-wrap items-center gap-2">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
                                 <select class="draft-relation field w-auto" aria-label="Relation" :value="draft.content.relation" @change="editInsightDraft(draft, { relation: $event.target.value })"><template x-for="(info, name) in relations" :key="name"><option :value="name" :selected="name === draft.content.relation" x-text="info.label"></option></template></select>
                                 <button type="button" x-show="relations[draft.content.relation].directed" class="draft-swap btn-secondary" @click="editInsightDraft(draft, { from: draft.content.to, to: draft.content.from })">Swap direction</button>
                             </div>
@@ -221,7 +224,7 @@
                             <p x-show="relations[draft.content.relation].directed" class="text-xs text-muted" x-text="`${shortIdOf(draft.content.from)} ${relations[draft.content.relation].label} ${shortIdOf(draft.content.to)}`"></p>
                             <textarea class="draft-rationale field" rows="3" aria-label="Rationale" :value="draft.content.rationale" @change="editInsightDraft(draft, { rationale: $event.target.value })"></textarea>
                             <p x-show="draft.warnings.length" class="text-xs text-warn" x-text="draft.warnings.join(', ')"></p>
-                            <div class="flex flex-wrap gap-2"><button data-icon="save" type="button" class="draft-store btn-secondary" @click="saveInsightDraft(draft, 'local')">Store</button><button data-icon="share" type="button" class="draft-share btn-success" @click="saveInsightDraft(draft, 'shared')">Share</button><button data-icon="trash" type="button" class="draft-discard btn-danger" @click="discardInsightDraft(draft)">Discard</button></div>
+                            <div class="flex flex-wrap justify-end gap-2"><button data-icon="save" type="button" class="draft-store btn-secondary" @click="saveInsightDraft(draft, 'local')">Store</button><button data-icon="share" type="button" class="draft-share btn-success" @click="saveInsightDraft(draft, 'shared')">Share</button><button data-icon="trash" type="button" class="draft-discard btn-danger" @click="discardInsightDraft(draft)">Discard</button></div>
                         </article></template>
                     </div>
                 </div></template>
@@ -253,9 +256,9 @@
                             <li x-show="comboOptions('b').length === 0" class="px-3 py-2 text-muted">No record matches.</li>
                         </ul>
                     </div>
-                    <div x-show="relations[tabLink.relation].directed"><button type="button" class="btn-secondary" :disabled="!tabLink.a || !tabLink.b" @click="swapTabLink()">Swap A and B</button></div>
+                    <div x-show="relations[tabLink.relation].directed" class="flex justify-end"><button type="button" class="btn-secondary" :disabled="!tabLink.a || !tabLink.b" @click="swapTabLink()">Swap A and B</button></div>
                     <label class="text-sm font-medium">Rationale (optional)<textarea x-model="tabLink.rationale" rows="2" aria-label="Rationale" class="tab-link-rationale field"></textarea></label>
-                    <div class="flex flex-wrap gap-2">
+                    <div class="flex flex-wrap justify-end gap-2">
                         <template x-if="!tabLink.insight"><span class="flex flex-wrap gap-2"><button data-icon="save" type="button" class="tab-link-store btn-secondary" :disabled="!tabLink.a || !tabLink.b" @click="saveTabLink('local')">Store</button><button data-icon="share" type="button" class="tab-link-share btn-success" :disabled="!tabLink.a || !tabLink.b" @click="saveTabLink('shared')">Share</button></span></template>
                         <template x-if="tabLink.insight"><button data-icon="save" type="button" class="tab-link-save btn-primary" @click="saveTabLink()">Save</button></template>
                         <button data-icon="x" type="button" class="btn-secondary" x-show="tabLink.insight || tabLink.a || tabLink.b || tabLink.rationale" @click="resetTabLink()">Cancel</button>
@@ -294,7 +297,7 @@
                                 <template x-for="insight in group.items" :key="insight.key"><div class="insight-item flex flex-col gap-1 rounded-ctl bg-surface2 p-3 text-sm">
                                     <div class="flex flex-wrap items-center gap-x-2 text-xs text-muted"><span class="avatar" aria-hidden="true" :style="avatarStyle(insight.event.pubkey)" :class="{ 'avatar-neutral': avatarOf(insight.event.pubkey).neutral }" x-text="avatarOf(insight.event.pubkey).initial"></span><span x-text="authorLabel(insight.event.pubkey)"></span><span x-text="insight.visibility"></span><span x-show="relations[insight.content.relation].directed" x-text="`${shortIdOf(insight.content.from)} → ${shortIdOf(insight.content.to)}`"></span></div>
                                     <p x-show="insight.content.rationale" class="whitespace-pre-wrap break-words text-muted" x-text="insight.content.rationale"></p>
-                                    <div class="flex flex-wrap gap-2">
+                                    <div class="flex flex-wrap justify-end gap-2">
                                         <template x-if="insight.event.pubkey === pubkey"><span class="flex flex-wrap gap-2"><button data-icon="pencil" type="button" class="edit-insight btn-secondary" @click="editTabLink(insight)">Edit</button><button data-icon="trash" type="button" class="delete-insight btn-danger" @click="deleteRecord(insight)">Delete</button></span></template>
                                         <button data-icon="share" type="button" x-show="insight.visibility === 'local' && insight.event.pubkey === pubkey" class="share-insight btn-success" @click="shareRecord(insight)">Share</button>
                                         <button data-icon="eye-off" type="button" x-show="!selfKeys.has(insight.event.pubkey)" class="hide-insight btn-secondary" @click="hideRecord(insight)">Hide</button>
@@ -311,15 +314,15 @@
         <section id="tab-map" x-show="activeTab === 'map'" x-effect="syncMap()" style="display: none;">
             <div id="map-empty" x-show="subjectRecords.length === 0" class="group mt-4"><div class="empty-state"><p class="empty-title">No records to map</p><p class="empty-text">The map draws one subject's records and the insights between them. Extract and import records for this subject first.</p><button data-icon="sparkles" type="button" class="btn-primary" @click="activeTab = 'extract'">Go to Extract</button></div></div>
             <div id="map-panel" x-show="subjectRecords.length > 0" class="mt-4 flex flex-col gap-3" :class="mapFullscreen && 'overflow-auto bg-page p-4'">
-                <div id="map-toolbar" role="toolbar" aria-label="Map controls" class="flex flex-wrap gap-2">
+                <div id="map-toolbar" role="toolbar" aria-label="Map controls" class="flex flex-wrap justify-end gap-2">
                     <button data-icon="plus" type="button" id="map-zoom-in" class="btn-secondary" @click="mapZoom(1.25)">Zoom in</button>
                     <button data-icon="minus" type="button" id="map-zoom-out" class="btn-secondary" @click="mapZoom(0.8)">Zoom out</button>
                     <button data-icon="maximize" type="button" id="map-fit" class="btn-secondary" @click="mapFit()">Fit</button>
-                    <button x-show="fullscreenSupported" data-icon="maximize" type="button" id="map-fullscreen" class="btn-secondary" :aria-pressed="mapFullscreen ? 'true' : 'false'" @click="toggleMapFullscreen()" x-text="mapFullscreen ? 'Exit full screen' : 'Full screen'">Full screen</button>
-                    <button type="button" id="map-linked-only" class="btn-secondary" :class="{ 'bg-accent-soft text-accent': mapLinkedOnly }" :aria-pressed="mapLinkedOnly ? 'true' : 'false'" @click="mapLinkedOnlyChoice = !mapLinkedOnly">Linked only</button>
+                    <button x-show="fullscreenSupported" data-icon="maximize-2" type="button" id="map-fullscreen" class="btn-secondary" :aria-pressed="mapFullscreen ? 'true' : 'false'" @click="toggleMapFullscreen()" x-text="mapFullscreen ? 'Exit full screen' : 'Full screen'">Full screen</button>
+                    <button data-icon="link" type="button" id="map-linked-only" class="btn-secondary" :class="{ 'bg-accent-soft text-accent': mapLinkedOnly }" :aria-pressed="mapLinkedOnly ? 'true' : 'false'" @click="mapLinkedOnlyChoice = !mapLinkedOnly">Linked only</button>
                 </div>
-                <div id="map-legend" role="group" aria-label="Relation types" class="flex flex-wrap gap-2">
-                    <template x-for="(info, name) in relations" :key="name"><button type="button" :data-relation="name" class="map-legend-item flex min-h-[44px] items-center gap-2 rounded-ctl border border-line px-3 text-sm" :class="mapRelations.includes(name) ? 'bg-surface text-ink' : 'bg-surface2 text-muted line-through'" :aria-pressed="mapRelations.includes(name) ? 'true' : 'false'" @click="toggleMapRelation(name)"><span class="inline-block w-8 border-t-[3px]" :class="relationStyle[name].swatch" aria-hidden="true"></span><span x-text="name.replace('_', ' ')"></span><span x-show="info.directed" aria-hidden="true">&rarr;</span></button></template>
+                <div id="map-legend" role="group" aria-label="Relation types" class="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2 desk:flex desk:flex-wrap desk:gap-1.5">
+                    <template x-for="(info, name) in relations" :key="name"><button type="button" :data-relation="name" class="map-legend-item flex min-h-[44px] items-center justify-start gap-2 whitespace-nowrap rounded-ctl desk:flex-auto desk:justify-center border border-line px-3 text-sm" :class="mapRelations.includes(name) ? 'bg-surface text-ink' : 'bg-surface2 text-muted line-through'" :aria-pressed="mapRelations.includes(name) ? 'true' : 'false'" @click="toggleMapRelation(name)"><span class="inline-block w-8 border-t-[3px] desk:w-6" :class="relationStyle[name].swatch" aria-hidden="true"></span><span x-text="name.replace('_', ' ')"></span><span x-show="info.directed" aria-hidden="true">&rarr;</span></button></template>
                 </div>
                 <div id="map-canvas" tabindex="0" role="application" aria-label="Tacit Map. The same content is listed in the Insights tab and in each record's Relations. Plus, minus and 0 zoom and fit." @keydown="mapKey($event)" class="group min-h-[360px] w-full touch-none" :class="mapFullscreen ? 'flex-1' : 'h-[65vh]'"></div>
             </div>
@@ -359,7 +362,7 @@
                 <template x-if="extensionActive"><p class="row text-sm text-muted">Disabled while the extension is active. The extension manages your key.</p></template>
                 <p class="row bg-warn-soft text-sm text-warn">Anyone with this key can sign records as you. Never share it.</p>
                 <div class="row"><label class="flex min-h-[44px] items-center gap-2 text-sm"><input id="export-ack" type="checkbox" class="h-5 w-5 shrink-0 accent-accent" :disabled="extensionActive" x-model="exportAck"> I understand</label><button type="button" class="help" aria-label="About the export confirmation" data-tip="Tick this to confirm you understand that anyone with your private key can act as you. The Reveal key button stays disabled until you tick it. Only tick it when you are ready to copy the key somewhere safe.">?</button></div>
-                <div class="row"><button data-icon="eye" id="reveal-secret" @click="revealSecret" :disabled="extensionActive || !exportAck" class="btn-secondary">Reveal key</button></div>
+                <div class="row justify-end"><button data-icon="eye" id="reveal-secret" @click="revealSecret" :disabled="extensionActive || !exportAck" class="btn-secondary">Reveal key</button></div>
                 <div x-show="secretRevealed" class="row flex-col items-stretch text-sm"><p class="break-all">Hex: <code id="secret-hex" class="font-mono text-xs" x-text="secretHex"></code></p><p class="break-all">nsec: <code id="secret-nsec" class="font-mono text-xs" x-text="secretNsec"></code></p><div class="flex flex-wrap items-center gap-2"><button data-icon="copy" @click="copy(secretHex, 'Secret key')" class="btn-secondary">Copy hex</button> <button data-icon="eye-off" @click="hideSecret" class="btn-secondary">Hide</button></div></div>
             </div>
 
@@ -368,7 +371,7 @@
                 <template x-if="extensionActive"><p class="row text-sm text-muted">Disabled while the extension is active.</p></template>
                 <div class="row"><input id="import-key" type="text" :disabled="extensionActive" x-model="importKeyText" placeholder="hex or nsec1..." aria-label="Private key to import" class="field font-mono"><button type="button" class="help" aria-label="About the private key to import" data-tip="Paste the private key of the identity you want to use on this device, in hex or nsec1... form. Use this to restore an identity you exported earlier. Importing replaces the identity currently on this device.">?</button></div>
                 <div class="row"><label class="flex min-h-[44px] items-center gap-2 text-sm"><input id="import-ack" type="checkbox" class="h-5 w-5 shrink-0 accent-accent" :disabled="extensionActive" x-model="importAck"> I have exported my current key</label><button type="button" class="help" aria-label="About the import confirmation" data-tip="Tick this to confirm you have saved your current private key. Importing replaces your current identity, so if you have not saved it, you cannot get it back. The Import identity button stays disabled until you tick this.">?</button></div>
-                <div class="row"><button data-icon="upload" id="import-identity" @click="importIdentity" :disabled="extensionActive || !importAck" class="btn-danger">Import identity</button></div>
+                <div class="row justify-end"><button data-icon="upload" id="import-identity" @click="importIdentity" :disabled="extensionActive || !importAck" class="btn-danger">Import identity</button></div>
                 <p id="identity-message" class="row text-sm empty:hidden" x-text="identityMessage"></p>
             </div>
 
@@ -377,23 +380,23 @@
                 <div class="group">
                     <p class="row bg-warn-soft text-sm text-warn">Switching changes your identity. Records signed by your current key stay, but become read-only and are labelled "by previous key". If you use a local key, export it first.</p>
                     <div class="row"><label class="flex min-h-[44px] items-center gap-2 text-sm"><input id="switch-ack" type="checkbox" class="h-5 w-5 shrink-0 accent-accent" x-model="switchAck"> I understand</label><button type="button" class="help" aria-label="About the switch confirmation" data-tip="Tick this to confirm you understand that switching changes your identity. Records signed by your current key stay, but become read-only. The switch button stays disabled until you tick this. If you use a local key, export it first.">?</button></div>
-                    <div class="row"><button id="switch-signer" data-icon="repeat" @click="switchSigner(extensionActive ? 'local' : 'extension')" :disabled="!switchAck" class="btn-danger" x-text="extensionActive ? 'Switch to local key' : 'Switch to extension'"></button></div>
+                    <div class="row justify-end"><button id="switch-signer" data-icon="repeat" @click="switchSigner(extensionActive ? 'local' : 'extension')" :disabled="!switchAck" class="btn-danger" x-text="extensionActive ? 'Switch to local key' : 'Switch to extension'"></button></div>
                 </div>
             </div>
 
             <h3 class="group-title">Backup</h3>
             <div class="group">
                 <p class="row text-sm text-muted">Your records, deletions, trust list and subjects. It does not include your private key or subject passwords.</p>
-                <div class="row"><button data-icon="download" id="export-backup" @click="exportBackup" class="btn-secondary">Export backup</button></div>
+                <div class="row justify-end"><button data-icon="download" id="export-backup" @click="exportBackup" class="btn-secondary desk:mr-8">Export backup</button></div>
                 <div class="row"><label for="backup-reminder-frequency" class="field-label mb-0 w-28 shrink-0">Remind me</label><select id="backup-reminder-frequency" x-model="settings.backupReminder" @change="saveSettings()" class="field"><option value="none">None</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select><button type="button" class="help" aria-label="About backup reminders" data-tip="How often Tacit reminds you to export a backup. Choose None to turn reminders off. Export a backup regularly and keep the file somewhere safe, so you can restore your records if this device is lost or reset.">?</button></div>
                 <div class="row"><input id="import-backup" type="file" accept=".json,application/json" @change="importBackup" class="block w-full min-w-0 text-sm text-muted file:mr-4 file:min-h-[44px] file:cursor-pointer file:rounded-ctl file:border-0 file:bg-accent-soft file:px-4 file:text-sm file:font-semibold file:text-accent"><button type="button" class="help" aria-label="About restoring a backup" data-tip="Choose a backup file (.json) you exported earlier to load its records, deletions, trust list and subjects into Tacit on this device. Your private key and subject passwords are not in backups, so they are not restored.">?</button></div>
                 <p id="backup-summary" class="row text-sm empty:hidden" x-text="backupSummary"></p>
             </div>
 
-            <div class="mb-1.5 mt-6 flex flex-wrap items-center justify-between gap-2"><h3 class="group-title m-0">Trusted and blocked authors</h3><span class="flex gap-2"><button data-icon="shield-check" id="trust-add" type="button" class="btn-secondary" @click="openTrustForm('trusted')">Trust</button><button data-icon="ban" id="block-add" type="button" class="btn-danger" @click="openTrustForm('blocked')">Block</button></span></div>
+            <div class="mb-1.5 mt-6 flex flex-wrap items-center justify-between gap-2"><h3 class="group-title m-0">Trusted and blocked authors</h3><span class="flex gap-2 desk:pr-4"><button data-icon="shield-check" id="trust-add" type="button" class="btn-secondary desk:min-w-[7.75rem]" @click="openTrustForm('trusted')">Trust</button><button data-icon="ban" id="block-add" type="button" class="btn-danger desk:min-w-[7.25rem]" @click="openTrustForm('blocked')">Block</button></span></div>
             <div id="trust-list" class="group">
                 <form x-show="trustForm.status" @submit.prevent="submitTrustForm()" class="row flex-wrap"><input id="trust-add-key" type="text" x-model="trustForm.key" :placeholder="trustForm.status === 'blocked' ? 'Public key to block (hex or npub1...)' : 'Public key to trust (hex or npub1...)'" :aria-label="trustForm.status === 'blocked' ? 'Public key to block' : 'Public key to trust'" class="field min-w-0 flex-1 font-mono" @keydown.escape="trustForm.status = ''"><button type="submit" class="btn-secondary" x-text="trustForm.status === 'blocked' ? 'Block author' : 'Trust author'"></button><button type="button" class="btn-secondary" @click="trustForm.status = ''">Cancel</button><p x-show="trustForm.error" class="w-full text-sm text-danger" x-text="trustForm.error"></p></form>
-                <template x-for="entry in trust" :key="entry.pubkey"><div class="trust-row row flex-wrap justify-between"><span class="flex min-w-0 items-center gap-2"><span class="avatar" aria-hidden="true" :style="avatarStyle(entry.pubkey)" :class="{ 'avatar-neutral': avatarOf(entry.pubkey).neutral }" x-text="avatarOf(entry.pubkey).initial"></span><span class="min-w-0 break-all font-mono text-xs" x-text="shortKey(entry.pubkey)"></span></span><span class="flex min-w-0 flex-wrap items-center gap-2"><input type="text" class="trust-nickname field w-40 max-w-full" placeholder="Nickname" aria-label="Nickname" :value="entry.nickname || sharedName(entry.pubkey)" @change="setNickname(entry, $event.target.value)"><select class="trust-status field w-auto" aria-label="Status" :value="entry.status" @change="setStatus(entry, $event.target.value)"><option value="trusted">Trusted</option><option value="blocked">Blocked</option></select><button data-icon="copy" class="copy-key btn-secondary" @click="copyKey(entry.pubkey)">Copy key</button><button data-icon="x" class="trust-remove btn-danger" @click="removeTrust(entry.pubkey)">Remove</button></span></div></template>
+                <template x-for="entry in trust" :key="entry.pubkey"><div class="trust-row row flex-wrap justify-between"><span class="flex min-w-0 items-center gap-2"><span class="avatar" aria-hidden="true" :style="avatarStyle(entry.pubkey)" :class="{ 'avatar-neutral': avatarOf(entry.pubkey).neutral }" x-text="avatarOf(entry.pubkey).initial"></span><span class="min-w-0 break-all font-mono text-xs" x-text="shortKey(entry.pubkey)"></span></span><span class="flex min-w-0 flex-wrap items-center gap-2"><input type="text" class="trust-nickname field w-40 max-w-full" placeholder="Nickname" aria-label="Nickname" :value="entry.nickname || sharedName(entry.pubkey)" @change="setNickname(entry, $event.target.value)"><select class="trust-status field w-auto" aria-label="Status" :value="entry.status" @change="setStatus(entry, $event.target.value)"><option value="trusted">Trusted</option><option value="blocked">Blocked</option></select><button data-icon="copy" class="copy-key btn-secondary desk:min-w-[7.75rem]" @click="copyKey(entry.pubkey)">Copy key</button><button data-icon="x" class="trust-remove btn-danger desk:min-w-[7.25rem]" @click="removeTrust(entry.pubkey)">Remove</button></span></div></template>
                 <div x-show="trust.length === 0" class="row"><div class="empty-state"><p class="empty-title">No trusted or blocked authors</p><p class="empty-text">Open a record in the Feed and choose Trust author or Block author.</p></div></div>
             </div>
 
@@ -407,12 +410,12 @@
                 <p class="whitespace-pre-wrap break-words text-base text-ink"><template x-for="(part, index) in highlightParts(detailItem.content.information_chunks)" :key="index"><span :class="part.hit ? 'search-hit' : ''" x-text="part.text"></span></template></p>
                 <div x-show="detailItem.content.actionable_workflows" class="border-l-2 border-accent pl-3 text-sm text-muted"><strong class="text-ink">Action:</strong> <span class="whitespace-pre-wrap break-words"><template x-for="(part, index) in highlightParts(detailItem.content.actionable_workflows)" :key="index"><span :class="part.hit ? 'search-hit' : ''" x-text="part.text"></span></template></span></div>
                 <ul x-show="detailItem.warnings && detailItem.warnings.length" class="rounded-ctl bg-warn-soft p-3 text-sm text-warn"><template x-for="warning in detailItem.warnings || []"><li x-text="warning"></li></template></ul>
-                <div class="flex flex-wrap items-center gap-2">
+                <div class="flex flex-wrap items-center justify-end gap-2">
                     <template x-if="detailItem.visibility === 'local' && detailItem.event.pubkey === pubkey"><button data-icon="share" type="button" class="btn-success" @click="shareRecord(detailItem)">Share</button></template>
                     <template x-if="detailItem.event.pubkey === pubkey"><span class="flex flex-wrap gap-2"><button data-icon="pencil" type="button" class="edit-record btn-secondary" @click="editRecord(detailItem)">Edit</button><button data-icon="trash" type="button" class="delete-record btn-danger" @click="deleteRecord(detailItem).then(deleted => deleted && closeDetail())">Delete</button></span></template>
                     <template x-if="!selfKeys.has(detailItem.event.pubkey)"><span class="flex flex-wrap gap-2"><button data-icon="eye-off" type="button" class="hide-record btn-secondary" @click="hideRecord(detailItem); closeDetail()">Hide</button><button data-icon="shield-check" type="button" x-show="statusOf(detailItem.event.pubkey) !== 'trusted'" class="trust-author btn-secondary" @click="trustAuthor(detailItem.event.pubkey)">Trust author</button><button data-icon="ban" type="button" class="block-author btn-danger" @click="blockAuthor(detailItem.event.pubkey); closeDetail()">Block author</button><button data-icon="copy" type="button" class="copy-key btn-secondary" @click="copyKey(detailItem.event.pubkey)">Copy key</button></span></template>
                     <button data-icon="plus" type="button" class="link-record btn-secondary" @click="openLink()">Link…</button>
-                    <button data-icon="x" type="button" class="btn-secondary ml-auto" @click="closeDetail()">Close</button>
+                    <button data-icon="x" type="button" class="btn-secondary" @click="closeDetail()">Close</button>
                 </div>
                 <form x-show="linkForm.open" @submit.prevent class="link-form flex flex-col gap-3 rounded-ctl border border-line p-3">
                     <template x-if="linkForm.open"><div class="flex flex-col gap-3">
@@ -427,7 +430,7 @@
                         </div></template>
                         <template x-if="linkForm.otherKey && linkOther"><div class="flex items-center gap-2 text-sm"><span class="font-mono text-xs text-muted" x-text="linkOther ? shortIdOf(linkOther.key) : ''"></span><span class="line-clamp-2 min-w-0 flex-1 break-words" x-text="linkOther?.content.information_chunks"></span><button type="button" x-show="!linkForm.insight" class="btn-secondary" @click="linkForm.otherKey = ''">Change</button></div></template>
                         <label class="text-sm font-medium">Rationale (optional)<textarea x-model="linkForm.rationale" rows="2" aria-label="Rationale" class="link-rationale field"></textarea></label>
-                        <div class="flex flex-wrap gap-2">
+                        <div class="flex flex-wrap justify-end gap-2">
                             <template x-if="!linkForm.insight"><span class="flex flex-wrap gap-2"><button data-icon="save" type="button" class="link-store btn-secondary" :disabled="!linkForm.otherKey" @click="saveLink('local')">Store</button><button data-icon="share" type="button" class="link-share btn-success" :disabled="!linkForm.otherKey" @click="saveLink('shared')">Share</button></span></template>
                             <template x-if="linkForm.insight"><button data-icon="save" type="button" class="link-save btn-primary" @click="saveLink()">Save</button></template>
                             <button data-icon="x" type="button" class="btn-secondary" @click="closeLink()">Cancel</button>
@@ -442,7 +445,7 @@
                             <div class="flex flex-wrap items-center gap-x-2 text-xs text-muted"><span class="font-mono" x-text="shortIdOf(entry.other.key)"></span><span x-text="authorLabel(entry.insight.event.pubkey)"></span><span x-text="entry.insight.visibility"></span><span x-show="directionText(entry)" x-text="directionText(entry)"></span></div>
                             <p class="line-clamp-2 break-words" x-text="entry.other.content.information_chunks"></p>
                             <p x-show="entry.insight.content.rationale" class="whitespace-pre-wrap break-words text-muted" x-text="entry.insight.content.rationale"></p>
-                            <div class="flex flex-wrap gap-2">
+                            <div class="flex flex-wrap justify-end gap-2">
                                 <template x-if="entry.insight.event.pubkey === pubkey"><span class="flex flex-wrap gap-2"><button data-icon="pencil" type="button" class="edit-insight btn-secondary" @click="editLink(entry.insight)">Edit</button><button data-icon="trash" type="button" class="delete-insight btn-danger" @click="deleteRecord(entry.insight)">Delete</button></span></template>
                                 <button data-icon="share" type="button" x-show="entry.insight.visibility === 'local' && entry.insight.event.pubkey === pubkey" class="share-insight btn-success" @click="shareRecord(entry.insight)">Share</button>
                                 <button data-icon="eye-off" type="button" x-show="!selfKeys.has(entry.insight.event.pubkey)" class="hide-insight btn-secondary" @click="hideRecord(entry.insight)">Hide</button>
@@ -459,7 +462,7 @@
                 <template x-for="insight in edgeItems" :key="insight.key"><div class="edge-insight flex flex-col gap-1 rounded-ctl bg-surface2 p-3 text-sm">
                     <div class="flex flex-wrap items-center gap-x-2 text-xs text-muted"><span class="avatar" aria-hidden="true" :style="avatarStyle(insight.event.pubkey)" :class="{ 'avatar-neutral': avatarOf(insight.event.pubkey).neutral }" x-text="avatarOf(insight.event.pubkey).initial"></span><span x-text="authorLabel(insight.event.pubkey)"></span><span x-text="insight.visibility"></span><span x-show="relations[insight.content.relation].directed" x-text="`${shortIdOf(insight.content.from)} → ${shortIdOf(insight.content.to)}`"></span></div>
                     <p x-show="insight.content.rationale" class="whitespace-pre-wrap break-words text-muted" x-text="insight.content.rationale"></p>
-                    <div class="flex flex-wrap gap-2">
+                    <div class="flex flex-wrap justify-end gap-2">
                         <template x-if="insight.event.pubkey === pubkey"><span class="flex flex-wrap gap-2"><button data-icon="pencil" type="button" class="edit-insight btn-secondary" @click="editEdgeInsight(insight)">Edit</button><button data-icon="trash" type="button" class="delete-insight btn-danger" @click="deleteRecord(insight)">Delete</button></span></template>
                         <button data-icon="share" type="button" x-show="insight.visibility === 'local' && insight.event.pubkey === pubkey" class="share-insight btn-success" @click="shareRecord(insight)">Share</button>
                         <button data-icon="eye-off" type="button" x-show="!selfKeys.has(insight.event.pubkey)" class="hide-insight btn-secondary" @click="hideRecord(insight)">Hide</button>

@@ -17,6 +17,14 @@ test('csv parser maps headers and handles quotes', () => {
     assert.throws(() => TacitCsvParser.parse('only,header'));
 });
 
+test('prompt builder adds the link only for link input types', () => {
+    const link = ' https://example.com/a?x=1 ';
+    assert.match(buildTacitPrompt({ inputType: 'website-link', subjectCategory: 'Gardening', inputLink: link }), /\*\*Input Link:\*\* https:\/\/example\.com\/a\?x=1\n/);
+    assert.match(buildTacitPrompt({ inputType: 'youtube-link', subjectCategory: 'Gardening', inputLink: link }), /\*\*Input Link:\*\*/);
+    assert.doesNotMatch(buildTacitPrompt({ inputType: 'txt', subjectCategory: 'Gardening', inputLink: link }), /Input Link/);
+    assert.doesNotMatch(buildTacitPrompt({ inputType: 'website-link', subjectCategory: 'Gardening', inputLink: '  ' }), /Input Link/);
+});
+
 test('prompt builder embeds input type and subject', () => {
     const prompt = buildTacitPrompt({ inputType: 'txt', subjectCategory: 'Pest Control' });
     assert.match(prompt, /Text file \(\.txt\)/);
