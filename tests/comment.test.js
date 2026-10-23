@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildWorksTemplate, isValidWorks, worksCount, cascadeTargets } from '../src/tacit-comment.js';
+import { buildWorksTemplate, isValidWorks, worksCount, cascadeTargets, fullViewIdOf, resolveFullView } from '../src/tacit-comment.js';
 import { decideIncoming, announcementFor } from '../src/tacit-sync.js';
 import { filterFeed } from '../src/tacit-feed.js';
 import { buildDrafts, existingRecords } from '../src/tacit-import.js';
@@ -130,4 +130,36 @@ test('Works marks and un-mark tombstones round-trip through backup', async () =>
     const plan = restoreBackup(backup, { library: [], tombstones: [], trust: [], hiddenKeys: [], subjects: [] }, 5000);
     assert.deepEqual(plan.puts.library.map(r => [r.key, r.event.id, r.visibility, r.subjectSlug]), [[recordKey(marked), marked.id, 'shared', 'pest']]);
     assert.deepEqual(plan.puts.tombstones.map(entry => entry.key), [recordKey(unmarked)]);
+});
+
+const U3 = '3f9a1c2e-3333-4333-8333-333333333333';
+
+test('the full view id of a record is the first 8 hex of its uuid', () => {
+    assert.equal(fullViewIdOf(rec(A, U1).key), '3f9a1c2e');
+});
+
+test('full view resolves one matching record, local or shared', () => {
+    const local = rec(A, U1, { visibility: 'local' }), other = rec(B, U2);
+    assert.deepEqual(resolveFullView([other, local], '3f9a1c2e'), { status: 'found', item: local, matches: [local] });
+});
+
+test('full view of an id nobody holds is missing', () => {
+    assert.deepEqual(resolveFullView([rec(A, U1)], '7b20aa91'), { status: 'missing', matches: [] });
+    assert.deepEqual(resolveFullView([], '7b20aa91'), { status: 'missing', matches: [] });
+});
+
+test('full view of an id shared by several records lists them to pick from', () => {
+    const first = rec(A, U1), second = rec(B, U3), unrelated = rec(A, U2);
+    const result = resolveFullView([first, second, unrelated], '3f9a1c2e');
+    assert.equal(result.status, 'ambiguous');
+    assert.deepEqual(result.matches, [first, second]);
+    assert.equal(result.item, undefined);
+});
+
+test('full view ignores insights and Works marks', () => {
+    const record = rec(A, U1);
+    const mark = { key: `${B}:tacit-works-${U1}`, visibility: 'shared', event: { pubkey: B }, content: { type: 'works', target: record.key } };
+    const insight = { key: `${B}:tacit-link-${U1}-${U2}`, visibility: 'shared', event: { pubkey: B }, content: { type: 'insight', relation: 'conflicts', from: record.key, to: rec(A, U2).key } };
+    assert.deepEqual(resolveFullView([mark, insight, record], '3f9a1c2e').matches, [record]);
+    assert.equal(resolveFullView([mark, insight], '3f9a1c2e').status, 'missing');
 });

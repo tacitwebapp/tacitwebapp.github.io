@@ -19,6 +19,14 @@ export function worksCount(recordKey, library, { selfKeys = new Set(), trustedKe
     return { n: counted.length, t: counted.filter(pubkey => selfKeys.has(pubkey) || trustedKeys.has(pubkey)).length, mine: [...authors].some(pubkey => selfKeys.has(pubkey)) };
 }
 
+export const fullViewIdOf = key => uuidOf(key).slice(0, 8);
+
+export function resolveFullView(library, id) {
+    const matches = library.filter(item => isRecord(item.content) && fullViewIdOf(item.key) === id);
+    if (matches.length === 1) return { status: 'found', item: matches[0], matches };
+    return { status: matches.length ? 'ambiguous' : 'missing', matches };
+}
+
 export const cascadeTargets = (recordKey, library, currentKey) =>
     library.filter(item => item.key === `${currentKey}:${worksD(recordKey)}` && item.content?.target === recordKey);
 

@@ -6,7 +6,7 @@ import { createLocalSigner, createExtensionSigner, pickSource, retireKey, genera
 import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache } from './tacit-sync.js';
 import { filterFeed, highlightParts } from './tacit-feed.js';
 import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit, shareBlocker, relationsOf, findOwnInsight, groupInsights, cascadeTargets, incomingInsightCard, feedBadges, isWellFormedInsight, DEFAULT_PROMPT_LIMIT, validPromptLimit, planInsightPrompts, insightPromptCards, importInsightRows, applyToDraft, updateInsightDraft } from './tacit-insight.js';
-import { isRecord, worksD, buildWorksTemplate, worksCount, cascadeTargets as discussionTargets } from './tacit-comment.js';
+import { isRecord, worksD, buildWorksTemplate, worksCount, cascadeTargets as discussionTargets, fullViewIdOf, resolveFullView } from './tacit-comment.js';
 import { rankBySimilarity, candidatesFor, LINK_TOP_N } from './tacit-similarity.js';
 import { buildBackup, parseBackup, restoreBackup, backupDue, DEFAULT_BACKUP_REMINDER } from './tacit-backup.js';
 import { parseRoute, buildRoute } from './tacit-route.js';
@@ -54,6 +54,7 @@ function drawMap(app, elements) {
 const shortIdOfItem = item => shortIdOf(item.key);
 const blankLink = () => ({ open: false, insight: null, relation: 'conflicts', search: '', otherKey: '', direction: 'forward', rationale: '' });
 let detailOpener = null;
+let fullViewFocused = '';
 let shortcutOpener = null;
 let keyState = { pendingG: null };
 let directory;
@@ -69,7 +70,7 @@ export function registerTacitApp(Alpine) {
         pubkey: '', previousKeys: [], signer: null, extensionAvailable: false, switchAck: false, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
         bellOpen: false, nameDraft: '', resolveName: null, importKeyText: '', importAck: false, trustForm: { status: '', key: '', error: '' }, identityMessage: '', backupSummary: '', theme: localStorage.getItem('tacit.theme') || '', toasts: [],
         pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], authorNames: {}, directoryPeers: {}, subjectCache: {}, ready: false,
-        feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null, linkForm: blankLink(), relations: RELATIONS,
+        feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null, sheetOpen: false, fullViewId: '', fullViewPick: '', linkForm: blankLink(), relations: RELATIONS,
         authorOptions: [{ value: '', label: 'All' }, { value: 'mine', label: 'Mine' }, { value: 'trusted', label: 'Trusted' }, { value: 'others', label: 'Others' }],
         get subjectOptions() {
             const rows = [...this.settings.subjects, ...this.discover.filter(row => !this.hasSubject(row.slug))];
@@ -352,16 +353,24 @@ export function registerTacitApp(Alpine) {
                 this.rememberedSubject = { slug, label: this.selectedSubject.label };
                 try { localStorage.setItem('tacit.selectedSubject', JSON.stringify(this.rememberedSubject)); } catch (_) { /* blocked: selection not remembered */ }
             });
-            this.$watch('activeTab', tab => { if (tab !== 'insights') this.insightImport = null; });
+            this.$watch('activeTab', tab => { if (tab !== 'insights') this.insightImport = null; if (tab !== 'feed') this.setFullView(''); });
+            const applyRoute = route => {
+                this.setFullView(route.tab === 'tacit' ? route.id : '');
+                this.activeTab = route.tab === 'tacit' ? 'feed' : route.tab;
+                if (route.tab === 'import') this.importView = route.view;
+                if (route.tab === 'insights') this.insightsView = route.view;
+            };
             const route = parseRoute(location.hash);
-            if (route) { this.activeTab = route.tab; if (route.tab === 'import') this.importView = route.view; if (route.tab === 'insights') this.insightsView = route.view; history.replaceState(null, '', buildRoute(this.activeTab, { import: this.importView, insights: this.insightsView })); }
-            this.$watch(() => buildRoute(this.activeTab, { import: this.importView, insights: this.insightsView }), hash => { if (location.hash !== hash) location.hash = hash; });
+            if (route) { applyRoute(route); if (location.hash !== this.routeHash) history.replaceState(history.state, '', this.routeHash); }
+            this.$watch(() => this.routeHash, hash => {
+                if (location.hash === hash) return;
+                location.hash = hash;
+                if (this.fullViewId) history.replaceState({ ...history.state, fromApp: true }, '');
+            });
             window.addEventListener('hashchange', () => {
                 const next = parseRoute(location.hash);
-                if (!next) return;
-                this.activeTab = next.tab;
-                if (next.tab === 'import') this.importView = next.view;
-                if (next.tab === 'insights') this.insightsView = next.view;
+                if (next) applyRoute(next);
+                else if (this.fullViewId) applyRoute({ tab: 'feed' });
             });
             await this.reload();
             const savedFeedSubject = readJson('tacit.feedSubject', '');
@@ -379,6 +388,7 @@ export function registerTacitApp(Alpine) {
             this.initHelpTips();
             setInterval(() => { const live = expireToasts(this.toasts, Date.now()); if (live.length !== this.toasts.length) this.toasts = live; }, 500);
             this.ready = true;
+            this.refreshFullView();
             if (backupDue(this.settings, this.library.length > 0, Date.now())) document.getElementById('backup-reminder').showModal();
         },
         localSecret() {
@@ -418,6 +428,7 @@ export function registerTacitApp(Alpine) {
             this.tombstones = await store.getAll('tombstones');
             this.library = (await store.getAll('library')).sort((a, b) => b.event.created_at - a.event.created_at).map(item => ({ ...item, content: parseContent(item.event) })).filter(item => item.content);
             this.authorNames = latestAuthorNames([...this.library, ...pending.filter(item => item.kind === 'incoming')].map(item => item.event));
+            this.refreshFullView();
         },
         editPrompt() { this.promptDraft = this.customPrompt ?? DEFAULT_TACIT_PROMPT; this.promptEditing = true; },
         savePrompt() {
@@ -481,8 +492,8 @@ export function registerTacitApp(Alpine) {
             if (!result.action || result.action === 'close' || document.querySelector('dialog[open]')) return;
             event.preventDefault();
             if (result.action === 'help') this.openShortcuts(document.getElementById('shortcuts-button'));
-            else if (result.action === 'search') { this.activeTab = 'feed'; this.$nextTick(() => document.getElementById('feed-search').focus()); }
-            else if (result.action.startsWith('go:')) this.activeTab = result.action.slice(3);
+            else if (result.action === 'search') { this.showTab('feed'); this.$nextTick(() => document.getElementById('feed-search').focus()); }
+            else if (result.action.startsWith('go:')) this.showTab(result.action.slice(3));
         },
         copyKey(pubkey) { return this.copy(encodeNpub(pubkey), 'Public key'); },
         async copy(text, label) {
@@ -584,8 +595,36 @@ export function registerTacitApp(Alpine) {
             this.publish(record);
         },
         clearFilters() { this.feedFilters = { subject: '', author: '', visibility: '', search: '' }; },
+        get routeHash() { return buildRoute(this.fullViewId ? 'tacit' : this.activeTab, { import: this.importView, insights: this.insightsView }, this.fullViewId); },
+        get fullView() {
+            const result = resolveFullView(this.library, this.fullViewId);
+            const picked = result.status === 'ambiguous' && result.matches.find(item => item.key === this.fullViewPick);
+            return picked ? { ...result, status: 'found', item: picked } : result;
+        },
+        setFullView(id) {
+            if (id === this.fullViewId) return;
+            this.fullViewPick = ''; this.closeLink(); fullViewFocused = '';
+            this.fullViewId = id;
+            this.refreshFullView();
+        },
+        pickFullView(key) { this.fullViewPick = key; this.refreshFullView(); },
+        get fullViewReady() { return !!this.fullViewId && !!this.fullView.item && this.detailItem?.key === this.fullView.item.key; },
+        showTab(tab) { this.activeTab = tab; this.setFullView(''); },
+        async openFullView(item) {
+            detailOpener = null; this.closeDetail(); this.setFullView(fullViewIdOf(item.key));
+            this.activeTab = 'feed';
+        },
+        leaveFullView() { if (history.state?.fromApp) history.back(); else this.showTab('feed'); },
+        refreshFullView() {
+            if (!this.fullViewId || !this.ready) return;
+            const item = this.fullView.item;
+            if (item && (item.key !== this.detailItem?.key || item.event.id !== this.detailItem.event.id || item.visibility !== this.detailItem.visibility)) this.detailItem = item;
+            if (fullViewFocused === this.fullViewId) return;
+            fullViewFocused = this.fullViewId;
+            this.$nextTick(() => document.getElementById('full-view-heading')?.focus());
+        },
         async openDetail(item, el) {
-            detailOpener = el; this.detailItem = item;
+            detailOpener = el; this.detailItem = item; this.sheetOpen = true;
             await this.$nextTick();
             const dialog = document.getElementById('record-detail');
             if (this.detailItem && !dialog.open) dialog.showModal();
@@ -596,11 +635,11 @@ export function registerTacitApp(Alpine) {
         },
         detailClosed() {
             const opener = detailOpener;
-            detailOpener = null; this.detailItem = null; this.closeLink();
+            detailOpener = null; this.sheetOpen = false; if (!this.fullViewId) this.detailItem = null; this.closeLink();
             if (opener?.isConnected) opener.focus();
         },
         syncDetail() {
-            if (!this.detailItem) return;
+            if (!this.detailItem || !this.sheetOpen) return;
             const current = this.library.find(entry => entry.key === this.detailItem.key);
             if (!current) this.closeDetail();
             else if (current.event.id !== this.detailItem.event.id || current.visibility !== this.detailItem.visibility) this.detailItem = current;
