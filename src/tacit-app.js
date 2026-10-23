@@ -6,7 +6,7 @@ import { createLocalSigner, createExtensionSigner, pickSource, retireKey, genera
 import { decideIncoming, connectRoom, connectDirectory, announcementFor, validAnnouncements, groupDiscover, mergeSubjectCache } from './tacit-sync.js';
 import { filterFeed, highlightParts } from './tacit-feed.js';
 import { RELATIONS, isInsight, shortIdOf, buildInsightTemplate, buildInsightEdit, shareBlocker, relationsOf, findOwnInsight, groupInsights, cascadeTargets, incomingInsightCard, feedBadges, isWellFormedInsight, DEFAULT_PROMPT_LIMIT, validPromptLimit, planInsightPrompts, insightPromptCards, importInsightRows, applyToDraft, updateInsightDraft } from './tacit-insight.js';
-import { isRecord, isComment, COMMENT_BODY_MAX, worksD, buildWorksTemplate, buildCommentTemplate, buildThread, shownCount, worksCount, cascadeTargets as discussionTargets, fullViewIdOf, resolveFullView } from './tacit-comment.js';
+import { isRecord, isComment, COMMENT_BODY_MAX, worksD, buildWorksTemplate, buildCommentTemplate, buildThread, flattenThread, shownCount, worksCount, cascadeTargets as discussionTargets, fullViewIdOf, resolveFullView } from './tacit-comment.js';
 import { rankBySimilarity, candidatesFor, LINK_TOP_N } from './tacit-similarity.js';
 import { buildBackup, parseBackup, restoreBackup, backupDue, DEFAULT_BACKUP_REMINDER } from './tacit-backup.js';
 import { parseRoute, buildRoute } from './tacit-route.js';
@@ -70,7 +70,7 @@ export function registerTacitApp(Alpine) {
         pubkey: '', previousKeys: [], signer: null, extensionAvailable: false, switchAck: false, secretRevealed: false, exportAck: false, secretHex: '', secretNsec: '',
         bellOpen: false, nameDraft: '', resolveName: null, importKeyText: '', importAck: false, trustForm: { status: '', key: '', error: '' }, identityMessage: '', backupSummary: '', theme: localStorage.getItem('tacit.theme') || '', toasts: [],
         pasteText: '', importSummary: null, drafts: [], incoming: [], trust: [], hiddenKeys: [], tombstones: [], library: [], syncLogs: [], authorNames: {}, directoryPeers: {}, subjectCache: {}, ready: false,
-        feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null, sheetOpen: false, fullViewId: '', fullViewPick: '', commentDraft: '', replyTo: '', replyDraft: '', commentMax: COMMENT_BODY_MAX, linkForm: blankLink(), relations: RELATIONS,
+        feedFilters: { subject: '', author: '', visibility: '', search: '' }, detailItem: null, sheetOpen: false, fullViewId: '', fullViewPick: '', commentDraft: '', replyTo: '', replyDraft: '', threadWide: false, threadCollapsed: {}, commentMax: COMMENT_BODY_MAX, linkForm: blankLink(), relations: RELATIONS,
         authorOptions: [{ value: '', label: 'All' }, { value: 'mine', label: 'Mine' }, { value: 'trusted', label: 'Trusted' }, { value: 'others', label: 'Others' }],
         get subjectOptions() {
             const rows = [...this.settings.subjects, ...this.discover.filter(row => !this.hasSubject(row.slug))];
@@ -339,6 +339,9 @@ export function registerTacitApp(Alpine) {
             try { this.customPrompt = localStorage.getItem('tacit.extractPrompt'); } catch (_) { /* blocked: default prompt */ }
             this.subjectCache = mergeSubjectCache(readJson('tacit.subjectCache', {}), [], Date.now());
             this.extensionAvailable = !!window.nostr;
+            const wide = matchMedia('(min-width: 900px)');
+            this.threadWide = wide.matches;
+            wide.addEventListener('change', event => { this.threadWide = event.matches; });
             try { await this.activateSigner(pickSource(window.nostr, this.settings.signerPreference)); } catch (error) {
                 this.identityMessage = `Extension unavailable, using local key: ${error.message}`;
                 await this.activateSigner('local');
@@ -672,9 +675,10 @@ export function registerTacitApp(Alpine) {
                 library: this.library, tombstones: Object.fromEntries(this.tombstones.map(entry => [entry.key, entry.created_at])),
                 hiddenKeys: new Set(this.hiddenKeys), blockedKeys: new Set(this.trust.filter(entry => entry.status === 'blocked').map(entry => entry.pubkey)),
             });
-            const flatten = nodes => nodes.flatMap(node => [node, ...flatten(node.children)]);
-            return flatten(thread);
+            return flattenThread(thread, { maxIndent: this.threadWide ? 8 : 4, collapsed: this.threadCollapsed });
         },
+        toggleThread(row) { this.threadCollapsed = { ...this.threadCollapsed, [row.key]: !row.collapsed }; },
+        repliesText(row) { return `${row.replies} ${row.replies === 1 ? 'reply' : 'replies'}`; },
         stubText(row) { return { deleted: 'Comment deleted', hidden: 'Comment hidden', missing: 'Earlier comment not received yet' }[row.stub]; },
         openReply(row) {
             this.replyTo = row.key; this.replyDraft = '';

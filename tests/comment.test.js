@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildWorksTemplate, isValidWorks, worksCount, cascadeTargets, fullViewIdOf, resolveFullView, buildCommentTemplate, isValidComment, buildThread, shownCount, isRecord } from '../src/tacit-comment.js';
+import { buildWorksTemplate, isValidWorks, worksCount, cascadeTargets, fullViewIdOf, resolveFullView, buildCommentTemplate, isValidComment, buildThread, shownCount, flattenThread, isRecord } from '../src/tacit-comment.js';
 import { decideIncoming, announcementFor } from '../src/tacit-sync.js';
 import { filterFeed } from '../src/tacit-feed.js';
 import { buildDrafts, existingRecords } from '../src/tacit-import.js';
@@ -357,4 +357,44 @@ test('comments and their deletion tombstones round-trip through backup', async (
     const plan = restoreBackup(backup, { library: [], tombstones: [], trust: [], hiddenKeys: [], subjects: [] }, 5000);
     assert.deepEqual(plan.puts.library.map(r => [r.key, r.event.id, r.visibility, r.subjectSlug]), [[recordKey(kept), kept.id, 'shared', 'pest']]);
     assert.deepEqual(plan.puts.tombstones.map(entry => entry.key), [recordKey(removed)]);
+});
+
+const chain = (root, length) => {
+    const nodes = [];
+    for (let n = 1; n <= length; n++) nodes.push(comment(n % 2 ? A : B, n, root.key, n === 1 ? root.key : nodes[n - 2].key));
+    return nodes;
+};
+
+test('rows indent one step per level up to the cap; deeper replies stay at the cap and name the parent author', () => {
+    const root = rec(D, U1), nodes = chain(root, 7);
+    const thread = buildThread(root.key, { library: [root, ...nodes] });
+    const narrow = flattenThread(thread, { maxIndent: 4 });
+    assert.deepEqual(narrow.map(row => row.indent), [0, 1, 2, 3, 4, 4, 4]);
+    assert.deepEqual(narrow.map(row => row.replyingTo), [null, null, null, null, null, nodes[4].event.pubkey, nodes[5].event.pubkey]);
+    const wide = flattenThread(thread, { maxIndent: 8 });
+    assert.deepEqual(wide.map(row => row.indent), [0, 1, 2, 3, 4, 5, 6]);
+    assert.deepEqual(wide.map(row => row.replyingTo), Array(7).fill(null));
+    assert.deepEqual(flattenThread(buildThread(root.key, { library: [root, ...chain(root, 10)] }), { maxIndent: 8 }).slice(8).map(row => [row.indent, row.replyingTo !== null]), [[8, false], [8, true]]);
+});
+
+test('a reply under a stub has no author to name, so it shows no "replying to"', () => {
+    const root = rec(D, U1), lost = comment(A, 1, root.key, root.key);
+    const rows = flattenThread(buildThread(root.key, { library: [root, comment(B, 2, root.key, lost.key)] }), { maxIndent: 0 });
+    assert.deepEqual(rows.map(row => [row.indent, row.replyingTo]), [[0, null], [0, null]]);
+});
+
+test('a collapsed comment hides its whole subtree and reports how many shown comments it hides', () => {
+    const root = rec(D, U1), [c1, c2, c3] = chain(root, 3), sibling = comment(E, 4, root.key, c1.key), spam = comment(C, 5, root.key, c2.key), top = comment(E, 6, root.key, root.key);
+    const thread = buildThread(root.key, { library: [root, c1, c2, c3, sibling, top], folded: [spam] });
+    const open = flattenThread(thread, { maxIndent: 4 });
+    assert.deepEqual(open.map(row => [row.key, row.replies, row.collapsed]), [[c1.key, 3, false], [c2.key, 1, false], [c3.key, 0, false], [spam.key, 0, false], [sibling.key, 0, false], [top.key, 0, false]]);
+    const closed = flattenThread(thread, { maxIndent: 4, collapsed: { [c1.key]: true } });
+    assert.deepEqual(closed.map(row => [row.key, row.replies, row.collapsed]), [[c1.key, 3, true], [top.key, 0, false]]);
+    const inner = flattenThread(thread, { maxIndent: 4, collapsed: { [c2.key]: true } });
+    assert.deepEqual(inner.map(row => [row.key, row.collapsed]), [[c1.key, false], [c2.key, true], [sibling.key, false], [top.key, false]]);
+});
+
+test('a comment whose only replies are folded has no replies to collapse', () => {
+    const root = rec(D, U1), c1 = comment(A, 1, root.key, root.key), spam = comment(B, 2, root.key, c1.key);
+    assert.equal(flattenThread(buildThread(root.key, { library: [root, c1], folded: [spam] }), { maxIndent: 4 })[0].replies, 0);
 });

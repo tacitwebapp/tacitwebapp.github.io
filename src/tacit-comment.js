@@ -100,3 +100,11 @@ export function buildThread(rootKey, { library, folded = [], tombstones = {}, hi
 const byPosted = (a, b) => a.postedAt - b.postedAt || (a.key < b.key ? -1 : 1);
 
 export const shownCount = nodes => nodes.reduce((total, node) => total + (node.stub || node.folded ? 0 : 1) + shownCount(node.children), 0);
+
+export function flattenThread(nodes, { maxIndent, collapsed = {} }, parent = null) {
+    return nodes.flatMap(node => {
+        const replies = shownCount(node.children), isCollapsed = Boolean(collapsed[node.key]) && replies > 0;
+        const row = { ...node, indent: Math.min(node.depth, maxIndent), replyingTo: node.depth > maxIndent ? parent?.item?.event.pubkey ?? null : null, replies, collapsed: isCollapsed };
+        return [row, ...(isCollapsed ? [] : flattenThread(node.children, { maxIndent, collapsed }, node))];
+    });
+}
