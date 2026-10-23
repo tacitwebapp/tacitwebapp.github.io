@@ -439,7 +439,7 @@ export function registerTacitApp(Alpine) {
             this.drafts = pending.filter(item => item.kind === 'draft').sort((a, b) => a.createdAt - b.createdAt);
             this.insightDrafts = pending.filter(item => item.kind === 'insight-draft').sort((a, b) => a.createdAt - b.createdAt);
             const groups = {};
-            pending.filter(item => item.kind === 'incoming').forEach(item => { const content = parseContent(item.event); if (content && (!isInsight(content) || isWellFormedInsight(content, item.id))) (groups[item.pubkey] ??= []).push({ ...item, content }); });
+            pending.filter(item => item.kind === 'incoming').forEach(item => { const content = parseContent(item.event); if (content && (isInsight(content) ? isWellFormedInsight(content, item.id) : isRecord(content))) (groups[item.pubkey] ??= []).push({ ...item, content }); });
             this.incoming = Object.entries(groups).map(([pubkey, records]) => ({ pubkey, records }));
             this.folded = foldedComments(pending);
             this.trust = await store.getAll('trust');
